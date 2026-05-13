@@ -50,32 +50,39 @@
 
       <!-- Words Grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <n-card v-for="word in words.data" :key="word.id" class="hover:shadow-lg transition-shadow">
-          <template #header>
-            <Link :href="route('words.show', word.slug)" class="text-xl font-bold text-blue-600 hover:text-blue-800">
-              {{ word.text }}
-            </Link>
-          </template>
-          
-          <div class="space-y-3">
-            <div class="flex items-center space-x-4 text-sm text-gray-500">
-              <span>{{ word.syllables }} syllable{{ word.syllables !== 1 ? 's' : '' }}</span>
-              <span>{{ word.text.length }} letters</span>
-            </div>
-            
-            <div v-if="word.definitions.length > 0" class="space-y-2">
-              <div v-for="definition in word.definitions" :key="definition.id" class="text-gray-700">
-                "{{ definition.text }}"
-                <div class="text-xs text-gray-500 mt-1">
-                  by {{ definition.user.name }} • {{ definition.votes_count }} votes
+        <a
+          v-for="word in words.data"
+          :key="word.id"
+          :href="route('words.show', word.slug)"
+          class="group block rounded-lg no-underline text-inherit focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+        >
+          <n-card class="hover:shadow-lg transition-shadow h-full">
+            <template #header>
+              <span class="text-xl font-bold text-blue-600 group-hover:text-blue-800">
+                {{ word.text }}
+              </span>
+            </template>
+
+            <div class="space-y-3">
+              <div class="flex items-center space-x-4 text-sm text-gray-500">
+                <span>{{ word.syllables }} syllable{{ word.syllables !== 1 ? 's' : '' }}</span>
+                <span>{{ word.text.length }} letters</span>
+              </div>
+
+              <div v-if="word.definitions.length > 0" class="space-y-2">
+                <div v-for="definition in word.definitions" :key="definition.id" class="text-gray-700">
+                  "{{ definition.text }}"
+                  <div class="text-xs text-gray-500 mt-1">
+                    by {{ definition.user.name }} • {{ definition.votes_count }} votes
+                  </div>
                 </div>
               </div>
+              <div v-else class="text-gray-400 italic">
+                No definitions yet
+              </div>
             </div>
-            <div v-else class="text-gray-400 italic">
-              No definitions yet
-            </div>
-          </div>
-        </n-card>
+          </n-card>
+        </a>
       </div>
 
       <!-- Pagination -->
@@ -91,7 +98,7 @@
 </template>
 
 <script setup>
-import { Link, router } from '@inertiajs/vue3'
+import { router } from '@inertiajs/vue3'
 import { ref, computed } from 'vue'
 import Layout from '@/Components/Layout.vue'
 

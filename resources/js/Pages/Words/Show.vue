@@ -93,7 +93,7 @@ const submitDefinition = () => {
   if (!definitionText.value.trim()) return
   
   submitting.value = true
-  router.post(route('words.definitions.store', props.word.id), {
+  router.post(route('words.definitions.store', props.word.slug), {
     text: definitionText.value
   }, {
     onFinish: () => {

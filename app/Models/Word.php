@@ -9,6 +9,14 @@ use Illuminate\Support\Str;
 
 class Word extends Model
 {
+    /**
+     * Word URLs use the slug (see routes/web.php `{word}`).
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'slug';
+    }
+
     protected $fillable = [
         'text',
         'phonemes',
