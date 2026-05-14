@@ -69,18 +69,19 @@
       <!-- Login Prompt -->
       <div v-else class="bg-blue-50 rounded-lg border border-blue-200 p-6 text-center">
         <p class="text-blue-800 mb-4">Want to add a definition or vote?</p>
-        <n-button type="primary" @click="login">
-          Login with Google
-        </n-button>
+        <div class="flex justify-center">
+          <GoogleSignInButton @click="login" />
+        </div>
       </div>
     </div>
   </Layout>
 </template>
 
 <script setup>
-import { Link, router } from '@inertiajs/vue3'
+import { router } from '@inertiajs/vue3'
 import { ref } from 'vue'
 import Layout from '@/Components/Layout.vue'
+import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
 
 const props = defineProps({
   word: Object,
