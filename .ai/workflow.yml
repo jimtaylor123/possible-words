@@ -1,0 +1,60 @@
+name: standard_feature_delivery
+
+trigger:
+  type: github_issue
+
+inputs:
+  issue_id: ${GITHUB_ISSUE}
+
+steps:
+
+  - id: analysis
+    agent: implementer
+    prompt: |
+      Read the GitHub issue and relevant code.
+      Ask clarifying questions if needed.
+
+  - id: planning
+    agent: implementer
+    prompt: |
+      Create a concise implementation plan.
+      Wait for user approval before continuing.
+
+  - id: implementation
+    agent: implementer
+    depends_on: planning
+    prompt: |
+      Implement the approved plan.
+      Make small, clean commits.
+
+  - id: review
+    agent: reviewer
+    prompt: |
+      Review the diff as a senior engineer.
+      Identify bugs, edge cases, and design issues.
+      Do NOT suggest new features.
+
+  - id: fix_loop
+    agent: implementer
+    depends_on: review
+    loop: 2
+    prompt: |
+      Fix only issues raised in review.
+
+  - id: test_validation
+    agent: tester
+    prompt: |
+      Run lint, tests, and relevant integration checks.
+      Report failures clearly.
+
+  - id: final_fix
+    agent: implementer
+    depends_on: test_validation
+    prompt: |
+      Fix only failing tests or validation issues.
+
+  - id: pr
+    agent: implementer
+    prompt: |
+      Push branch and open a GitHub PR.
+      Include summary, risks, and test evidence.
