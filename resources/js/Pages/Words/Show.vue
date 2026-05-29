@@ -84,7 +84,7 @@ import Layout from '@/Components/Layout.vue'
 import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
 
 const props = defineProps({
-  word: Object,
+  word: { type: Object, required: true },
 })
 
 const definitionText = ref('')

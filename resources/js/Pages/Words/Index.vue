@@ -7,7 +7,7 @@
         
         <!-- Search and Filters -->
         <div class="bg-white p-6 rounded-lg shadow-sm border">
-          <form @submit.prevent="search" class="space-y-4">
+          <form class="space-y-4" @submit.prevent="search">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
               <n-input
                 v-model:value="filters.search"
@@ -99,12 +99,12 @@
 
 <script setup>
 import { router } from '@inertiajs/vue3'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import Layout from '@/Components/Layout.vue'
 
 const props = defineProps({
-  words: Object,
-  filters: Object,
+  words: { type: Object, required: true },
+  filters: { type: Object, required: true },
 })
 
 const filters = ref({ ...props.filters })

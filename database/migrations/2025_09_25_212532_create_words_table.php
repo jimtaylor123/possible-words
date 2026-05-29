@@ -21,7 +21,7 @@ return new class extends Migration
             $table->timestamp('owned_until')->nullable();
             $table->string('slug')->unique();
             $table->timestamps();
-            
+
             $table->index(['status', 'syllables']);
             $table->index('text');
         });

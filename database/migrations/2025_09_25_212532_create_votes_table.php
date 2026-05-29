@@ -17,7 +17,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->tinyInteger('value'); // -1 or 1
             $table->timestamps();
-            
+
             $table->unique(['definition_id', 'user_id']);
             $table->index('definition_id');
         });

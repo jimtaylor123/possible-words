@@ -22,3 +22,12 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Agent config with API keys
+.agent/opencode.json
+.agent/todo.md
+.agent/plan.md
+.agent/notes.md
+.agent/browser_logs.md
+.agent/port.txt
+.agent/review.md
