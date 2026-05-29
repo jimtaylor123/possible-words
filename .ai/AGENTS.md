@@ -21,6 +21,8 @@ A web app that generates pronounceable made-up words using phonotactic rules (on
 | `npm run build` | Production frontend build |
 | `composer run test` | Run all PHPUnit tests |
 | `php artisan test` | Run all PHPUnit tests |
+| `php artisan serve` | Start the Laravel dev server (default port 8000) |
+| `php artisan serve --port=8080` | Start the Laravel dev server on a specific port |
 
 ## Coding Conventions
 
@@ -63,5 +65,4 @@ All routes defined in `routes/web.php`:
 
 ## Important Notes
 - Google OAuth credentials are in `.env` (live keys)
-- Use `TODO.md` for tracking bugs and features
-- `presidents.txt` is a personal file, unrelated to the project
+- Tasks and bugs are tracked in GitHub Issues (TODO.md is deprecated and will be removed)
