@@ -1,60 +1,131 @@
-name: standard_feature_delivery
+name: feature_delivery_pipeline_with_isolation
 
 trigger:
   type: github_issue
-
-inputs:
-  issue_id: ${GITHUB_ISSUE}
+  input: ${GITHUB_ISSUE}
 
 steps:
 
+  - id: setup_workspace
+    agent: orchestrator
+    prompt: |
+      Create an isolated work environment for this issue.
+
+      REQUIRED ACTIONS:
+      1. Create a git worktree for this issue:
+         worktrees/${GITHUB_ISSUE}
+
+      2. Create scratch directory inside worktree:
+         worktrees/${GITHUB_ISSUE}/.agent/
+
+      3. Inside scratch directory create:
+         - todo.md
+         - plan.md
+         - notes.md
+         - browser_logs.md
+
+      4. Determine an available port for dev server:
+         - start from 3001
+         - check ports currently in use
+         - assign first free port
+         - write to:
+           worktrees/${GITHUB_ISSUE}/.agent/port.txt
+
+      5. Start dev server in that worktree using assigned port.
+
+      OUTPUT:
+      - worktree path
+      - assigned port
+      - dev server URL
+
   - id: analysis
     agent: implementer
+    depends_on: setup_workspace
     prompt: |
-      Read the GitHub issue and relevant code.
-      Ask clarifying questions if needed.
+      Read GitHub issue and codebase in the worktree.
 
-  - id: planning
+      Write to:
+      .agent/todo.md
+      .agent/plan.md
+
+      Ask clarifying questions if required.
+
+  - id: planning_approval_gate
     agent: implementer
+    depends_on: analysis
     prompt: |
-      Create a concise implementation plan.
-      Wait for user approval before continuing.
+      Present final implementation plan.
+
+      Do NOT proceed until explicitly approved.
+
+      Save final plan to:
+      .agent/plan.md
 
   - id: implementation
     agent: implementer
-    depends_on: planning
+    depends_on: planning_approval_gate
     prompt: |
-      Implement the approved plan.
-      Make small, clean commits.
+      Implement the approved plan in small commits.
 
-  - id: review
+      Keep all work inside this worktree only.
+
+      Update:
+      - .agent/todo.md (progress tracking)
+      - .agent/notes.md (decisions made)
+
+  - id: ai_review
     agent: reviewer
+    depends_on: implementation
     prompt: |
-      Review the diff as a senior engineer.
-      Identify bugs, edge cases, and design issues.
-      Do NOT suggest new features.
+      Review the diff critically.
+
+      Focus:
+      - correctness
+      - edge cases
+      - architecture consistency
+      - test coverage
+
+      Output issues to:
+      .agent/review.md
 
   - id: fix_loop
     agent: implementer
-    depends_on: review
+    depends_on: ai_review
     loop: 2
     prompt: |
-      Fix only issues raised in review.
+      Fix ONLY issues listed in .agent/review.md.
 
-  - id: test_validation
+      Do not introduce new features.
+
+  - id: test_and_browser_validation
     agent: tester
+    depends_on: fix_loop
     prompt: |
-      Run lint, tests, and relevant integration checks.
-      Report failures clearly.
+      Run:
+      - lint
+      - unit tests
+      - integration tests
+
+      Then run browser validation using:
+      http://localhost:$(cat .agent/port.txt)
+
+      Record results in:
+      .agent/browser_logs.md
 
   - id: final_fix
     agent: implementer
-    depends_on: test_validation
+    depends_on: test_and_browser_validation
     prompt: |
-      Fix only failing tests or validation issues.
+      Fix only failing tests or browser issues.
 
-  - id: pr
+  - id: pr_creation
     agent: implementer
     prompt: |
-      Push branch and open a GitHub PR.
-      Include summary, risks, and test evidence.
+      Push branch.
+
+      Create GitHub PR including:
+      - summary
+      - test results
+      - known limitations
+      - link to GitHub issue
+      - link to worktree dev URL (if relevant)

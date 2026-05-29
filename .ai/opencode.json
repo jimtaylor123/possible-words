@@ -1,0 +1,22 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "inferx": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "inferx",
+      "options": {
+        "baseURL": "https://model.inferx.net/funccall/tn-q5b9mr98q8/endpoints/Qwen3-Coder-Next-FP8/v1",
+        "apiKey": "ix_d99d284f74cd1852bbd09d7a8a34313ac742e5933f2e2a11d4e49e8bfbc9027a"
+      },
+      "models": {
+        "Qwen/Qwen3-Coder-Next-FP8": {
+          "name": "Qwen/Qwen3-Coder-Next-FP8",
+          "limit": {
+            "context": 256144,
+            "output": 16384
+          }
+        }
+      }
+    }
+  }
+}
