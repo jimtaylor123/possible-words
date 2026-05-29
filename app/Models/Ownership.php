@@ -33,8 +33,8 @@ class Ownership extends Model
 
     public function isActive(): bool
     {
-        return $this->status === 'active' && 
-               $this->start_at <= now() && 
+        return $this->status === 'active' &&
+               $this->start_at <= now() &&
                $this->end_at >= now();
     }
 }

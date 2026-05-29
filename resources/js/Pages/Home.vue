@@ -80,7 +80,7 @@ import { Link } from '@inertiajs/vue3'
 import Layout from '@/Components/Layout.vue'
 
 defineProps({
-  featuredWords: Array,
-  recentWords: Array,
+  featuredWords: { type: Array, required: true },
+  recentWords: { type: Array, required: true },
 })
 </script>

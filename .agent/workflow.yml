@@ -25,7 +25,7 @@ steps:
          - browser_logs.md
 
       4. Determine an available port for dev server:
-         - start from 3001
+         - start from 8000
          - check ports currently in use
          - assign first free port
          - write to:

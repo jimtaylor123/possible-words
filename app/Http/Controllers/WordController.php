@@ -2,24 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Word;
 use App\Models\Definition;
 use App\Models\Vote;
+use App\Models\Word;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
 
 class WordController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Word::with(['definitions' => function($q) {
+        $query = Word::with(['definitions' => function ($q) {
             $q->orderBy('votes_count', 'desc')->limit(3);
         }]);
 
         // Apply filters
         if ($request->filled('search')) {
-            $query->where('text', 'like', '%' . $request->search . '%');
+            $query->where('text', 'like', '%'.$request->search.'%');
         }
 
         if ($request->filled('syllables')) {
@@ -31,7 +31,7 @@ class WordController extends Controller
         }
 
         if ($request->filled('starts_with')) {
-            $query->where('text', 'like', $request->starts_with . '%');
+            $query->where('text', 'like', $request->starts_with.'%');
         }
 
         $words = $query->where('status', 'available')
@@ -46,7 +46,7 @@ class WordController extends Controller
 
     public function show(Word $word)
     {
-        $word->load(['definitions.user', 'definitions.votes' => function($q) {
+        $word->load(['definitions.user', 'definitions.votes' => function ($q) {
             $q->where('user_id', Auth::id());
         }]);
 
