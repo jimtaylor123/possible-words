@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class Word extends Model
@@ -35,7 +35,7 @@ class Word extends Model
     protected static function boot()
     {
         parent::boot();
-        
+
         static::creating(function ($word) {
             if (empty($word->slug)) {
                 $word->slug = Str::slug($word->text);

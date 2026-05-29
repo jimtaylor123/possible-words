@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('stripe_session_id')->nullable();
             $table->enum('status', ['pending', 'active', 'expired', 'cancelled'])->default('pending');
             $table->timestamps();
-            
+
             $table->index(['word_id', 'status']);
             $table->index(['user_id', 'status']);
         });

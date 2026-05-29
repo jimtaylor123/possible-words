@@ -18,7 +18,7 @@ return new class extends Migration
             $table->text('text');
             $table->integer('votes_count')->default(0);
             $table->timestamps();
-            
+
             $table->index(['word_id', 'votes_count']);
         });
     }

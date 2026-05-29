@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\WelcomeMail;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Socialite\Facades\Socialite;
 
 class AuthController extends Controller
@@ -71,11 +73,17 @@ class AuthController extends Controller
                 ]
             );
 
+            $wasRecentlyCreated = $user->wasRecentlyCreated;
+
             $user->forceFill([
                 'name' => $name,
                 'email' => $email,
                 'avatar' => $avatar,
             ])->save();
+
+            if ($wasRecentlyCreated) {
+                Mail::to($user)->send(new WelcomeMail($user));
+            }
 
             Auth::login($user, remember: true);
             $request->session()->regenerate();
