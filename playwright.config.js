@@ -8,12 +8,12 @@ export default defineConfig({
     workers: process.env.CI ? 1 : undefined,
     reporter: 'html',
     use: {
-        baseURL: 'http://localhost:8000',
+        baseURL: 'http://localhost:8001',
         trace: 'on-first-retry',
     },
     webServer: {
-        command: 'php artisan serve --port=8000 --env=testing',
-        url: 'http://localhost:8000',
+        command: 'php artisan serve --port=8001 --env=testing 2>/dev/null',
+        url: 'http://localhost:8001',
         reuseExistingServer: !process.env.CI,
         cwd: '.',
     },
