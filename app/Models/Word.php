@@ -22,6 +22,8 @@ class Word extends Model
         'phonemes',
         'syllables',
         'status',
+        'ipa',
+        'audio_url',
         'owner_user_id',
         'owned_until',
         'slug',
