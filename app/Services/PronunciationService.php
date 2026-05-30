@@ -2,12 +2,13 @@
 
 namespace App\Services;
 
+use App\Contracts\TtsProvider;
 use App\Models\Word;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
 
 class PronunciationService
 {
+    public function __construct(private TtsProvider $tts) {}
+
     private array $onsetMap = [
         'b' => 'b', 'bl' => 'bl', 'br' => 'bɹ',
         'c' => 'k', 'ch' => 'tʃ', 'cl' => 'kl', 'cr' => 'kɹ',
@@ -103,45 +104,13 @@ class PronunciationService
         return '/'.strtolower($text).'/';
     }
 
-    public function generateAudio(Word $word, string $ipa): ?string
-    {
-        $apiKey = config('services.openai.key');
-
-        if (empty($apiKey)) {
-            return null;
-        }
-
-        $voice = config('services.openai.voice', 'alloy');
-        $model = config('services.openai.model', 'tts-1');
-
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer '.$apiKey,
-            'Content-Type' => 'application/json',
-        ])->post('https://api.openai.com/v1/audio/speech', [
-            'model' => $model,
-            'input' => $word->text,
-            'voice' => $voice,
-            'response_format' => 'mp3',
-        ]);
-
-        if ($response->failed()) {
-            return null;
-        }
-
-        $disk = config('filesystems.default');
-        $path = 'audio/'.$word->slug.'.mp3';
-        Storage::disk($disk)->put($path, $response->body());
-
-        return Storage::disk($disk)->url($path);
-    }
-
     public function ensurePronunciation(Word $word): Word
     {
         $ipa = $this->generateIPA($word);
         $word->ipa = $ipa;
 
-        if (! empty(config('services.openai.key'))) {
-            $audioUrl = $this->generateAudio($word, $ipa);
+        if ($this->tts->isAvailable()) {
+            $audioUrl = $this->tts->generateAudio($word);
             if ($audioUrl !== null) {
                 $word->audio_url = $audioUrl;
             }

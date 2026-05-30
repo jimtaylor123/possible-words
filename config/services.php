@@ -47,4 +47,18 @@ return [
         'model' => env('TTS_MODEL', 'tts-1'),
     ],
 
+    'tts' => [
+        'default' => env('TTS_PROVIDER', 'edge-tts'),
+
+        'providers' => [
+            'edge-tts' => [
+                'voice' => env('EDGE_TTS_VOICE', 'en-GB-SoniaNeural'),
+            ],
+            'openai' => [
+                'voice' => env('TTS_VOICE', 'alloy'),
+                'model' => env('TTS_MODEL', 'tts-1'),
+            ],
+        ],
+    ],
+
 ];

@@ -1,18 +1,18 @@
 <?php
 
+use App\Contracts\TtsProvider;
 use App\Models\Word;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
     config(['filesystems.default' => 's3']);
     Storage::fake('s3');
 
-    Http::fake([
-        'api.openai.com/*' => Http::response('fake-mp3-content', 200),
-    ]);
+    $mock = mock(TtsProvider::class);
+    $mock->shouldReceive('isAvailable')->andReturn(true);
+    $mock->shouldReceive('generateAudio')->andReturn('http://localhost/audio/test.mp3');
 
-    config(['services.openai.key' => 'sk-test']);
+    $this->app->instance(TtsProvider::class, $mock);
 });
 
 it('show page returns word with pronunciation data', function () {

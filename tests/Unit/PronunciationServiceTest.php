@@ -1,13 +1,11 @@
 <?php
 
+use App\Contracts\TtsProvider;
 use App\Models\Word;
 use App\Services\PronunciationService;
-use Illuminate\Http\Client\Request;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
-    $this->service = new PronunciationService;
+    $this->service = new PronunciationService(mock(TtsProvider::class));
 });
 
 it('generates IPA from stored phonemes', function () {
@@ -46,80 +44,42 @@ it('falls back to grapheme when no phonemes stored', function () {
     expect($ipa)->toBe('/testword/');
 });
 
-it('generates audio via OpenAI TTS', function () {
-    config(['filesystems.default' => 's3']);
-    Storage::fake('s3');
+it('generates audio via TTS provider', function () {
+    $provider = mock(TtsProvider::class);
+    $provider->shouldReceive('isAvailable')->andReturn(true);
+    $provider->shouldReceive('generateAudio')->andReturn('http://localhost/audio/testword.mp3');
 
-    Http::fake([
-        'api.openai.com/*' => Http::response('fake-mp3-content', 200),
-    ]);
-
-    $word = Word::factory()->create([
-        'text' => 'testword',
-        'slug' => 'testword',
-    ]);
-
-    config(['services.openai.key' => 'sk-test']);
-
-    $url = $this->service->generateAudio($word, '/tɛst/');
-
-    Http::assertSent(function (Request $request) {
-        return $request->url() === 'https://api.openai.com/v1/audio/speech'
-            && $request['model'] === 'tts-1'
-            && $request['input'] === 'testword'
-            && $request['voice'] === 'alloy'
-            && $request['response_format'] === 'mp3';
-    });
-
-    Storage::disk(config('filesystems.default'))->assertExists('audio/testword.mp3');
-    expect($url)->not->toBeEmpty();
-});
-
-it('returns null for audio when no API key', function () {
-    config(['services.openai.key' => '']);
+    $service = new PronunciationService($provider);
 
     $word = Word::factory()->create([
         'text' => 'testword',
         'slug' => 'testword',
+        'phonemes' => [
+            ['onset' => 't', 'nucleus' => 'e', 'coda' => 'st'],
+        ],
     ]);
 
-    $url = $this->service->generateAudio($word, '/tɛst/');
-
-    expect($url)->toBeNull();
+    $result = $service->ensurePronunciation($word);
+    expect($result->ipa)->toBe('/tɛst/');
+    expect($result->audio_url)->toBe('http://localhost/audio/testword.mp3');
 });
 
-it('ensurePronunciation generates IPA and saves', function () {
-    $word = Word::factory()->create([
-        'phonemes' => [
-            ['onset' => 'c', 'nucleus' => 'a', 'coda' => 't'],
-        ],
-        'ipa' => null,
-    ]);
+it('skips audio when provider not available', function () {
+    $provider = mock(TtsProvider::class);
+    $provider->shouldReceive('isAvailable')->andReturn(false);
+    $provider->shouldNotReceive('generateAudio');
 
-    $result = $this->service->ensurePronunciation($word);
-
-    expect($result->ipa)->toBe('/kæt/');
-});
-
-it('ensurePronunciation generates audio when API key is set', function () {
-    Storage::fake('s3');
-
-    Http::fake([
-        'api.openai.com/*' => Http::response('fake-mp3-content', 200),
-    ]);
-
-    config(['services.openai.key' => 'sk-test']);
+    $service = new PronunciationService($provider);
 
     $word = Word::factory()->create([
+        'text' => 'testword',
+        'slug' => 'testword',
         'phonemes' => [
-            ['onset' => 'd', 'nucleus' => 'o', 'coda' => 'g'],
+            ['onset' => 't', 'nucleus' => 'e', 'coda' => 'st'],
         ],
-        'ipa' => null,
-        'audio_url' => null,
     ]);
 
-    $result = $this->service->ensurePronunciation($word);
-
-    expect($result->ipa)->toBe('/dɒg/');
-    expect($result->audio_url)->not->toBeNull();
+    $result = $service->ensurePronunciation($word);
+    expect($result->ipa)->toBe('/tɛst/');
+    expect($result->audio_url)->toBeNull();
 });
