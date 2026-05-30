@@ -23,12 +23,14 @@
                 <div v-if="$page.props.auth.user" class="flex space-x-1">
                   <n-button
                     size="small"
-                    :type="definition.votes.find(v => v.user_id === $page.props.auth.user.id && v.value === 1) ? 'primary' : 'default'"
+                    :type="isOwnDefinition(definition) || definition.votes.find(v => v.user_id === $page.props.auth.user.id && v.value === 1) ? 'primary' : 'default'"
+                    :disabled="isOwnDefinition(definition)"
                     @click="vote(definition.id, 1)"
                   >
                     ↑
                   </n-button>
                   <n-button
+                    :style="{ visibility: isOwnDefinition(definition) ? 'hidden' : 'visible' }"
                     size="small"
                     :type="definition.votes.find(v => v.user_id === $page.props.auth.user.id && v.value === -1) ? 'error' : 'default'"
                     @click="vote(definition.id, -1)"
@@ -78,7 +80,7 @@
 </template>
 
 <script setup>
-import { router } from '@inertiajs/vue3'
+import { router, usePage } from '@inertiajs/vue3'
 import { ref } from 'vue'
 import Layout from '@/Components/Layout.vue'
 import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
@@ -87,8 +89,14 @@ const props = defineProps({
   word: { type: Object, required: true },
 })
 
+const page = usePage()
+
 const definitionText = ref('')
 const submitting = ref(false)
+
+const isOwnDefinition = (definition) => {
+  return definition.user_id === page.props.auth.user?.id
+}
 
 const submitDefinition = () => {
   if (!definitionText.value.trim()) return
