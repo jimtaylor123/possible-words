@@ -1,0 +1,18 @@
+services:
+  mailpit:
+    image: axllent/mailpit
+    container_name: possiblewords-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    restart: unless-stopped
+
+  ministack:
+    image: ministackorg/ministack
+    container_name: possiblewords-ministack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
+      - AWS_DEFAULT_REGION=us-east-1
+    restart: unless-stopped

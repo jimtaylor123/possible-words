@@ -7,6 +7,14 @@
 
     <title inertia>{{ config('app.name', 'Laravel') }}</title>
 
+    <!-- Favicon -->
+    @php
+        $faviconUrl = config('filesystems.default') === 's3'
+            ? \Illuminate\Support\Facades\Storage::disk('s3')->url('favicon.ico')
+            : '/favicon.ico';
+    @endphp
+    <link rel="icon" type="image/x-icon" href="{{ $faviconUrl }}">
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
