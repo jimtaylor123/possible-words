@@ -12,7 +12,7 @@ steps:
       Create an isolated work environment for this issue.
 
       REQUIRED ACTIONS:
-      1. Create a git worktree for this issue:
+      1. Ensure you have the latest version of main branch and create a git worktree for this issue from it:
          worktrees/${GITHUB_ISSUE}
 
       2. Create scratch directory inside worktree:
@@ -129,3 +129,4 @@ steps:
       - known limitations
       - link to GitHub issue
       - link to worktree dev URL (if relevant)
+      - assign to jimtaylor123 and request a review from jimtaylor123
