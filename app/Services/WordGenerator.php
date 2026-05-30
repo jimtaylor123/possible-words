@@ -34,10 +34,10 @@ class WordGenerator
 
         while (count($words) < $count && $attempts < $maxAttempts) {
             $attempts++;
-            $word = $this->generateWord();
+            $result = $this->generateWord();
 
-            if ($word && ! in_array($word, $words) && ! $this->isRealWord($word)) {
-                $words[] = $word;
+            if ($result && ! in_array($result['text'], array_column($words, 'text')) && ! $this->isRealWord($result['text'])) {
+                $words[] = $result;
             }
         }
 
@@ -48,6 +48,7 @@ class WordGenerator
     {
         $syllables = rand(1, 3);
         $word = '';
+        $phonemes = [];
 
         for ($i = 0; $i < $syllables; $i++) {
             $onset = $this->onsets[array_rand($this->onsets)];
@@ -55,12 +56,24 @@ class WordGenerator
             $coda = $i === $syllables - 1 ? $this->codas[array_rand($this->codas)] : '';
 
             $word .= $onset.$nucleus.$coda;
+            $phonemes[] = [
+                'onset' => $onset,
+                'nucleus' => $nucleus,
+                'coda' => $coda,
+            ];
         }
 
         // Apply some basic orthographic rules
         $word = $this->applyOrthographicRules($word);
 
-        return strlen($word) >= 3 && strlen($word) <= 12 ? $word : null;
+        if (strlen($word) >= 3 && strlen($word) <= 12) {
+            return [
+                'text' => $word,
+                'phonemes' => $phonemes,
+            ];
+        }
+
+        return null;
     }
 
     private function applyOrthographicRules($word)
@@ -95,10 +108,11 @@ class WordGenerator
 
         foreach ($words as $word) {
             $created[] = Word::create([
-                'text' => $word,
-                'syllables' => $this->countSyllables($word),
+                'text' => $word['text'],
+                'phonemes' => $word['phonemes'],
+                'syllables' => $this->countSyllables($word['text']),
                 'status' => 'available',
-                'slug' => Str::slug($word),
+                'slug' => Str::slug($word['text']),
             ]);
         }
 
