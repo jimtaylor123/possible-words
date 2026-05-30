@@ -17,8 +17,8 @@ class OpenAiTtsProvider implements TtsProvider
             return null;
         }
 
-        $voice = config('services.openai.voice', 'alloy');
-        $model = config('services.openai.model', 'tts-1');
+        $voice = config('services.tts.providers.openai.voice', 'alloy');
+        $model = config('services.tts.providers.openai.model', 'tts-1');
 
         $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$apiKey,

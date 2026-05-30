@@ -83,3 +83,23 @@ it('skips audio when provider not available', function () {
     expect($result->ipa)->toBe('/tɛst/');
     expect($result->audio_url)->toBeNull();
 });
+
+it('leaves audio_url null when TTS generation fails', function () {
+    $provider = mock(\App\Contracts\TtsProvider::class);
+    $provider->shouldReceive('isAvailable')->andReturn(true);
+    $provider->shouldReceive('generateAudio')->andReturn(null);
+
+    $service = new \App\Services\PronunciationService($provider);
+
+    $word = Word::factory()->create([
+        'text' => 'testword',
+        'slug' => 'testword',
+        'phonemes' => [
+            ['onset' => 't', 'nucleus' => 'e', 'coda' => 'st'],
+        ],
+    ]);
+
+    $result = $service->ensurePronunciation($word);
+    expect($result->ipa)->toBe('/tɛst/');
+    expect($result->audio_url)->toBeNull();
+});
