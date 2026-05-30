@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,6 +10,9 @@ use Illuminate\Support\Str;
 
 class Word extends Model
 {
+    /** @use HasFactory<\Database\Factories\WordFactory> */
+    use HasFactory;
+
     /**
      * Word URLs use the slug (see routes/web.php `{word}`).
      */
@@ -22,6 +26,8 @@ class Word extends Model
         'phonemes',
         'syllables',
         'status',
+        'ipa',
+        'audio_url',
         'owner_user_id',
         'owned_until',
         'slug',

@@ -8,6 +8,17 @@
           <span>{{ word.syllables }} syllable{{ word.syllables !== 1 ? 's' : '' }}</span>
           <span>{{ word.text.length }} letters</span>
         </div>
+        <div v-if="word.ipa" class="flex items-center justify-center gap-3 mt-3">
+          <span class="text-lg text-neutral-500 font-mono">{{ word.ipa }}</span>
+          <n-button
+            v-if="word.audio_url"
+            size="small"
+            @click="playAudio"
+          >
+            {{ playing ? 'Playing...' : '🔊 Play' }}
+          </n-button>
+          <audio ref="audioPlayer" :src="word.audio_url" @ended="playing = false" @error="playing = false" />
+        </div>
       </div>
 
       <!-- Definitions Section -->
@@ -86,6 +97,16 @@ import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
 const props = defineProps({
   word: { type: Object, required: true },
 })
+
+const playing = ref(false)
+const audioPlayer = ref(null)
+
+const playAudio = () => {
+  if (audioPlayer.value) {
+    playing.value = true
+    audioPlayer.value.play()
+  }
+}
 
 const definitionText = ref('')
 const submitting = ref(false)
