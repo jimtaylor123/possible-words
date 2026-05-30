@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
+    config(['filesystems.default' => 's3']);
     Storage::fake('s3');
 
     Http::fake([

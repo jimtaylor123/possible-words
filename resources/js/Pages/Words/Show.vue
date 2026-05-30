@@ -17,8 +17,8 @@
           >
             {{ playing ? 'Playing...' : '🔊 Play' }}
           </n-button>
+          <audio ref="audioPlayer" :src="word.audio_url" @ended="playing = false" @error="playing = false" />
         </div>
-        <audio ref="audioPlayer" :src="word.audio_url" @ended="playing = false" />
       </div>
 
       <!-- Definitions Section -->

@@ -47,6 +47,7 @@ it('falls back to grapheme when no phonemes stored', function () {
 });
 
 it('generates audio via OpenAI TTS', function () {
+    config(['filesystems.default' => 's3']);
     Storage::fake('s3');
 
     Http::fake([
@@ -70,11 +71,11 @@ it('generates audio via OpenAI TTS', function () {
             && $request['response_format'] === 'mp3';
     });
 
-    Storage::disk('s3')->assertExists('audio/testword.mp3');
+    Storage::disk(config('filesystems.default'))->assertExists('audio/testword.mp3');
     expect($url)->not->toBeEmpty();
 });
 
-it('returns empty string for audio when no API key', function () {
+it('returns null for audio when no API key', function () {
     config(['services.openai.key' => '']);
 
     $word = Word::factory()->create([
@@ -84,7 +85,7 @@ it('returns empty string for audio when no API key', function () {
 
     $url = $this->service->generateAudio($word, '/tɛst/');
 
-    expect($url)->toBe('');
+    expect($url)->toBeNull();
 });
 
 it('ensurePronunciation generates IPA and saves', function () {

@@ -103,12 +103,12 @@ class PronunciationService
         return '/'.strtolower($text).'/';
     }
 
-    public function generateAudio(Word $word, string $ipa): string
+    public function generateAudio(Word $word, string $ipa): ?string
     {
         $apiKey = config('services.openai.key');
 
         if (empty($apiKey)) {
-            return '';
+            return null;
         }
 
         $voice = config('services.openai.voice', 'alloy');
@@ -125,13 +125,14 @@ class PronunciationService
         ]);
 
         if ($response->failed()) {
-            return '';
+            return null;
         }
 
+        $disk = config('filesystems.default');
         $path = 'audio/'.$word->slug.'.mp3';
-        Storage::disk('s3')->put($path, $response->body());
+        Storage::disk($disk)->put($path, $response->body());
 
-        return Storage::disk('s3')->url($path);
+        return Storage::disk($disk)->url($path);
     }
 
     public function ensurePronunciation(Word $word): Word
@@ -141,7 +142,9 @@ class PronunciationService
 
         if (! empty(config('services.openai.key'))) {
             $audioUrl = $this->generateAudio($word, $ipa);
-            $word->audio_url = $audioUrl;
+            if ($audioUrl !== null) {
+                $word->audio_url = $audioUrl;
+            }
         }
 
         $word->save();

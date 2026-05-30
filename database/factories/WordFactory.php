@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Models\Word;
 use App\Services\WordGenerator;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
 
 class WordFactory extends Factory
 {
@@ -20,7 +21,7 @@ class WordFactory extends Factory
             'phonemes' => $result['phonemes'],
             'syllables' => count($result['phonemes']),
             'status' => 'available',
-            'slug' => strtolower($result['text']),
+            'slug' => Str::slug($result['text']),
         ];
     }
 
@@ -28,7 +29,7 @@ class WordFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'ipa' => '/ˈtɛst/',
-            'audio_url' => 'https://example.com/audio/'.strtolower($attributes['text']).'.mp3',
+            'audio_url' => 'https://example.com/audio/'.Str::slug($attributes['text']).'.mp3',
         ]);
     }
 }
