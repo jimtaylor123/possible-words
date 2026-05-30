@@ -41,4 +41,10 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI', rtrim((string) env('APP_URL', 'http://localhost'), '/').'/auth/google/callback'),
     ],
 
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+        'voice' => env('TTS_VOICE', 'alloy'),
+        'model' => env('TTS_MODEL', 'tts-1'),
+    ],
+
 ];
