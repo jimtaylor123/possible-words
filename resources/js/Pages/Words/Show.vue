@@ -25,8 +25,8 @@
       <div class="bg-white rounded-lg shadow-sm border p-6 mb-8">
         <h2 class="text-2xl font-bold text-gray-900 mb-6">Definitions</h2>
         
-        <div v-if="word.definitions.length > 0" class="space-y-4">
-          <div v-for="definition in word.definitions" :key="definition.id" class="border rounded-lg p-4">
+        <div v-if="definitions.length > 0" class="space-y-4">
+          <div v-for="definition in definitions" :key="definition.id" class="border rounded-lg p-4">
             <div class="flex justify-between items-start mb-2">
               <p class="text-gray-800">{{ definition.text }}</p>
               <div class="flex items-center space-x-2">
@@ -92,7 +92,7 @@
 
 <script setup>
 import { router, usePage } from '@inertiajs/vue3'
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import Layout from '@/Components/Layout.vue'
 import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
 
@@ -114,13 +114,18 @@ const playAudio = () => {
 const definitionText = ref('')
 const submitting = ref(false)
 
+const definitions = ref(props.word.definitions.map(d => ({
+  ...d,
+  votes: d.votes ?? [],
+})))
+
 const isOwnDefinition = (definition) => {
   return definition.user_id === page.props.auth.user?.id
 }
 
 const submitDefinition = () => {
   if (!definitionText.value.trim()) return
-  
+
   submitting.value = true
   router.post(route('words.definitions.store', props.word.slug), {
     text: definitionText.value
@@ -143,4 +148,48 @@ const vote = (definitionId, value) => {
 const login = () => {
   window.location.href = route('auth.google')
 }
+
+const echoChannels = []
+
+onMounted(() => {
+  props.word.definitions.forEach(def => {
+    const channel = window.Echo.channel(`definition.${def.id}`)
+    channel.listen('.definition.voted', (e) => {
+      const defToUpdate = definitions.value.find(d => d.id === e.definitionId)
+      if (defToUpdate) {
+        defToUpdate.votes_count = e.votesCount
+        if (e.userId === page.props.auth?.user?.id) {
+          const existingVote = defToUpdate.votes.find(v => v.user_id === e.userId)
+          if (existingVote) {
+            existingVote.value = e.voteValue
+          } else {
+            defToUpdate.votes.push({
+              user_id: e.userId,
+              definition_id: e.definitionId,
+              value: e.voteValue
+            })
+          }
+        }
+      }
+    })
+    echoChannels.push(channel)
+  })
+
+  const defChannel = window.Echo.channel(`word.${props.word.id}.definitions`)
+  defChannel.listen('.definition.created', (e) => {
+    if (!definitions.value.find(d => d.id === e.definition.id)) {
+      definitions.value.push({
+        ...e.definition,
+        votes: e.definition.votes ?? [],
+      })
+    }
+  })
+  echoChannels.push(defChannel)
+})
+
+onBeforeUnmount(() => {
+  echoChannels.forEach(ch => {
+    window.Echo.leaveChannel(ch.name)
+  })
+})
 </script>

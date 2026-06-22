@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\DefinitionCreated;
+use App\Events\DefinitionVoted;
 use App\Models\Definition;
 use App\Models\Vote;
 use App\Models\Word;
@@ -79,6 +81,8 @@ class WordController extends Controller
             $definition->updateVotesCount();
         });
 
+        broadcast(new DefinitionCreated($definition))->toOthers();
+
         return redirect()->back()->with('success', 'Definition added successfully!');
     }
 
@@ -103,6 +107,8 @@ class WordController extends Controller
         );
 
         $definition->updateVotesCount();
+
+        broadcast(new DefinitionVoted($definition, $vote))->toOthers();
 
         return redirect()->back();
     }
