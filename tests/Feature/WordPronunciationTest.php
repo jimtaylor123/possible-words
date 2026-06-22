@@ -5,8 +5,7 @@ use App\Models\Word;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
-    config(['filesystems.default' => 's3']);
-    Storage::fake('s3');
+    Storage::fake('public');
 
     $mock = mock(TtsProvider::class);
     $mock->shouldReceive('isAvailable')->andReturn(true);

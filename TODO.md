@@ -4,6 +4,8 @@ log in with google doesn't work
 need spacing between the search and clear buttons on the filter page
 
 IMPROVEMENTS
+set up tests
+    meaningful content to tests - use bdd files?
 style is a bit crap, too bootstrappy
 add pronunciation to words
 add a system to like words, even for users that are not logged in

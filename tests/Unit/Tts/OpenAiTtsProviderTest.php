@@ -7,12 +7,12 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
-    config(['filesystems.default' => 's3']);
-    config(['services.openai.key' => 'sk-test']);
-    Storage::fake('s3');
+    Storage::fake('public');
 });
 
 it('generates audio via OpenAI TTS', function () {
+    config(['services.openai.key' => 'sk-test']);
+
     Http::fake([
         'api.openai.com/*' => Http::response('fake-mp3-content', 200),
     ]);
@@ -30,7 +30,7 @@ it('generates audio via OpenAI TTS', function () {
             && $request['model'] === 'tts-1';
     });
 
-    Storage::disk('s3')->assertExists('audio/testword.mp3');
+    Storage::disk('public')->assertExists('audio/testword.mp3');
     expect($result)->not->toBeNull();
 });
 

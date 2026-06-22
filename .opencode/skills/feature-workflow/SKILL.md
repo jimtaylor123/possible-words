@@ -12,7 +12,7 @@ Read `.agent/workflow.yml` to get the step definitions. Follow the step order an
 
 ## 2. Setup (you do this directly)
 Execute the `setup_workspace` step yourself:
-- Create a git worktree from main: `worktrees/<issue-number>`
+- Create a git worktree from main as a sibling directory: `../possiblewords-<issue-number>/`
 - Create `.agent/` scratch directory inside the worktree
 - Create todo.md, plan.md, notes.md, browser_logs.md
 - Find an available port (starting at 8000) and start the dev server

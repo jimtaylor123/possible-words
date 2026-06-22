@@ -32,3 +32,6 @@ Thumbs.db
 .agent/port.txt
 .agent/review.md
 TODO.md
+
+# Prevent nested worktrees — use sibling directories instead
+/worktrees/

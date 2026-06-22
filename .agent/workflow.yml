@@ -12,11 +12,11 @@ steps:
       Create an isolated work environment for this issue.
 
       REQUIRED ACTIONS:
-      1. Ensure you have the latest version of main branch and create a git worktree for this issue from it:
-         worktrees/${GITHUB_ISSUE}
+      1. Ensure you have the latest version of main branch and create a git worktree for this issue from it as a *sibling directory*:
+         git worktree add ../possiblewords-${GITHUB_ISSUE} origin/main
 
       2. Create scratch directory inside worktree:
-         worktrees/${GITHUB_ISSUE}/.agent/
+         ../possiblewords-${GITHUB_ISSUE}/.agent/
 
       3. Inside scratch directory create:
          - todo.md
@@ -29,7 +29,7 @@ steps:
          - check ports currently in use
          - assign first free port
          - write to:
-           worktrees/${GITHUB_ISSUE}/.agent/port.txt
+           ../possiblewords-${GITHUB_ISSUE}/.agent/port.txt
 
       5. Start dev server in that worktree using assigned port.
 

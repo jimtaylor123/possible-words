@@ -1,0 +1,39 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": "allow",
+  "agent": {
+    "build": {
+      "permission": {
+        "task": {
+          "implementer": "allow",
+          "reviewer": "allow",
+          "tester": "allow"
+        }
+      }
+    },
+    "implementer": {
+      "description": "Implements code changes based on plans and fixes issues found during review or testing",
+      "mode": "subagent",
+      "permission": {
+        "edit": "allow",
+        "bash": "allow"
+      }
+    },
+    "reviewer": {
+      "description": "Reviews code diffs for correctness, edge cases, architecture consistency, and test coverage",
+      "mode": "subagent",
+      "permission": {
+        "edit": "deny",
+        "bash": "ask"
+      }
+    },
+    "tester": {
+      "description": "Runs lint, static analysis, unit tests, integration tests, and browser validation",
+      "mode": "subagent",
+      "permission": {
+        "edit": "deny",
+        "bash": "allow"
+      }
+    }
+  }
+}
