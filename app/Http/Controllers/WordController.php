@@ -7,6 +7,7 @@ use App\Models\Vote;
 use App\Models\Word;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class WordController extends Controller
@@ -69,6 +70,15 @@ class WordController extends Controller
             'text' => $request->text,
         ]);
 
+        DB::transaction(function () use ($definition) {
+            $definition->votes()->create([
+                'user_id' => Auth::id(),
+                'value' => 1,
+            ]);
+
+            $definition->updateVotesCount();
+        });
+
         return redirect()->back()->with('success', 'Definition added successfully!');
     }
 
@@ -77,6 +87,10 @@ class WordController extends Controller
         $request->validate([
             'value' => 'required|in:-1,1',
         ]);
+
+        if ($definition->user_id === Auth::id()) {
+            return redirect()->back()->with('error', 'You cannot vote on your own definition.');
+        }
 
         $vote = Vote::updateOrCreate(
             [
