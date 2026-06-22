@@ -6,18 +6,18 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Definition extends Model
+class Comment extends Model
 {
     protected $fillable = [
-        'word_id',
+        'definition_id',
         'user_id',
+        'parent_id',
         'text',
-        'votes_count',
     ];
 
-    public function word(): BelongsTo
+    public function definition(): BelongsTo
     {
-        return $this->belongsTo(Word::class);
+        return $this->belongsTo(Definition::class);
     }
 
     public function user(): BelongsTo
@@ -25,14 +25,19 @@ class Definition extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function votes(): HasMany
+    public function parent(): BelongsTo
     {
-        return $this->hasMany(Vote::class);
+        return $this->belongsTo(Comment::class, 'parent_id');
     }
 
-    public function comments(): HasMany
+    public function replies(): HasMany
     {
-        return $this->hasMany(Comment::class)->whereNull('parent_id');
+        return $this->hasMany(Comment::class, 'parent_id');
+    }
+
+    public function votes(): HasMany
+    {
+        return $this->hasMany(CommentVote::class);
     }
 
     public function updateVotesCount(): void

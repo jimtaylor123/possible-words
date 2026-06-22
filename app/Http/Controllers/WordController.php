@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\CommentCreated;
+use App\Events\CommentVoted;
 use App\Events\DefinitionCreated;
 use App\Events\DefinitionVoted;
+use App\Models\Comment;
+use App\Models\CommentVote;
 use App\Models\Definition;
 use App\Models\Vote;
 use App\Models\Word;
@@ -53,6 +57,12 @@ class WordController extends Controller
     public function show(Word $word)
     {
         $word->load(['definitions.user', 'definitions.votes' => function ($q) {
+            $q->where('user_id', Auth::id());
+        }, 'definitions.comments' => function ($q) {
+            $q->with(['user', 'replies.user', 'replies.votes' => function ($vq) {
+                $vq->where('user_id', Auth::id());
+            }])->withCount('replies')->orderBy('votes_count', 'desc');
+        }, 'definitions.comments.votes' => function ($q) {
             $q->where('user_id', Auth::id());
         }]);
 
@@ -109,6 +119,67 @@ class WordController extends Controller
         $definition->updateVotesCount();
 
         broadcast(new DefinitionVoted($definition, $vote))->toOthers();
+
+        return redirect()->back();
+    }
+
+    public function storeComment(Request $request, Definition $definition)
+    {
+        $request->validate([
+            'text' => 'required|string|max:1000',
+            'parent_id' => 'nullable|exists:comments,id',
+        ]);
+
+        if ($request->parent_id) {
+            $parent = Comment::findOrFail($request->parent_id);
+            if ($parent->parent_id !== null) {
+                return redirect()->back()->with('error', 'Replies can only be one level deep.');
+            }
+        }
+
+        $comment = $definition->comments()->create([
+            'user_id' => Auth::id(),
+            'parent_id' => $request->parent_id,
+            'text' => $request->text,
+        ]);
+
+        DB::transaction(function () use ($comment) {
+            $comment->votes()->create([
+                'user_id' => Auth::id(),
+                'value' => 1,
+            ]);
+
+            $comment->updateVotesCount();
+        });
+
+        broadcast(new CommentCreated($comment))->toOthers();
+
+        return redirect()->back()->with('success', 'Comment added!');
+    }
+
+    public function voteComment(Request $request, Comment $comment)
+    {
+        $request->validate([
+            'value' => 'required|in:-1,1',
+        ]);
+
+        if ($comment->user_id === Auth::id()) {
+            return redirect()->back()->with('error', 'You cannot vote on your own comment.');
+        }
+
+        $vote = CommentVote::updateOrCreate(
+            [
+                'comment_id' => $comment->id,
+                'user_id' => Auth::id(),
+            ],
+            [
+                'value' => $request->value,
+            ]
+        );
+
+        $comment->updateVotesCount();
+
+        broadcast(new CommentVoted($comment, $vote))->toOthers();
 
         return redirect()->back();
     }

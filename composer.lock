@@ -4,8 +4,113 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c08c7bff3f2f9d0d9db2faecf5e241d8",
+    "content-hash": "d49da70ec175196f34d0159d48b62f9f",
     "packages": [
+        {
+            "name": "afaya/edge-tts",
+            "version": "1.7.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/andresayac/edge-tts-php.git",
+                "reference": "48c3f29be85c5f371de33317cdd517a9f0637e3e"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/andresayac/edge-tts-php/zipball/48c3f29be85c5f371de33317cdd517a9f0637e3e",
+                "reference": "48c3f29be85c5f371de33317cdd517a9f0637e3e",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=7.4 <8.5",
+                "ramsey/uuid": "^4.2",
+                "ratchet/pawl": "^0.4.1",
+                "react/async": "^4.3",
+                "react/event-loop": "^1.3",
+                "symfony/console": "^5.4|^6.0|^7.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^9.5"
+            },
+            "bin": [
+                "src/Cli/edge-tts"
+            ],
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Afaya\\EdgeTTS\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-3.0+"
+            ],
+            "description": "Edge TTS is a PHP package that allows access to the online text-to-speech service used by Microsoft Edge without the need for Microsoft Edge, Windows, or an API key.",
+            "support": {
+                "issues": "https://github.com/andresayac/edge-tts-php/issues",
+                "source": "https://github.com/andresayac/edge-tts-php/tree/v1.7.0"
+            },
+            "time": "2025-12-12T23:58:36+00:00"
+        },
+        {
+            "name": "bestmomo/laravel-edge-tts",
+            "version": "0.1.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/bestmomo/laravel-edge-tts.git",
+                "reference": "329c3bbfe44cb8dd4ecb5175bee8bcc4cd5ce02c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/bestmomo/laravel-edge-tts/zipball/329c3bbfe44cb8dd4ecb5175bee8bcc4cd5ce02c",
+                "reference": "329c3bbfe44cb8dd4ecb5175bee8bcc4cd5ce02c",
+                "shasum": ""
+            },
+            "require": {
+                "afaya/edge-tts": "^1.0",
+                "illuminate/support": "^10.0|^11.0|^12.0",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^8.0|^9.0|^10.0",
+                "phpunit/phpunit": "^10.0|^11.0"
+            },
+            "type": "laravel-package",
+            "extra": {
+                "laravel": {
+                    "aliases": {
+                        "EdgeTts": "Bestmomo\\LaravelEdgeTts\\Facades\\EdgeTts"
+                    },
+                    "providers": [
+                        "Bestmomo\\LaravelEdgeTts\\EdgeTtsLaravelServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "files": [
+                    "src/helpers.php"
+                ],
+                "psr-4": {
+                    "Bestmomo\\LaravelEdgeTts\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Bestmomo",
+                    "email": "grandheretique@free.fr",
+                    "homepage": "https://laravel.sillo.org"
+                }
+            ],
+            "description": "Edge-tts-php integration for Laravel",
+            "support": {
+                "issues": "https://github.com/bestmomo/laravel-edge-tts/issues",
+                "source": "https://github.com/bestmomo/laravel-edge-tts/tree/V0.1.3"
+            },
+            "time": "2025-10-05T11:47:52+00:00"
+        },
         {
             "name": "brick/math",
             "version": "0.14.8",
@@ -4122,6 +4227,60 @@
             "time": "2025-12-14T04:43:48+00:00"
         },
         {
+            "name": "ratchet/pawl",
+            "version": "v0.4.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/ratchetphp/Pawl.git",
+                "reference": "2c582373c78271de32cb04c755c4c0db7e09c9c0"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/ratchetphp/Pawl/zipball/2c582373c78271de32cb04c755c4c0db7e09c9c0",
+                "reference": "2c582373c78271de32cb04c755c4c0db7e09c9c0",
+                "shasum": ""
+            },
+            "require": {
+                "evenement/evenement": "^3.0 || ^2.0",
+                "guzzlehttp/psr7": "^2.0",
+                "php": ">=7.4",
+                "ratchet/rfc6455": "^0.3.1 || ^0.4.0",
+                "react/socket": "^1.9"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^9.3 || ^5.7 || ^4.8"
+            },
+            "suggest": {
+                "reactivex/rxphp": "~2.0"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "src/functions_include.php"
+                ],
+                "psr-4": {
+                    "Ratchet\\Client\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "Asynchronous WebSocket client",
+            "keywords": [
+                "Ratchet",
+                "async",
+                "client",
+                "websocket",
+                "websocket client"
+            ],
+            "support": {
+                "issues": "https://github.com/ratchetphp/Pawl/issues",
+                "source": "https://github.com/ratchetphp/Pawl/tree/v0.4.3"
+            },
+            "time": "2025-03-19T16:47:38+00:00"
+        },
+        {
             "name": "ratchet/rfc6455",
             "version": "v0.4.0",
             "source": {
@@ -4179,6 +4338,81 @@
                 "source": "https://github.com/ratchetphp/RFC6455/tree/v0.4.0"
             },
             "time": "2025-02-24T01:18:22+00:00"
+        },
+        {
+            "name": "react/async",
+            "version": "v4.3.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/reactphp/async.git",
+                "reference": "635d50e30844a484495713e8cb8d9e079c0008a5"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/reactphp/async/zipball/635d50e30844a484495713e8cb8d9e079c0008a5",
+                "reference": "635d50e30844a484495713e8cb8d9e079c0008a5",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.1",
+                "react/event-loop": "^1.2",
+                "react/promise": "^3.2 || ^2.8 || ^1.2.1"
+            },
+            "require-dev": {
+                "phpstan/phpstan": "1.10.39",
+                "phpunit/phpunit": "^9.6"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "src/functions_include.php"
+                ],
+                "psr-4": {
+                    "React\\Async\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Christian Lück",
+                    "email": "christian@clue.engineering",
+                    "homepage": "https://clue.engineering/"
+                },
+                {
+                    "name": "Cees-Jan Kiewiet",
+                    "email": "reactphp@ceesjankiewiet.nl",
+                    "homepage": "https://wyrihaximus.net/"
+                },
+                {
+                    "name": "Jan Sorgalla",
+                    "email": "jsorgalla@gmail.com",
+                    "homepage": "https://sorgalla.com/"
+                },
+                {
+                    "name": "Chris Boden",
+                    "email": "cboden@gmail.com",
+                    "homepage": "https://cboden.dev/"
+                }
+            ],
+            "description": "Async utilities and fibers for ReactPHP",
+            "keywords": [
+                "async",
+                "reactphp"
+            ],
+            "support": {
+                "issues": "https://github.com/reactphp/async/issues",
+                "source": "https://github.com/reactphp/async/tree/v4.3.0"
+            },
+            "funding": [
+                {
+                    "url": "https://opencollective.com/reactphp",
+                    "type": "open_collective"
+                }
+            ],
+            "time": "2024-06-04T14:40:02+00:00"
         },
         {
             "name": "react/cache",
