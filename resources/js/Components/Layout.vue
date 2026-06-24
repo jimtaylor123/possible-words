@@ -11,9 +11,6 @@
           </div>
 
           <div class="flex items-center gap-4 sm:gap-6">
-            <Link :href="route('words.index')" class="text-gray-600 hover:text-gray-900 text-sm sm:text-base">
-              Browse Words
-            </Link>
             <Link :href="route('about')" class="text-gray-600 hover:text-gray-900 text-sm sm:text-base">
               About
             </Link>
