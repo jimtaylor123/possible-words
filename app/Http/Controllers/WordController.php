@@ -18,10 +18,10 @@ class WordController extends Controller
     {
         $query = Word::with([
             'definitions' => function ($q) {
-                $q->orderBy('votes_count', 'desc')->limit(3);
+                $q->orderBy('votes_count', 'desc')->limit(1);
             },
             'definitions.user',
-        ]);
+        ])->withCount('definitions');
 
         // Apply filters
         if ($request->filled('search')) {

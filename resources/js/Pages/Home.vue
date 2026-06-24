@@ -67,9 +67,24 @@
         >
           <n-card class="hover:shadow-lg transition-shadow h-full">
             <template #header>
-              <span class="text-xl font-bold text-blue-600 group-hover:text-blue-800">
-                {{ word.text }}
-              </span>
+              <div class="flex items-center justify-between">
+                <span class="text-xl font-bold text-blue-600 group-hover:text-blue-800">
+                  {{ word.text }}
+                </span>
+                <n-button
+                  v-if="word.audio_url"
+                  size="small"
+                  quaternary
+                  circle
+                  @click.stop="playAudio(word)"
+                >
+                  <template #icon>
+                    <svg viewBox="0 0 24 24" width="20" height="20" style="fill: currentColor;">
+                      <path :d="mdiPlay" />
+                    </svg>
+                  </template>
+                </n-button>
+              </div>
             </template>
 
             <div class="space-y-3">
@@ -78,12 +93,28 @@
                 <span>{{ word.text.length }} letters</span>
               </div>
 
-              <div v-if="word.definitions.length > 0" class="space-y-2">
-                <div v-for="definition in word.definitions" :key="definition.id" class="text-gray-700">
-                  "{{ definition.text }}"
-                  <div class="text-xs text-gray-500 mt-1">
-                    by {{ definition.user.name }} &bull; {{ definition.votes_count }} votes
-                  </div>
+              <div v-if="word.definitions.length > 0" class="text-gray-700">
+                "{{ word.definitions[0].text }}"
+                <div class="flex items-center gap-2 text-xs text-gray-500 mt-2">
+                  <n-avatar
+                    v-if="word.definitions[0].user.avatar"
+                    :src="word.definitions[0].user.avatar"
+                    :size="20"
+                    round
+                  />
+                  <n-avatar
+                    v-else
+                    :size="20"
+                    round
+                  >
+                    {{ word.definitions[0].user.name.charAt(0).toUpperCase() }}
+                  </n-avatar>
+                  <span>{{ word.definitions[0].user.name }}</span>
+                  <span>&bull;</span>
+                  <span>{{ word.definitions[0].votes_count }} votes</span>
+                </div>
+                <div class="text-xs text-gray-400 mt-1">
+                  {{ word.definitions_count }} definition{{ word.definitions_count !== 1 ? 's' : '' }} total
                 </div>
               </div>
               <div v-else class="text-gray-400 italic">
@@ -106,6 +137,8 @@
           No more words. Did you just read the entire dictionary?
         </span>
       </div>
+
+      <audio ref="audioRef" @ended="playingWordId = null" @error="playingWordId = null" />
     </div>
   </Layout>
 </template>
@@ -113,7 +146,7 @@
 <script setup>
 import { router } from '@inertiajs/vue3'
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { mdiFilter, mdiFilterOff } from '@mdi/js'
+import { mdiFilter, mdiFilterOff, mdiPlay } from '@mdi/js'
 import Layout from '@/Components/Layout.vue'
 
 const props = defineProps({
@@ -129,6 +162,21 @@ const loadingMore = ref(false)
 const hasMore = ref(true)
 const sentinelRef = ref(null)
 let observer = null
+
+const audioRef = ref(null)
+const playingWordId = ref(null)
+
+const playAudio = (word) => {
+  if (!audioRef.value || !word.audio_url) return
+  if (playingWordId.value === word.id) {
+    audioRef.value.currentTime = 0
+    audioRef.value.play()
+    return
+  }
+  playingWordId.value = word.id
+  audioRef.value.src = word.audio_url
+  audioRef.value.play()
+}
 
 watch(() => props.words, (newWords) => {
   if (!newWords?.data) return
