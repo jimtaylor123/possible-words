@@ -58,9 +58,9 @@
       </div>
 
       <!-- Words Grid -->
-      <div v-if="words.data.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div v-if="allWords.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <a
-          v-for="word in words.data"
+          v-for="word in allWords"
           :key="word.id"
           :href="route('words.show', word.slug)"
           class="group block rounded-lg no-underline text-inherit focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
@@ -99,13 +99,12 @@
         <n-button class="mt-4" @click="clearFilters">Clear Filters</n-button>
       </div>
 
-      <!-- Pagination -->
-      <div v-if="words.last_page > 1" class="mt-8 flex justify-center">
-        <n-pagination
-          v-model:page="currentPage"
-          :page-count="words.last_page"
-          @update:page="handlePageChange"
-        />
+      <!-- Infinite Scroll Sentinel -->
+      <div ref="sentinelRef" class="flex items-center justify-center py-8">
+        <n-spin v-if="loadingMore" size="small" />
+        <span v-else-if="!hasMore && allWords.length > 0" class="text-gray-400 text-sm">
+          No more words. Did you just read the entire dictionary?
+        </span>
       </div>
     </div>
   </Layout>
@@ -113,7 +112,7 @@
 
 <script setup>
 import { router } from '@inertiajs/vue3'
-import { ref, watch, onBeforeUnmount } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { mdiFilter, mdiFilterOff } from '@mdi/js'
 import Layout from '@/Components/Layout.vue'
 
@@ -124,7 +123,56 @@ const props = defineProps({
 
 const showAdvanced = ref(false)
 const filters = ref({ ...props.filters })
-const currentPage = ref(props.words.current_page)
+
+const allWords = ref([])
+const loadingMore = ref(false)
+const hasMore = ref(true)
+const sentinelRef = ref(null)
+let observer = null
+
+watch(() => props.words, (newWords) => {
+  if (!newWords?.data) return
+  if (newWords.current_page === 1 || allWords.value.length === 0) {
+    allWords.value = [...newWords.data]
+  } else {
+    const existingIds = new Set(allWords.value.map(w => w.id))
+    const newItems = newWords.data.filter(w => !existingIds.has(w.id))
+    allWords.value.push(...newItems)
+  }
+  hasMore.value = newWords.current_page < newWords.last_page
+}, { immediate: true })
+
+const loadMore = () => {
+  if (loadingMore.value || !hasMore.value) return
+  loadingMore.value = true
+
+  const nextPage = (props.words?.current_page || 1) + 1
+
+  router.visit(route('home'), {
+    data: { ...buildParams(), page: nextPage },
+    only: ['words'],
+    preserveState: true,
+    preserveScroll: true,
+    onFinish: () => {
+      loadingMore.value = false
+    },
+  })
+}
+
+onMounted(() => {
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0].isIntersecting) {
+        loadMore()
+      }
+    },
+    { rootMargin: '400px' }
+  )
+
+  if (sentinelRef.value) {
+    observer.observe(sentinelRef.value)
+  }
+})
 
 const debounceMs = Number(import.meta.env.VITE_SEARCH_DEBOUNCE_MS) || 200
 let searchTimer = null
@@ -142,6 +190,7 @@ watch(() => filters.value.starts_with, debouncedSearch)
 
 onBeforeUnmount(() => {
   clearTimeout(searchTimer)
+  if (observer) observer.disconnect()
 })
 
 const sortOptions = [
@@ -215,11 +264,7 @@ const toggleAdvanced = () => {
   }
 }
 
-const handlePageChange = (page) => {
-  router.get(route('home'), { ...buildParams(), page }, {
-    preserveState: true,
-  })
-}
+
 </script>
 
 <style scoped>
