@@ -14,6 +14,13 @@
             <Link :href="route('about')" class="text-gray-600 hover:text-gray-900 text-sm sm:text-base">
               About
             </Link>
+            <Link
+              v-if="user"
+              :href="route('words.favourites')"
+              class="text-gray-600 hover:text-gray-900 text-sm sm:text-base"
+            >
+              Favourites
+            </Link>
 
             <n-dropdown
               v-if="user"
