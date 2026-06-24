@@ -51,8 +51,19 @@
                 </div>
               </div>
             </div>
-            <div class="text-sm text-gray-500">
-              by {{ definition.user.name }}
+            <div class="text-sm text-gray-500 flex items-center gap-1.5">
+              <n-avatar
+                round
+                size="small"
+                :src="definition.user.avatar || undefined"
+                :alt="definition.user.name"
+                :img-props="{ referrerPolicy: 'no-referrer' }"
+              >
+                <template #fallback>
+                  {{ definition.user.name.charAt(0).toUpperCase() }}
+                </template>
+              </n-avatar>
+              {{ definition.user.name }}
             </div>
           </div>
         </div>
