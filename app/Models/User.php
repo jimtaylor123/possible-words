@@ -69,4 +69,16 @@ class User extends Authenticatable
     {
         return $this->hasMany(Word::class, 'owner_user_id');
     }
+
+    public function favourites(): HasMany
+    {
+        return $this->hasMany(Favourite::class);
+    }
+
+    public function favouriteWords()
+    {
+        return $this->belongsToMany(Word::class, 'favourites')
+            ->using(Favourite::class)
+            ->withTimestamps();
+    }
 }

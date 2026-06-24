@@ -64,6 +64,18 @@ class Word extends Model
         return $this->belongsTo(User::class, 'owner_user_id');
     }
 
+    public function favourites(): HasMany
+    {
+        return $this->hasMany(Favourite::class);
+    }
+
+    public function favouritedBy()
+    {
+        return $this->belongsToMany(User::class, 'favourites')
+            ->using(Favourite::class)
+            ->withTimestamps();
+    }
+
     public function getTopDefinitionsAttribute()
     {
         return $this->definitions()->orderBy('votes_count', 'desc')->limit(5)->get();

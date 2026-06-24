@@ -44,6 +44,7 @@ class HandleInertiaRequests extends Middleware
                     'email' => $request->user()->email,
                     'avatar' => $request->user()->avatar,
                 ] : null,
+                'favourite_ids' => $request->user()?->favourites()->pluck('word_id') ?? [],
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
