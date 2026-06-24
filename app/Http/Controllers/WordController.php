@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\DefinitionCreated;
 use App\Events\DefinitionVoted;
 use App\Models\Definition;
+use App\Models\Favourite;
 use App\Models\Vote;
 use App\Models\Word;
 use Illuminate\Http\Request;
@@ -61,7 +62,7 @@ class WordController extends Controller
                 $query->orderBy('text', $direction);
                 break;
             case 'letters':
-                $query->orderByRaw('LENGTH(text) ' . $direction);
+                $query->orderByRaw('LENGTH(text) '.$direction);
                 break;
             case 'popularity':
                 $query->orderBy(function ($q) {
@@ -149,5 +150,43 @@ class WordController extends Controller
         broadcast(new DefinitionVoted($definition, $vote))->toOthers();
 
         return redirect()->back();
+    }
+
+    public function toggleFavourite(Word $word)
+    {
+        $favourite = Favourite::where('user_id', Auth::id())
+            ->where('word_id', $word->id)
+            ->first();
+
+        if ($favourite) {
+            $favourite->delete();
+
+            return redirect()->back()->with('success', 'Word removed from favourites.');
+        }
+
+        Favourite::create([
+            'user_id' => Auth::id(),
+            'word_id' => $word->id,
+        ]);
+
+        return redirect()->back()->with('success', 'Word added to favourites!');
+    }
+
+    public function favourites(Request $request)
+    {
+        $query = Word::whereHas('favourites', function ($q) {
+            $q->where('user_id', Auth::id());
+        })->with([
+            'definitions' => function ($q) {
+                $q->orderBy('votes_count', 'desc')->limit(1);
+            },
+            'definitions.user',
+        ])->withCount('definitions');
+
+        $words = $query->paginate(20)->withQueryString();
+
+        return Inertia::render('Favourites/Index', [
+            'words' => $words,
+        ]);
     }
 }

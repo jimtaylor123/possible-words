@@ -3,7 +3,22 @@
     <div class="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <!-- Word Header -->
       <div class="text-center mb-8">
-        <h1 class="text-4xl font-bold text-gray-900 mb-4">{{ word.text }}</h1>
+        <div class="flex items-center justify-center gap-3 mb-4">
+          <h1 class="text-4xl font-bold text-gray-900">{{ word.text }}</h1>
+          <n-button
+            v-if="$page.props.auth.user"
+            size="small"
+            quaternary
+            circle
+            @click="toggleFavourite"
+          >
+            <template #icon>
+              <svg viewBox="0 0 24 24" :width="24" :height="24" :style="favouriteIconStyle">
+                <path :d="mdiStar" />
+              </svg>
+            </template>
+          </n-button>
+        </div>
         <div class="flex justify-center space-x-4 text-gray-500">
           <span>{{ word.syllables }} syllable{{ word.syllables !== 1 ? 's' : '' }}</span>
           <span>{{ word.text.length }} letters</span>
@@ -113,8 +128,8 @@
 
 <script setup>
 import { router, usePage } from '@inertiajs/vue3'
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { mdiPlay } from '@mdi/js'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { mdiPlay, mdiStar } from '@mdi/js'
 import Layout from '@/Components/Layout.vue'
 import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
 
@@ -125,6 +140,24 @@ const props = defineProps({
 const page = usePage()
 const playing = ref(false)
 const audioPlayer = ref(null)
+
+const favouriteIds = computed(() => page.props.auth?.favourite_ids ?? [])
+
+const favouriteIconStyle = computed(() => {
+  const isFav = favouriteIds.value.includes(props.word.id)
+  return {
+    fill: isFav ? '#f59e0b' : 'none',
+    stroke: isFav ? '#f59e0b' : 'currentColor',
+    strokeWidth: '2',
+  }
+})
+
+const toggleFavourite = () => {
+  router.post(route('words.favourite', props.word.slug), {}, {
+    preserveScroll: true,
+    preserveState: true,
+  })
+}
 
 const playAudio = () => {
   if (audioPlayer.value) {

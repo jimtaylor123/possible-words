@@ -74,19 +74,34 @@
                 <span class="text-xl font-bold text-blue-600 group-hover:text-blue-800">
                   {{ word.text }}
                 </span>
-                <n-button
-                  v-if="word.audio_url"
-                  size="small"
-                  quaternary
-                  circle
-                  @click="playAudio(word)"
-                >
-                  <template #icon>
-                    <svg viewBox="0 0 24 24" width="20" height="20" style="fill: currentColor;">
-                      <path :d="mdiPlay" />
-                    </svg>
-                  </template>
-                </n-button>
+                <div class="flex items-center gap-1">
+                  <n-button
+                    v-if="word.audio_url"
+                    size="small"
+                    quaternary
+                    circle
+                    @click="playAudio(word)"
+                  >
+                    <template #icon>
+                      <svg viewBox="0 0 24 24" width="20" height="20" style="fill: currentColor;">
+                        <path :d="mdiPlay" />
+                      </svg>
+                    </template>
+                  </n-button>
+                  <n-button
+                    v-if="$page.props.auth.user"
+                    size="small"
+                    quaternary
+                    circle
+                    @click.stop="toggleFavourite(word)"
+                  >
+                    <template #icon>
+                      <svg viewBox="0 0 24 24" :width="20" :height="20" :style="favouriteIconStyle(word)">
+                        <path :d="mdiStar" />
+                      </svg>
+                    </template>
+                  </n-button>
+                </div>
               </div>
             </template>
 
@@ -147,10 +162,13 @@
 </template>
 
 <script setup>
-import { router } from '@inertiajs/vue3'
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { mdiFilter, mdiFilterOff, mdiPlay } from '@mdi/js'
+import { router, usePage } from '@inertiajs/vue3'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { mdiFilter, mdiFilterOff, mdiPlay, mdiStar } from '@mdi/js'
 import Layout from '@/Components/Layout.vue'
+
+const page = usePage()
+const favouriteIds = computed(() => page.props.auth?.favourite_ids ?? [])
 
 const props = defineProps({
   words: { type: Object, required: true },
@@ -168,6 +186,22 @@ let observer = null
 
 const audioRef = ref(null)
 const playingWordId = ref(null)
+
+const favouriteIconStyle = (word) => {
+  const isFav = favouriteIds.value.includes(word.id)
+  return {
+    fill: isFav ? '#f59e0b' : 'none',
+    stroke: isFav ? '#f59e0b' : 'currentColor',
+    strokeWidth: '2',
+  }
+}
+
+const toggleFavourite = (word) => {
+  router.post(route('words.favourite', word.slug), {}, {
+    preserveScroll: true,
+    preserveState: true,
+  })
+}
 
 const playAudio = (word) => {
   if (!audioRef.value || !word.audio_url) return
