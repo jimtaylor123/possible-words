@@ -14,6 +14,7 @@ import {
     NInput,
     NSelect,
     NPagination,
+    NTooltip,
 } from 'naive-ui';
 
 const naive = create({
@@ -25,6 +26,7 @@ const naive = create({
         NInput,
         NSelect,
         NPagination,
+        NTooltip,
     ]
 });
 

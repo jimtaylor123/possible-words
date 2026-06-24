@@ -14,7 +14,7 @@ window.Echo = new Echo({
     wsPort: import.meta.env.VITE_REVERB_PORT,
     wssPort: import.meta.env.VITE_REVERB_PORT,
     forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
-    enabledTransports: ['ws', 'wss'],
+    enabledTransports: ['ws'],
 });
 
 window.Echo.connector.pusher.connection.bind('connected', () => {
