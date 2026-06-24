@@ -29,24 +29,62 @@ class WordController extends Controller
         }
 
         if ($request->filled('syllables')) {
-            $query->where('syllables', $request->syllables);
+            $syllables = (int) $request->syllables;
+            if ($syllables >= 5) {
+                $query->where('syllables', '>=', $syllables);
+            } else {
+                $query->where('syllables', $syllables);
+            }
         }
 
         if ($request->filled('length')) {
-            $query->whereRaw('LENGTH(text) = ?', [$request->length]);
+            $length = (int) $request->length;
+            if ($length >= 8) {
+                $query->whereRaw('LENGTH(text) >= ?', [$length]);
+            } else {
+                $query->whereRaw('LENGTH(text) = ?', [$length]);
+            }
         }
 
         if ($request->filled('starts_with')) {
             $query->where('text', 'like', $request->starts_with.'%');
         }
 
-        $words = $query->where('status', 'available')
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
+        $query->where('status', 'available');
 
-        return Inertia::render('Words/Index', [
+        // Apply sorting
+        $sort = $request->input('sort', 'created_at');
+        $direction = $request->input('direction', 'desc');
+
+        switch ($sort) {
+            case 'alphabetical':
+                $query->orderBy('text', $direction);
+                break;
+            case 'letters':
+                $query->orderByRaw('LENGTH(text) ' . $direction);
+                break;
+            case 'popularity':
+                $query->orderBy(function ($q) {
+                    $q->selectRaw('COALESCE(MAX(votes_count), 0)')
+                        ->from('definitions')
+                        ->whereColumn('word_id', 'words.id');
+                }, $direction);
+                break;
+            default:
+                $query->orderBy('created_at', $direction);
+                break;
+        }
+
+        $words = $query->paginate(20)->withQueryString();
+
+        $filters = array_merge(
+            ['search' => null, 'syllables' => null, 'length' => null, 'starts_with' => null, 'sort' => 'created_at', 'direction' => 'desc'],
+            $request->only(['search', 'syllables', 'length', 'starts_with', 'sort', 'direction'])
+        );
+
+        return Inertia::render('Home', [
             'words' => $words,
-            'filters' => $request->only(['search', 'syllables', 'length', 'starts_with']),
+            'filters' => $filters,
         ]);
     }
 
