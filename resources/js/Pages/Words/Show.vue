@@ -25,13 +25,23 @@
         </div>
         <div v-if="word.ipa" class="flex items-center justify-center gap-3 mt-3">
           <span class="text-lg text-neutral-500 font-mono">{{ word.ipa }}</span>
-          <n-button
-            v-if="word.audio_url"
-            size="small"
-            @click="playAudio"
-          >
-            {{ playing ? 'Playing...' : '🔊 Play' }}
-          </n-button>
+          <n-tooltip v-if="word.audio_url" trigger="hover">
+            <template #trigger>
+              <n-button
+                size="small"
+                quaternary
+                circle
+                @click="playAudio"
+              >
+                <template #icon>
+                  <svg viewBox="0 0 24 24" width="20" height="20" style="fill: currentColor;">
+                    <path :d="mdiPlay" />
+                  </svg>
+                </template>
+              </n-button>
+            </template>
+            Click to hear the word
+          </n-tooltip>
           <audio ref="audioPlayer" :src="word.audio_url" @ended="playing = false" @error="playing = false" />
         </div>
       </div>
@@ -119,7 +129,7 @@
 <script setup>
 import { router, usePage } from '@inertiajs/vue3'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { mdiStar } from '@mdi/js'
+import { mdiPlay, mdiStar } from '@mdi/js'
 import Layout from '@/Components/Layout.vue'
 import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
 

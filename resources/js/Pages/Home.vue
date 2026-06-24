@@ -59,11 +59,14 @@
 
       <!-- Words Grid -->
       <div v-if="allWords.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <a
+        <div
           v-for="word in allWords"
           :key="word.id"
-          :href="route('words.show', word.slug)"
-          class="group block rounded-lg no-underline text-inherit focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+          @click="handleCardClick(word, $event)"
+          class="group block rounded-lg no-underline text-inherit cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+          role="link"
+          :tabindex="0"
+          @keydown.enter="router.visit(route('words.show', word.slug))"
         >
           <n-card class="hover:shadow-lg transition-shadow h-full">
             <template #header>
@@ -77,7 +80,7 @@
                     size="small"
                     quaternary
                     circle
-                    @click.stop="playAudio(word)"
+                    @click="playAudio(word)"
                   >
                     <template #icon>
                       <svg viewBox="0 0 24 24" width="20" height="20" style="fill: currentColor;">
@@ -137,7 +140,7 @@
               </div>
             </div>
           </n-card>
-        </a>
+        </div>
       </div>
 
       <div v-else class="text-center py-16 text-gray-400">
@@ -210,6 +213,11 @@ const playAudio = (word) => {
   playingWordId.value = word.id
   audioRef.value.src = word.audio_url
   audioRef.value.play()
+}
+
+const handleCardClick = (word, event) => {
+  if (event.target.closest('.n-button')) return
+  router.visit(route('words.show', word.slug))
 }
 
 watch(() => props.words, (newWords) => {
