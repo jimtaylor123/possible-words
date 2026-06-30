@@ -35,3 +35,6 @@ TODO.md
 
 # Prevent nested worktrees — use sibling directories instead
 /worktrees/
+
+# Dev snapshots
+/.snapshots
