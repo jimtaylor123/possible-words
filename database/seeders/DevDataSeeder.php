@@ -36,9 +36,19 @@ class DevDataSeeder extends Seeder
         $demo = User::factory()->create([
             'name' => 'Demo User',
             'email' => 'demo@example.com',
+            'avatar' => 'https://i.pravatar.cc/150?u=demo@example.com',
         ]);
 
-        return [$demo, ...User::factory(4)->create()->all()];
+        $users = [$demo];
+
+        foreach (User::factory(4)->create()->all() as $user) {
+            $user->update([
+                'avatar' => 'https://i.pravatar.cc/150?u='.$user->email,
+            ]);
+            $users[] = $user;
+        }
+
+        return $users;
     }
 
     private function createWords(): array

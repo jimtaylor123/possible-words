@@ -1,6 +1,6 @@
-.PHONY: start setup install migrate seed audio build dev snapshot reset
+.PHONY: start setup install migrate seed audio build dev snapshot reset fresh
 
-start: setup dev
+start: reset dev
 
 setup: install migrate seed audio
 
@@ -44,7 +44,7 @@ snapshot:
 	@echo "Snapshot saved to $(SNAPSHOT_DIR)/"
 
 reset:
-	@if [ "$(APP_ENV)" = "production" ] || [ "$(shell php -r 'echo config("app.env");')" = "production" ]; then \
+	@if [ "$(APP_ENV)" = "production" ]; then \
 		echo "ERROR: Cannot reset snapshot in production!"; \
 		exit 1; \
 	fi
@@ -58,3 +58,6 @@ reset:
 	@cd storage && unzip -qo $(AUDIO_ZIP) 2>/dev/null; true
 	@php artisan cache:clear --quiet
 	@echo "Dev data restored from snapshot!"
+
+fresh:
+	@php artisan migrate:fresh --seed

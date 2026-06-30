@@ -111,8 +111,7 @@
           <div v-for="definition in definitions" :key="definition.id" class="border rounded-lg p-4">
             <div class="flex justify-between items-start mb-2">
               <p class="text-gray-800">{{ definition.text }}</p>
-              <div class="flex items-center space-x-2">
-                <span class="text-sm text-gray-500">{{ definition.votes_count }} votes</span>
+              <div class="flex flex-col items-end space-y-1 sm:space-y-0 sm:flex-row sm:items-center sm:space-x-2 ml-2 shrink-0">
                 <div v-if="$page.props.auth.user" class="flex space-x-1">
                   <n-button
                     size="small"
@@ -131,6 +130,7 @@
                     ↓
                   </n-button>
                 </div>
+                <span class="text-sm text-gray-500">{{ definition.votes_count }} votes</span>
               </div>
             </div>
             <div class="text-sm text-gray-500 flex items-center gap-1.5">

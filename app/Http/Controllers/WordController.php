@@ -92,9 +92,15 @@ class WordController extends Controller
 
     public function show(Word $word)
     {
-        $word->load(['definitions.user', 'definitions.votes' => function ($q) {
-            $q->where('user_id', Auth::id());
-        }]);
+        $word->load([
+            'definitions' => function ($q) {
+                $q->orderBy('votes_count', 'desc');
+            },
+            'definitions.user',
+            'definitions.votes' => function ($q) {
+                $q->where('user_id', Auth::id());
+            },
+        ]);
 
         return Inertia::render('Words/Show', [
             'word' => $word,
