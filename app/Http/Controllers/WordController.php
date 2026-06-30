@@ -51,7 +51,8 @@ class WordController extends Controller
             $query->where('text', 'like', $request->starts_with.'%');
         }
 
-        $query->where('status', 'available');
+        $query->where('status', 'available')
+            ->whereIn('dictionary_status', ['unchecked', 'not_found', 'exists_as_name']);
 
         // Apply sorting
         $sort = $request->input('sort', 'created_at');
