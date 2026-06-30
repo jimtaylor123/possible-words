@@ -17,31 +17,40 @@
                   {{ word.text }}
                 </span>
                 <div class="flex items-center gap-1">
-                  <n-button
-                    v-if="word.audio_url"
-                    size="small"
-                    quaternary
-                    circle
-                    @click.stop="playAudio(word)"
-                  >
-                    <template #icon>
-                      <svg viewBox="0 0 24 24" width="20" height="20" style="fill: currentColor;">
-                        <path :d="mdiPlay" />
-                      </svg>
+                  <n-tooltip v-if="word.audio_url" trigger="hover">
+                    <template #trigger>
+                      <n-button
+                        size="small"
+                        quaternary
+                        circle
+                        @click.stop="playAudio(word)"
+                      >
+                        <template #icon>
+                          <svg viewBox="0 0 24 24" width="20" height="20" style="fill: currentColor;">
+                            <path :d="mdiPlay" />
+                          </svg>
+                        </template>
+                      </n-button>
                     </template>
-                  </n-button>
-                  <n-button
-                    size="small"
-                    quaternary
-                    circle
-                    @click.stop="toggleFavourite(word)"
-                  >
-                    <template #icon>
-                      <svg viewBox="0 0 24 24" :width="20" :height="20" :style="favouriteIconStyle(word)">
-                        <path :d="mdiStar" />
-                      </svg>
+                    Click to hear the word
+                  </n-tooltip>
+                  <n-tooltip trigger="hover">
+                    <template #trigger>
+                      <n-button
+                        size="small"
+                        quaternary
+                        circle
+                        @click.stop="toggleFavourite(word)"
+                      >
+                        <template #icon>
+                          <svg viewBox="0 0 24 24" :width="20" :height="20" :style="favouriteIconStyle(word)">
+                            <path :d="mdiStar" />
+                          </svg>
+                        </template>
+                      </n-button>
                     </template>
-                  </n-button>
+                    {{ favouriteIds.includes(word.id) ? 'Remove from favourites' : 'Add to favourites' }}
+                  </n-tooltip>
                 </div>
               </div>
             </template>

@@ -122,7 +122,7 @@ class WordController extends Controller
 
         broadcast(new DefinitionCreated($definition))->toOthers();
 
-        return redirect()->back()->with('success', 'Definition added successfully!');
+        return redirect()->to(route('words.show', $word))->with('success', 'Definition added successfully!');
     }
 
     public function voteDefinition(Request $request, Definition $definition)

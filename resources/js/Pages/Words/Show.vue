@@ -5,19 +5,23 @@
       <div class="text-center mb-8">
         <div class="flex items-center justify-center gap-3 mb-4">
           <h1 class="text-4xl font-bold text-gray-900">{{ word.text }}</h1>
-          <n-button
-            v-if="$page.props.auth.user"
-            size="small"
-            quaternary
-            circle
-            @click="toggleFavourite"
-          >
-            <template #icon>
-              <svg viewBox="0 0 24 24" :width="24" :height="24" :style="favouriteIconStyle">
-                <path :d="mdiStar" />
-              </svg>
+          <n-tooltip v-if="$page.props.auth.user" trigger="hover">
+            <template #trigger>
+              <n-button
+                size="small"
+                quaternary
+                circle
+                @click="toggleFavourite"
+              >
+                <template #icon>
+                  <svg viewBox="0 0 24 24" :width="24" :height="24" :style="favouriteIconStyle">
+                    <path :d="mdiStar" />
+                  </svg>
+                </template>
+              </n-button>
             </template>
-          </n-button>
+            {{ favouriteIds.includes(props.word.id) ? 'Remove from favourites' : 'Add to favourites' }}
+          </n-tooltip>
         </div>
         <div class="flex justify-center space-x-4 text-gray-500">
           <span>{{ word.syllables }} syllable{{ word.syllables !== 1 ? 's' : '' }}</span>
@@ -44,6 +48,59 @@
           </n-tooltip>
           <audio ref="audioPlayer" :src="word.audio_url" @ended="playing = false" @error="playing = false" />
         </div>
+      </div>
+
+      <!-- Share Section -->
+      <div class="flex items-center justify-center gap-2 mb-8">
+        <span class="text-sm text-gray-400 mr-1">Share</span>
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <n-button size="small" quaternary circle @click="shareWhatsApp">
+              <template #icon>
+                <svg viewBox="0 0 24 24" width="20" height="20" style="fill: #25D366;">
+                  <path :d="mdiWhatsapp" />
+                </svg>
+              </template>
+            </n-button>
+          </template>
+          WhatsApp
+        </n-tooltip>
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <n-button size="small" quaternary circle @click="shareFacebook">
+              <template #icon>
+                <svg viewBox="0 0 24 24" width="20" height="20" style="fill: #1877F2;">
+                  <path :d="mdiFacebook" />
+                </svg>
+              </template>
+            </n-button>
+          </template>
+          Facebook
+        </n-tooltip>
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <n-button size="small" quaternary circle @click="shareTwitter">
+              <template #icon>
+                <svg viewBox="0 0 24 24" width="20" height="20" style="fill: currentColor;">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+              </template>
+            </n-button>
+          </template>
+          X / Twitter
+        </n-tooltip>
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <n-button size="small" quaternary circle @click="shareLinkedIn">
+              <template #icon>
+                <svg viewBox="0 0 24 24" width="20" height="20" style="fill: #0A66C2;">
+                  <path :d="mdiLinkedin" />
+                </svg>
+              </template>
+            </n-button>
+          </template>
+          LinkedIn
+        </n-tooltip>
       </div>
 
       <!-- Definitions Section -->
@@ -128,8 +185,8 @@
 
 <script setup>
 import { router, usePage } from '@inertiajs/vue3'
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { mdiPlay, mdiStar } from '@mdi/js'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { mdiPlay, mdiStar, mdiWhatsapp, mdiFacebook, mdiLinkedin } from '@mdi/js'
 import Layout from '@/Components/Layout.vue'
 import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
 
@@ -166,6 +223,25 @@ const playAudio = () => {
   }
 }
 
+const shareUrl = computed(() => window.location.href)
+const shareText = computed(() => `Check out this possible word: ${props.word.text}`)
+
+const shareWhatsApp = () => {
+  window.open(`https://wa.me/?text=${encodeURIComponent(shareText.value + '\n' + shareUrl.value)}`, '_blank', 'noopener,noreferrer')
+}
+
+const shareFacebook = () => {
+  window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl.value)}`, '_blank', 'noopener,noreferrer')
+}
+
+const shareTwitter = () => {
+  window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText.value)}&url=${encodeURIComponent(shareUrl.value)}`, '_blank', 'noopener,noreferrer')
+}
+
+const shareLinkedIn = () => {
+  window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl.value)}`, '_blank', 'noopener,noreferrer')
+}
+
 const definitionText = ref('')
 const submitting = ref(false)
 
@@ -173,6 +249,13 @@ const definitions = ref(props.word.definitions.map(d => ({
   ...d,
   votes: d.votes ?? [],
 })))
+
+watch(() => props.word, (newWord) => {
+  definitions.value = newWord.definitions.map(d => ({
+    ...d,
+    votes: d.votes ?? [],
+  }))
+}, { deep: true })
 
 const isOwnDefinition = (definition) => {
   return definition.user_id === page.props.auth.user?.id
