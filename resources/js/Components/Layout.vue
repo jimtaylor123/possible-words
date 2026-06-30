@@ -154,6 +154,16 @@ const userMenuOptions = computed(() => {
           ],
         ),
     },
+    ...(u.is_admin
+      ? [
+          {
+            label: 'Admin',
+            key: 'admin',
+            props: { class: 'font-medium' },
+          },
+          { type: 'divider', key: 'd2' },
+        ]
+      : []),
     { type: 'divider', key: 'd1' },
     {
       label: 'Log out',
@@ -166,6 +176,8 @@ const userMenuOptions = computed(() => {
 const handleUserMenuSelect = (key) => {
   if (key === 'logout') {
     logout()
+  } else if (key === 'admin') {
+    router.get(route('admin.dashboard'))
   }
 }
 
