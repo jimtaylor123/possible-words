@@ -36,6 +36,8 @@ snapshot:
 	@echo "Seeding fresh dev data..."
 	@php artisan migrate:fresh --quiet
 	@php artisan db:seed --class=DevDataSeeder --quiet
+	@echo "Generating remaining audio..."
+	@php artisan words:generate-pronunciation --quiet
 	@echo "Taking database snapshot..."
 	@mkdir -p $(SNAPSHOT_DIR)
 	@cp database/database.sqlite $(SNAPSHOT_FILE)

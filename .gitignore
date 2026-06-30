@@ -37,4 +37,4 @@ TODO.md
 /worktrees/
 
 # Dev snapshots
-/.snapshots
+.snapshots/*.zip
