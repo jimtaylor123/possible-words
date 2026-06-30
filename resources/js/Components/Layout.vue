@@ -5,9 +5,7 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <div class="flex items-center">
-            <Link :href="route('home')" class="text-2xl font-bold text-gray-900">
-              PossibleWords
-            </Link>
+            <Logo />
           </div>
 
           <div class="flex items-center gap-4 sm:gap-6">
@@ -100,6 +98,7 @@
 import { computed, h } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
+import Logo from '@/Components/Logo.vue'
 
 const page = usePage()
 

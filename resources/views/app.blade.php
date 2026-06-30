@@ -13,7 +13,8 @@
             ? \Illuminate\Support\Facades\Storage::disk('s3')->url('favicon.ico')
             : '/favicon.ico';
     @endphp
-    <link rel="icon" type="image/x-icon" href="{{ $faviconUrl }}">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="alternate icon" type="image/x-icon" href="{{ $faviconUrl }}">
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">

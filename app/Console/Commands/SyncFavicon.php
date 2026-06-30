@@ -22,6 +22,13 @@ class SyncFavicon extends Command
             $this->info('Favicon already exists on S3.');
         }
 
+        if (! $disk->exists('favicon.svg')) {
+            $disk->put('favicon.svg', file_get_contents(public_path('favicon.svg')), 'public');
+            $this->info('SVG favicon uploaded to S3.');
+        } else {
+            $this->info('SVG favicon already exists on S3.');
+        }
+
         return self::SUCCESS;
     }
 }
