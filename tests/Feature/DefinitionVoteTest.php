@@ -15,7 +15,7 @@ beforeEach(function () {
     ]);
 });
 
-test('definition is automatically upvoted by the author', function () {
+test('definition is automatically liked by the author', function () {
     $this->actingAs($this->user);
 
     $this->post(route('words.definitions.store', $this->word), [
@@ -29,46 +29,9 @@ test('definition is automatically upvoted by the author', function () {
 
     $vote = $definition->votes()->where('user_id', $this->user->id)->first();
     expect($vote)->not->toBeNull();
-    expect($vote->value)->toBe(1);
 });
 
-test('user cannot downvote their own definition', function () {
-    $this->actingAs($this->user);
-
-    $definition = $this->word->definitions()->create([
-        'user_id' => $this->user->id,
-        'text' => 'My own definition',
-    ]);
-
-    $this->post(route('definitions.vote', $definition), [
-        'value' => -1,
-    ]);
-
-    expect($definition->fresh()->votes_count)->toBe(0);
-
-    $vote = $definition->votes()->where('user_id', $this->user->id)->first();
-    expect($vote)->toBeNull();
-});
-
-test('user cannot upvote their own definition', function () {
-    $this->actingAs($this->user);
-
-    $definition = $this->word->definitions()->create([
-        'user_id' => $this->user->id,
-        'text' => 'My own definition',
-    ]);
-
-    $this->post(route('definitions.vote', $definition), [
-        'value' => 1,
-    ]);
-
-    expect($definition->fresh()->votes_count)->toBe(0);
-
-    $vote = $definition->votes()->where('user_id', $this->user->id)->first();
-    expect($vote)->toBeNull();
-});
-
-test('user can vote on another users definition', function () {
+test('user can like a definition', function () {
     $otherUser = User::factory()->create();
 
     $definition = $this->word->definitions()->create([
@@ -77,22 +40,39 @@ test('user can vote on another users definition', function () {
     ]);
 
     $this->actingAs($this->user);
-    $this->post(route('definitions.vote', $definition), [
-        'value' => 1,
-    ]);
+    $this->post(route('definitions.vote', $definition));
 
     expect($definition->fresh()->votes_count)->toBe(1);
 
     $vote = $definition->votes()->where('user_id', $this->user->id)->first();
     expect($vote)->not->toBeNull();
-    expect($vote->value)->toBe(1);
 });
 
-test('auto upvote is counted in votes_count', function () {
+test('user can unlike a definition', function () {
+    $otherUser = User::factory()->create();
+
+    $definition = $this->word->definitions()->create([
+        'user_id' => $otherUser->id,
+        'text' => 'Another user definition',
+    ]);
+
+    $definition->votes()->create(['user_id' => $this->user->id]);
+    $definition->updateVotesCount();
+
+    $this->actingAs($this->user);
+    $this->post(route('definitions.vote', $definition));
+
+    expect($definition->fresh()->votes_count)->toBe(0);
+
+    $vote = $definition->votes()->where('user_id', $this->user->id)->first();
+    expect($vote)->toBeNull();
+});
+
+test('auto like is counted in votes_count', function () {
     $this->actingAs($this->user);
 
     $this->post(route('words.definitions.store', $this->word), [
-        'text' => 'Auto-upvoted definition',
+        'text' => 'Auto-liked definition',
     ]);
 
     $definition = $this->word->definitions()->first();
@@ -100,9 +80,7 @@ test('auto upvote is counted in votes_count', function () {
 
     $otherUser = User::factory()->create();
     $this->actingAs($otherUser);
-    $this->post(route('definitions.vote', $definition), [
-        'value' => 1,
-    ]);
+    $this->post(route('definitions.vote', $definition));
 
     expect($definition->fresh()->votes_count)->toBe(2);
 });

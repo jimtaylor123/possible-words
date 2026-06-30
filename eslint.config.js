@@ -9,6 +9,9 @@ export default [
             globals: {
                 route: 'readonly',
                 window: 'readonly',
+                setTimeout: 'readonly',
+                clearTimeout: 'readonly',
+                IntersectionObserver: 'readonly',
             },
         },
     },

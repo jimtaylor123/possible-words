@@ -62,10 +62,10 @@
         <div
           v-for="word in allWords"
           :key="word.id"
-          @click="handleCardClick(word, $event)"
           class="group block rounded-lg no-underline text-inherit cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
           role="link"
           :tabindex="0"
+          @click="handleCardClick(word, $event)"
           @keydown.enter="router.visit(route('words.show', word.slug))"
         >
           <n-card class="hover:shadow-lg transition-shadow h-full">

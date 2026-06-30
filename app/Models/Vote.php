@@ -10,7 +10,6 @@ class Vote extends Model
     protected $fillable = [
         'definition_id',
         'user_id',
-        'value',
     ];
 
     public function definition(): BelongsTo

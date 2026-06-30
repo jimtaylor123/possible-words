@@ -105,7 +105,6 @@ class DevDataSeeder extends Seeder
                 $votes[] = [
                     'definition_id' => $definition->id,
                     'user_id' => $voter->id,
-                    'value' => mt_rand(0, 3) > 0 ? 1 : -1,
                     'created_at' => now()->subDays(mt_rand(0, 30)),
                     'updated_at' => now(),
                 ];
@@ -138,11 +137,14 @@ class DevDataSeeder extends Seeder
 
     private function updateVoteCounts($definitions): void
     {
+        $counts = Vote::selectRaw('definition_id, COUNT(*) as count')
+            ->groupBy('definition_id')
+            ->pluck('count', 'definition_id');
+
         foreach ($definitions as $definition) {
-            $up = Vote::where('definition_id', $definition->id)->where('value', 1)->count();
-            $down = Vote::where('definition_id', $definition->id)->where('value', -1)->count();
-            Definition::withoutTimestamps(function () use ($definition, $up, $down) {
-                $definition->update(['votes_count' => $up - $down]);
+            $count = $counts[$definition->id] ?? 0;
+            Definition::withoutTimestamps(function () use ($definition, $count) {
+                $definition->update(['votes_count' => $count]);
             });
         }
     }

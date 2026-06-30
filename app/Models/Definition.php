@@ -32,7 +32,7 @@ class Definition extends Model
 
     public function updateVotesCount()
     {
-        $this->votes_count = $this->votes()->sum('value');
+        $this->votes_count = $this->votes()->count();
         $this->save();
     }
 }

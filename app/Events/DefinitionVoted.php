@@ -3,11 +3,11 @@
 namespace App\Events;
 
 use App\Models\Definition;
-use App\Models\Vote;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Support\Facades\Auth;
 
 class DefinitionVoted implements ShouldBroadcast
 {
@@ -17,16 +17,16 @@ class DefinitionVoted implements ShouldBroadcast
 
     public $votesCount;
 
-    public $voteValue;
+    public $liked;
 
     public $userId;
 
-    public function __construct(Definition $definition, Vote $vote)
+    public function __construct(Definition $definition, bool $liked)
     {
         $this->definitionId = $definition->id;
         $this->votesCount = $definition->votes_count;
-        $this->voteValue = $vote->value;
-        $this->userId = $vote->user_id;
+        $this->liked = $liked;
+        $this->userId = Auth::id();
     }
 
     public function broadcastOn(): array

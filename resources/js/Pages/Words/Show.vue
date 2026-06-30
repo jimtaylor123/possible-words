@@ -108,29 +108,34 @@
         <h2 class="text-2xl font-bold text-gray-900 mb-6">Definitions</h2>
         
         <div v-if="definitions.length > 0" class="space-y-4">
-          <div v-for="definition in definitions" :key="definition.id" class="border rounded-lg p-4">
+          <div
+            v-for="definition in definitions"
+            :key="definition.id"
+            class="border rounded-lg p-4"
+          >
             <div class="flex justify-between items-start mb-2">
               <p class="text-gray-800">{{ definition.text }}</p>
-              <div class="flex flex-col items-end space-y-1 sm:space-y-0 sm:flex-row sm:items-center sm:space-x-2 ml-2 shrink-0">
-                <div v-if="$page.props.auth.user" class="flex space-x-1">
-                  <n-button
-                    size="small"
-                    :type="isOwnDefinition(definition) || definition.votes.find(v => v.user_id === $page.props.auth.user.id && v.value === 1) ? 'primary' : 'default'"
-                    :disabled="isOwnDefinition(definition)"
-                    @click="vote(definition.id, 1)"
+              <div class="flex items-center gap-1 ml-2 shrink-0">
+                <button
+                  v-if="$page.props.auth.user"
+                  class="flex items-center justify-center rounded p-1 hover:bg-gray-100 transition-colors"
+                  :disabled="animatingId === definition.id"
+                  @click="vote(definition.id)"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="20"
+                    height="20"
+                    :class="[
+                      'transition-transform duration-200 block',
+                      likedByUser(definition) ? 'fill-blue-500' : 'fill-none stroke-current',
+                      { 'scale-125': animatingId === definition.id }
+                    ]"
                   >
-                    ↑
-                  </n-button>
-                  <n-button
-                    :style="{ visibility: isOwnDefinition(definition) ? 'hidden' : 'visible' }"
-                    size="small"
-                    :type="definition.votes.find(v => v.user_id === $page.props.auth.user.id && v.value === -1) ? 'error' : 'default'"
-                    @click="vote(definition.id, -1)"
-                  >
-                    ↓
-                  </n-button>
-                </div>
-                <span class="text-sm text-gray-500">{{ definition.votes_count }} votes</span>
+                    <path :d="mdiThumbUp" />
+                  </svg>
+                </button>
+                <span class="text-sm text-gray-500 w-14 text-right tabular-nums">{{ definition.votes_count }} {{ definition.votes_count === 1 ? 'like' : 'likes' }}</span>
               </div>
             </div>
             <div class="text-sm text-gray-500 flex items-center gap-1.5">
@@ -186,7 +191,7 @@
 <script setup>
 import { router, usePage } from '@inertiajs/vue3'
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { mdiPlay, mdiStar, mdiWhatsapp, mdiFacebook, mdiLinkedin } from '@mdi/js'
+import { mdiPlay, mdiStar, mdiThumbUp, mdiWhatsapp, mdiFacebook, mdiLinkedin } from '@mdi/js'
 import Layout from '@/Components/Layout.vue'
 import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
 
@@ -257,8 +262,10 @@ watch(() => props.word, (newWord) => {
   }))
 }, { deep: true })
 
-const isOwnDefinition = (definition) => {
-  return definition.user_id === page.props.auth.user?.id
+const animatingId = ref(null)
+
+const likedByUser = (definition) => {
+  return definition.votes.some(v => v.user_id === page.props.auth.user?.id)
 }
 
 const submitDefinition = () => {
@@ -275,11 +282,27 @@ const submitDefinition = () => {
   })
 }
 
-const vote = (definitionId, value) => {
-  router.post(route('definitions.vote', definitionId), {
-    value: value
-  }, {
-    preserveScroll: true
+const vote = (definitionId) => {
+  const def = definitions.value.find(d => d.id === definitionId)
+  if (!def) return
+
+  animatingId.value = definitionId
+  setTimeout(() => { animatingId.value = null }, 200)
+
+  const userId = page.props.auth?.user?.id
+  const liked = def.votes.some(v => v.user_id === userId)
+
+  if (liked) {
+    def.votes = def.votes.filter(v => v.user_id !== userId)
+    def.votes_count = Math.max(0, def.votes_count - 1)
+  } else {
+    def.votes.push({ user_id: userId, definition_id: definitionId })
+    def.votes_count++
+  }
+
+  router.post(route('definitions.vote', definitionId), {}, {
+    preserveScroll: true,
+    preserveState: true,
   })
 }
 
@@ -297,15 +320,18 @@ onMounted(() => {
       if (defToUpdate) {
         defToUpdate.votes_count = e.votesCount
         if (e.userId === page.props.auth?.user?.id) {
-          const existingVote = defToUpdate.votes.find(v => v.user_id === e.userId)
-          if (existingVote) {
-            existingVote.value = e.voteValue
+          const existingIndex = defToUpdate.votes.findIndex(v => v.user_id === e.userId)
+          if (e.liked) {
+            if (existingIndex === -1) {
+              defToUpdate.votes.push({
+                user_id: e.userId,
+                definition_id: e.definitionId,
+              })
+            }
           } else {
-            defToUpdate.votes.push({
-              user_id: e.userId,
-              definition_id: e.definitionId,
-              value: e.voteValue
-            })
+            if (existingIndex !== -1) {
+              defToUpdate.votes.splice(existingIndex, 1)
+            }
           }
         }
       }

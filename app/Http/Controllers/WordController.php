@@ -121,7 +121,6 @@ class WordController extends Controller
         DB::transaction(function () use ($definition) {
             $definition->votes()->create([
                 'user_id' => Auth::id(),
-                'value' => 1,
             ]);
 
             $definition->updateVotesCount();
@@ -132,29 +131,26 @@ class WordController extends Controller
         return redirect()->to(route('words.show', $word))->with('success', 'Definition added successfully!');
     }
 
-    public function voteDefinition(Request $request, Definition $definition)
+    public function voteDefinition(Definition $definition)
     {
-        $request->validate([
-            'value' => 'required|in:-1,1',
-        ]);
+        $vote = Vote::where([
+            'definition_id' => $definition->id,
+            'user_id' => Auth::id(),
+        ])->first();
 
-        if ($definition->user_id === Auth::id()) {
-            return redirect()->back()->with('error', 'You cannot vote on your own definition.');
-        }
-
-        $vote = Vote::updateOrCreate(
-            [
-                'definition_id' => $definition->id,
+        if ($vote) {
+            $vote->delete();
+            $liked = false;
+        } else {
+            $definition->votes()->create([
                 'user_id' => Auth::id(),
-            ],
-            [
-                'value' => $request->value,
-            ]
-        );
+            ]);
+            $liked = true;
+        }
 
         $definition->updateVotesCount();
 
-        broadcast(new DefinitionVoted($definition, $vote))->toOthers();
+        broadcast(new DefinitionVoted($definition, $liked))->toOthers();
 
         return redirect()->back();
     }
