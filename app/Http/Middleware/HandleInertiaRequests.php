@@ -43,6 +43,7 @@ class HandleInertiaRequests extends Middleware
                     'name' => $request->user()->name,
                     'email' => $request->user()->email,
                     'avatar' => $request->user()->avatar,
+                    'is_admin' => $request->user()->is_admin,
                 ] : null,
                 'favourite_ids' => $request->user()?->favourites()->pluck('word_id') ?? [],
             ],

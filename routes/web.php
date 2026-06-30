@@ -23,3 +23,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/words/{word}/favourite', [WordController::class, 'toggleFavourite'])->name('words.favourite');
     Route::get('/favourites', [WordController::class, 'favourites'])->name('words.favourites');
 });
+
+// Admin routes
+Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
+    Route::get('/', function () {
+        return inertia('Admin/Dashboard');
+    })->name('admin.dashboard');
+});
