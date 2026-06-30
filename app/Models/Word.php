@@ -26,6 +26,9 @@ class Word extends Model
         'phonemes',
         'syllables',
         'status',
+        'dictionary_status',
+        'dictionary_checked_at',
+        'dictionary_data',
         'ipa',
         'audio_url',
         'owner_user_id',
@@ -35,6 +38,8 @@ class Word extends Model
 
     protected $casts = [
         'phonemes' => 'array',
+        'dictionary_checked_at' => 'datetime',
+        'dictionary_data' => 'array',
         'owned_until' => 'datetime',
     ];
 

@@ -2,29 +2,37 @@
 
 namespace App\Services;
 
+use App\Jobs\CheckWordDictionary;
 use App\Models\Word;
 use Illuminate\Support\Str;
 
 class WordGenerator
 {
-    private $onsets = [
+    private DictionaryService $dictionaryService;
+
+    private array $onsets = [
         'b', 'bl', 'br', 'c', 'ch', 'cl', 'cr', 'd', 'dr', 'f', 'fl', 'fr',
         'g', 'gl', 'gr', 'h', 'j', 'k', 'kl', 'kr', 'l', 'm', 'n', 'p',
         'pl', 'pr', 'qu', 'r', 's', 'sh', 'sk', 'sl', 'sm', 'sn', 'sp',
         'st', 'sw', 't', 'tr', 'th', 'v', 'w', 'y', 'z', 'zh',
     ];
 
-    private $nuclei = [
+    private array $nuclei = [
         'a', 'e', 'i', 'o', 'u', 'ai', 'ei', 'ie', 'oa', 'oo', 'ou', 'au',
         'ar', 'or', 'er', 'ur', 'ay', 'ey', 'oy', 'aw', 'ow',
     ];
 
-    private $codas = [
+    private array $codas = [
         'b', 'c', 'ch', 'd', 'f', 'g', 'gh', 'j', 'k', 'l', 'ld', 'lf',
         'lk', 'lm', 'ln', 'lp', 'lt', 'lth', 'm', 'mp', 'n', 'nd', 'ng',
         'nk', 'nt', 'p', 'r', 'rd', 'rf', 'rk', 'rm', 'rn', 'rp', 'rt',
         'rth', 's', 'sh', 'sk', 'sp', 'st', 't', 'th', 'v', 'x', 'z',
     ];
+
+    public function __construct(?DictionaryService $dictionaryService = null)
+    {
+        $this->dictionaryService = $dictionaryService ?? app(DictionaryService::class);
+    }
 
     public function generateWords($count = 100)
     {
@@ -89,31 +97,28 @@ class WordGenerator
         return $word;
     }
 
-    private function isRealWord($word)
+    private function isRealWord(string $word): bool
     {
-        // Simple check against common English words
-        $commonWords = [
-            'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our',
-            'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way',
-            'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use', 'cat', 'dog', 'run', 'sun',
-            'fun', 'big', 'red', 'hot', 'top', 'cup', 'hat', 'bat', 'rat', 'mat', 'sat', 'pat', 'fat', 'vat',
-        ];
-
-        return in_array(strtolower($word), $commonWords);
+        return $this->dictionaryService->isInBannedList($word);
     }
 
-    public function createWords($words)
+    public function createWords(array $words): array
     {
         $created = [];
 
         foreach ($words as $word) {
-            $created[] = Word::create([
+            $model = Word::create([
                 'text' => $word['text'],
                 'phonemes' => $word['phonemes'],
                 'syllables' => $this->countSyllables($word['text']),
                 'status' => 'available',
+                'dictionary_status' => 'unchecked',
                 'slug' => Str::slug($word['text']),
             ]);
+
+            CheckWordDictionary::dispatch($model);
+
+            $created[] = $model;
         }
 
         return $created;
