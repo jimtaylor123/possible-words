@@ -34,6 +34,7 @@ class Word extends Model
         'owner_user_id',
         'owned_until',
         'slug',
+        'generated_at',
     ];
 
     protected $casts = [
@@ -41,6 +42,7 @@ class Word extends Model
         'dictionary_checked_at' => 'datetime',
         'dictionary_data' => 'array',
         'owned_until' => 'datetime',
+        'generated_at' => 'datetime',
     ];
 
     protected static function boot()
