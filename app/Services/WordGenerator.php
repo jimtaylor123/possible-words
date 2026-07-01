@@ -10,6 +10,8 @@ class WordGenerator
 {
     private DictionaryService $dictionaryService;
 
+    public int $rejectedAsRealWords = 0;
+
     private array $onsets = [
         'b', 'bl', 'br', 'c', 'ch', 'cl', 'cr', 'd', 'dr', 'f', 'fl', 'fr',
         'g', 'gl', 'gr', 'h', 'j', 'k', 'kl', 'kr', 'l', 'm', 'n', 'p',
@@ -34,17 +36,23 @@ class WordGenerator
         $this->dictionaryService = $dictionaryService ?? app(DictionaryService::class);
     }
 
-    public function generateWords($count = 100)
+    public function generateWords($count = 100, bool $checkDictionary = true)
     {
         $words = [];
         $attempts = 0;
         $maxAttempts = $count * 10;
+        $this->rejectedAsRealWords = 0;
 
         while (count($words) < $count && $attempts < $maxAttempts) {
             $attempts++;
             $result = $this->generateWord();
 
-            if ($result && ! in_array($result['text'], array_column($words, 'text')) && ! $this->isRealWord($result['text'])) {
+            if ($result && ! in_array($result['text'], array_column($words, 'text'))) {
+                if ($checkDictionary && $this->isRealWord($result['text'])) {
+                    $this->rejectedAsRealWords++;
+
+                    continue;
+                }
                 $words[] = $result;
             }
         }
@@ -102,7 +110,7 @@ class WordGenerator
         return $this->dictionaryService->isInBannedList($word);
     }
 
-    public function createWords(array $words): array
+    public function createWords(array $words, bool $dispatchCheckJob = true): array
     {
         $created = [];
 
@@ -116,7 +124,9 @@ class WordGenerator
                 'slug' => Str::slug($word['text']),
             ]);
 
-            CheckWordDictionary::dispatch($model);
+            if ($dispatchCheckJob) {
+                CheckWordDictionary::dispatch($model);
+            }
 
             $created[] = $model;
         }
@@ -124,7 +134,7 @@ class WordGenerator
         return $created;
     }
 
-    private function countSyllables($word)
+    public function countSyllables($word)
     {
         // Simple syllable counting based on vowels
         $vowels = 'aeiouy';
