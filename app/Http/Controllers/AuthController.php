@@ -60,26 +60,30 @@ class AuthController extends Controller
             $email = $info['email'] ?? $googleUser->getEmail();
             $avatar = $info['picture'] ?? $googleUser->getAvatar();
 
-            $user = User::firstOrCreate(
-                [
+            $user = User::where('email', $email)->first();
+
+            if ($user === null) {
+                $user = User::create([
                     'provider' => 'google',
                     'provider_id' => $googleUser->getId(),
-                ],
-                [
                     'name' => $name,
                     'email' => $email,
                     'avatar' => $avatar,
                     'password' => null,
-                ]
-            );
+                ]);
 
-            $wasRecentlyCreated = $user->wasRecentlyCreated;
+                $wasRecentlyCreated = true;
+            } else {
+                $wasRecentlyCreated = false;
 
-            $user->forceFill([
-                'name' => $name,
-                'email' => $email,
-                'avatar' => $avatar,
-            ])->save();
+                $user->forceFill([
+                    'provider' => 'google',
+                    'provider_id' => $googleUser->getId(),
+                    'name' => $name,
+                    'email' => $email,
+                    'avatar' => $avatar,
+                ])->save();
+            }
 
             if ($wasRecentlyCreated) {
                 Mail::to($user)->send(new WelcomeMail($user));
