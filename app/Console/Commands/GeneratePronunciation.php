@@ -19,7 +19,7 @@ class GeneratePronunciation extends Command
         $query = Word::query();
 
         if (! $this->option('force')) {
-            $query->whereNull('ipa');
+            $query->whereNull('audio_url');
         }
 
         $total = $query->count();

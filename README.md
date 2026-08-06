@@ -27,9 +27,17 @@ A Laravel application that generates and discovers available words that aren't i
    composer install
    npm install
    php artisan migrate
-   php artisan db:seed --class=WordSeeder
+   php artisan db:seed
    npm run build
    ```
+
+## Dev Data
+
+Local dev uses a **stable set of 1000 words** committed as a fixture (`database/seeders/fixtures/words.json`) plus their audio files (`.snapshots/audio.zip`). The words and audio are never regenerated during normal development.
+
+- **`make fresh`** — rebuilds the database (users, words from the fixture, definitions, votes, favourites) and restores the audio files. Fast, offline, no TTS. Safe to run as often as you like.
+- **`make reseed-words`** — the only thing that generates **new** words and calls the TTS service for audio. Use this only when you want a fresh set of words (e.g. after a fundamental change to the word data structure). It updates the committed fixture and audio zip so subsequent `make fresh` runs reuse the new set.
+- **`make start`** — restores the committed snapshot (`.snapshots/dev-data.sqlite` + `audio.zip`) and starts the dev servers; zero regeneration.
 
 ## Usage
 

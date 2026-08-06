@@ -5,7 +5,7 @@ namespace Database\Seeders;
 use App\Models\Definition;
 use App\Models\User;
 use App\Models\Vote;
-use App\Services\WordGenerator;
+use App\Models\Word;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -16,7 +16,7 @@ class DevDataSeeder extends Seeder
         $this->command->info('Creating demo users...');
         $users = $this->createUsers();
 
-        $this->command->info('Generating 1000 words...');
+        $this->command->info('Loading 1000 words from fixture...');
         $words = $this->createWords();
 
         $this->command->info('Creating definitions...');
@@ -24,9 +24,6 @@ class DevDataSeeder extends Seeder
 
         $this->command->info('Creating votes and favourites...');
         $this->createVotesAndFavourites($words, $users);
-
-        $this->command->info('Generating audio...');
-        $this->command->call('words:generate-pronunciation');
 
         $this->command->info('Dev data seeded successfully!');
     }
@@ -53,10 +50,9 @@ class DevDataSeeder extends Seeder
 
     private function createWords(): array
     {
-        $generator = new WordGenerator;
-        $generated = $generator->generateWords(1000);
+        $this->call(WordFixtureSeeder::class);
 
-        return $generator->createWords($generated);
+        return Word::all()->all();
     }
 
     private function createDefinitions(array $words, array $users): void
