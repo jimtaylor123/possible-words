@@ -5,15 +5,27 @@
     "description": "The skeleton application for the Laravel framework.",
     "keywords": ["laravel", "framework"],
     "license": "MIT",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "packages/turso-laravel",
+            "options": {
+                "symlink": false
+            }
+        }
+    ],
     "require": {
         "php": "^8.2",
         "bestmomo/laravel-edge-tts": "^0.1.3",
+        "bref/bref": "^3.0",
+        "bref/laravel-bridge": "^3.0",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^12.0",
-        "laravel/reverb": "^1.10",
         "laravel/socialite": "^5.23",
         "laravel/tinker": "^2.10.1",
+        "league/flysystem-aws-s3-v3": "^3.25",
         "pusher/pusher-php-server": "^7.2",
+        "richan-fongdasen/turso-laravel": "^1.0",
         "tightenco/ziggy": "^2.6"
     },
     "require-dev": {
@@ -57,7 +69,7 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74,#34d399\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"php artisan pail --timeout=0\" \"php artisan reverb:start\" \"npm run dev\" --names=server,queue,logs,reverb,vite --kill-others"
+            "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74,#34d399\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=server,queue,logs,vite --kill-others"
         ],
         "test": [
             "@php artisan config:clear --ansi",
