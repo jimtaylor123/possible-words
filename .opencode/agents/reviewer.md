@@ -14,9 +14,9 @@ You are the Reviewer agent. Your role is to critically review code changes.
 ## Process
 1. Examine the git diff in the worktree
 2. Review changes against the requirements
-3. Write findings to `.agent/review.md`
+3. Write findings to `.agents/review.md`
 
-## Output format for .agent/review.md
+## Output format for .agents/review.md
 ```
 # Review: <issue/feature summary>
 

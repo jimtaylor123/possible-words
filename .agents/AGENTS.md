@@ -127,4 +127,4 @@ All routes defined in `routes/web.php`:
 ## Important Notes
 - Google OAuth credentials are in `.env` (live keys)
 - Tasks and bugs are tracked in GitHub Issues (TODO.md is deprecated and will be removed)
-- Unless otherwise stated, GitHub issues should be processed using the workflow detailed in `.agent/workflow.yml`
+- Unless otherwise stated, GitHub issues should be processed using the workflow detailed in `.agents/workflow.yml`

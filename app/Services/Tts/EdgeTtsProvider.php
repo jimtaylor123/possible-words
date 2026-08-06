@@ -20,9 +20,10 @@ class EdgeTtsProvider implements TtsProvider
             }
 
             $path = 'audio/'.$word->slug.'.mp3';
-            Storage::disk('public')->put($path, $result);
+            $disk = Storage::disk(config('filesystems.default'));
+            $disk->put($path, $result);
 
-            return Storage::disk('public')->url($path);
+            return $disk->url($path);
         } catch (\Exception $e) {
             return null;
         }

@@ -35,9 +35,10 @@ class OpenAiTtsProvider implements TtsProvider
         }
 
         $path = 'audio/'.$word->slug.'.mp3';
-        Storage::disk('public')->put($path, $response->body());
+        $disk = Storage::disk(config('filesystems.default'));
+        $disk->put($path, $response->body());
 
-        return Storage::disk('public')->url($path);
+        return $disk->url($path);
     }
 
     public function isAvailable(): bool

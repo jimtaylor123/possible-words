@@ -1,0 +1,51 @@
+{
+    "name": "richan-fongdasen/turso-laravel",
+    "description": "A Turso/LibSQL database driver for Laravel",
+    "type": "library",
+    "keywords": [
+        "Richan Fongdasen",
+        "turso",
+        "libsql",
+        "laravel",
+        "turso-laravel"
+    ],
+    "homepage": "https://github.com/richan-fongdasen/turso-laravel",
+    "version": "1.0.1",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Richan Fongdasen",
+            "email": "richan.fongdasen@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/bus": "^11.0|^12.0",
+        "illuminate/contracts": "^11.0|^12.0",
+        "illuminate/console": "^11.0|^12.0",
+        "illuminate/database": "^11.0|^12.0",
+        "illuminate/filesystem": "^11.0|^12.0",
+        "illuminate/http": "^11.0|^12.0",
+        "illuminate/queue": "^11.0|^12.0",
+        "illuminate/support": "^11.0|^12.0",
+        "spatie/laravel-package-tools": "^1.16"
+    },
+    "autoload": {
+        "psr-4": {
+            "RichanFongdasen\\Turso\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "RichanFongdasen\\Turso\\TursoLaravelServiceProvider"
+            ],
+            "aliases": {
+                "Turso": "RichanFongdasen\\Turso\\Facades\\Turso"
+            }
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

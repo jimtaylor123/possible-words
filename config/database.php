@@ -43,6 +43,16 @@ return [
             'transaction_mode' => 'DEFERRED',
         ],
 
+        'turso' => [
+            'driver' => 'turso',
+            'db_url' => env('TURSO_DATABASE_URL', 'http://localhost:8080'),
+            'access_token' => env('TURSO_AUTH_TOKEN'),
+            'db_replica' => env('DB_REPLICA'),
+            'prefix' => env('DB_PREFIX', ''),
+            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+            'sticky' => env('DB_STICKY', true),
+        ],
+
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DB_URL'),
@@ -60,6 +70,7 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => env('DB_SSL_VERIFY', true),
             ]) : [],
         ],
 

@@ -1,0 +1,113 @@
+service: possiblewords
+
+provider:
+    name: aws
+    region: eu-west-1
+    stage: prod
+    iam:
+        role:
+            statements:
+                - Effect: Allow
+                  Action:
+                      - s3:GetObject
+                      - s3:PutObject
+                      - s3:DeleteObject
+                  Resource: arn:aws:s3:::possiblewords-prod-audio/audio/*
+                - Effect: Allow
+                  Action:
+                      - s3:ListBucket
+                  Resource: arn:aws:s3:::possiblewords-prod-audio
+    environment:
+        APP_ENV: production
+        APP_KEY: ${env:APP_KEY}
+        APP_DEBUG: 0
+        APP_URL: https://possiblewords.jimtaylor.space
+        LOG_CHANNEL: stderr
+        LOG_STDERR_FORMATTER: Bref\Monolog\CloudWatchFormatter
+        SESSION_DRIVER: cookie
+
+        DB_CONNECTION: turso
+        TURSO_DATABASE_URL: ${env:TURSO_DATABASE_URL}
+        TURSO_AUTH_TOKEN: ${env:TURSO_AUTH_TOKEN}
+        TURSO_CONNECT_TIMEOUT: ${env:TURSO_CONNECT_TIMEOUT, '5'}
+        TURSO_REQUEST_TIMEOUT: ${env:TURSO_REQUEST_TIMEOUT, '15'}
+
+        BROADCAST_CONNECTION: pusher
+        PUSHER_APP_ID: ${env:PUSHER_APP_ID}
+        PUSHER_APP_KEY: ${env:PUSHER_APP_KEY}
+        PUSHER_APP_SECRET: ${env:PUSHER_APP_SECRET}
+        PUSHER_APP_CLUSTER: ${env:PUSHER_APP_CLUSTER}
+        PUSHER_PORT: 443
+        PUSHER_SCHEME: https
+
+        QUEUE_CONNECTION: sync
+        CACHE_STORE: array
+
+        FILESYSTEM_DISK: s3
+        AWS_BUCKET: possiblewords-prod-audio
+        AWS_ENDPOINT: ${env:AWS_ENDPOINT, ''}
+        AWS_USE_PATH_STYLE_ENDPOINT: false
+
+        TTS_PROVIDER: edge-tts
+
+        GOOGLE_CLIENT_ID: ${env:GOOGLE_CLIENT_ID}
+        GOOGLE_CLIENT_SECRET: ${env:GOOGLE_CLIENT_SECRET}
+        GOOGLE_REDIRECT_URI: https://possiblewords.jimtaylor.space/auth/google/callback
+
+        VITE_PUSHER_APP_KEY: ${env:PUSHER_APP_KEY}
+        VITE_PUSHER_APP_CLUSTER: ${env:PUSHER_APP_CLUSTER}
+
+functions:
+    web:
+        handler: public/index.php
+        runtime: php-84-fpm
+        timeout: 28
+        events:
+            - httpApi: '*'
+
+    artisan:
+        handler: artisan
+        runtime: php-84-console
+        timeout: 720
+        events:
+            - schedule:
+                  rate: cron(0 5 * * ? *)
+                  input:
+                      cli: 'words:generate --count=20'
+            - schedule:
+                  rate: cron(30 5 * * ? *)
+                  input:
+                      cli: 'words:generate-pronunciation --chunk=50'
+            - schedule:
+                  rate: cron(0 6 * * ? *)
+                  input:
+                      cli: 'words:check-dictionary --chunk=50'
+
+package:
+    patterns:
+        - '!.env'
+        - '!node_modules/**'
+        - '!public/storage'
+        - '!resources/assets/**'
+        - '!resources/css/**'
+        - '!resources/images/**'
+        - '!resources/js/**'
+        - '!storage/**'
+        - '!tests/**'
+        - '!database/*.sqlite'
+        - '!public/build/**'
+        - 'public/build/manifest.json'
+        - 'public/build/assets/**'
+        - '!vendor/aws/aws-sdk-php/src/data/**'
+        - 'vendor/aws/aws-sdk-php/src/data/manifest.json.php'
+        - 'vendor/aws/aws-sdk-php/src/data/endpoints.json.php'
+        - 'vendor/aws/aws-sdk-php/src/data/partitions.json.php'
+        - 'vendor/aws/aws-sdk-php/src/data/grandfathered-services.json.php'
+        - 'vendor/aws/aws-sdk-php/src/data/sdk-default-configuration.json.php'
+        - 'vendor/aws/aws-sdk-php/src/data/endpoints_prefix_history.json.php'
+        - 'vendor/aws/aws-sdk-php/src/data/aliases.json.php'
+        - 'vendor/aws/aws-sdk-php/src/data/s3/**'
+        - '!docker-compose.yml'
+
+plugins:
+    - ./vendor/bref/bref
