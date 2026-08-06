@@ -16,7 +16,7 @@ steps:
          git worktree add ../possiblewords-${GITHUB_ISSUE} origin/main
 
       2. Create scratch directory inside worktree:
-         ../possiblewords-${GITHUB_ISSUE}/.agent/
+         ../possiblewords-${GITHUB_ISSUE}/.agents/
 
       3. Inside scratch directory create:
          - todo.md
@@ -29,7 +29,7 @@ steps:
          - check ports currently in use
          - assign first free port
          - write to:
-           ../possiblewords-${GITHUB_ISSUE}/.agent/port.txt
+           ../possiblewords-${GITHUB_ISSUE}/.agents/port.txt
 
       5. Start dev server in that worktree using assigned port.
 
@@ -45,8 +45,8 @@ steps:
       Read GitHub issue and codebase in the worktree.
 
       Write to:
-      .agent/todo.md
-      .agent/plan.md
+      .agents/todo.md
+      .agents/plan.md
 
       Ask clarifying questions if required.
 
@@ -59,7 +59,7 @@ steps:
       Do NOT proceed until explicitly approved.
 
       Save final plan to:
-      .agent/plan.md
+      .agents/plan.md
 
   - id: implementation
     agent: implementer
@@ -70,8 +70,8 @@ steps:
       Keep all work inside this worktree only.
 
       Update:
-      - .agent/todo.md (progress tracking)
-      - .agent/notes.md (decisions made)
+      - .agents/todo.md (progress tracking)
+      - .agents/notes.md (decisions made)
 
   - id: ai_review
     agent: reviewer
@@ -86,14 +86,14 @@ steps:
       - test coverage
 
       Output issues to:
-      .agent/review.md
+      .agents/review.md
 
   - id: fix_loop
     agent: implementer
     depends_on: ai_review
     loop: 2
     prompt: |
-      Fix ONLY issues listed in .agent/review.md.
+      Fix ONLY issues listed in .agents/review.md.
 
       Do not introduce new features.
 
@@ -107,10 +107,10 @@ steps:
       - integration tests
 
       Then run browser validation using:
-      http://localhost:$(cat .agent/port.txt)
+      http://localhost:$(cat .agents/port.txt)
 
       Record results in:
-      .agent/browser_logs.md
+      .agents/browser_logs.md
 
   - id: final_fix
     agent: implementer

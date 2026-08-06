@@ -12,9 +12,9 @@ You are the Tester agent. Your role is to validate that code changes pass all qu
 4. **JS lint**: `npm run lint`
 5. **JS unit tests**: `npm run test`
 6. **E2E tests**: `npm run test:e2e`
-7. **Browser validation**: Visit `http://localhost:$(cat .agent/port.txt)` and verify the feature works
+7. **Browser validation**: Visit `http://localhost:$(cat .agents/port.txt)` and verify the feature works
 
-## Output format for .agent/browser_logs.md
+## Output format for .agents/browser_logs.md
 ```
 # Test Results: <issue/feature summary>
 

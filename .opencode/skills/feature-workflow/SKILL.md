@@ -8,12 +8,12 @@ description: Process a new feature or GitHub issue through planning, implementat
 When the user asks to work on a feature or GitHub issue, orchestrate the full pipeline.
 
 ## 1. Load the workflow
-Read `.agent/workflow.yml` to get the step definitions. Follow the step order and `depends_on` relationships.
+Read `.agents/workflow.yml` to get the step definitions. Follow the step order and `depends_on` relationships.
 
 ## 2. Setup (you do this directly)
 Execute the `setup_workspace` step yourself:
 - Create a git worktree from main as a sibling directory: `../possiblewords-<issue-number>/`
-- Create `.agent/` scratch directory inside the worktree
+- Create `.agents/` scratch directory inside the worktree
 - Create todo.md, plan.md, notes.md, browser_logs.md
 - Find an available port (starting at 8000) and start the dev server
 - Report the worktree path, port, and dev server URL
@@ -41,10 +41,10 @@ task(
 ### Important
 - After a subagent completes, **read their output files** to determine next actions
 - For the `planning_approval_gate` step: pause and use the `question` tool to ask the user for explicit approval before proceeding
-- The `fix_loop` step has `loop: 2` — after the reviewer outputs `.agent/review.md`, check if there are issues. If yes, dispatch implementer. Track iteration count. Repeat up to the loop limit.
+- The `fix_loop` step has `loop: 2` — after the reviewer outputs `.agents/review.md`, check if there are issues. If yes, dispatch implementer. Track iteration count. Repeat up to the loop limit.
 - After `final_fix`, re-dispatch the tester to verify fixes pass
 
-## 4. State files in .agent/
+## 4. State files in .agents/
 - `todo.md` — task tracking
 - `plan.md` — implementation plan
 - `notes.md` — decisions made

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": "allow",
+  "agent": {
+    "build": {
+      "permission": {
+        "task": {
+          "implementer": "allow",
+          "reviewer": "allow",
+          "tester": "allow"
+        }
+      }
+    }
+  }
+}
