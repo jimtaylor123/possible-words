@@ -37,7 +37,7 @@ A Laravel application that generates and discovers available words that aren't i
    ```bash
    make dev
    ```
-   This starts Laravel, the queue worker, Reverb (WebSockets), log viewer, and Vite concurrently.
+   This starts Laravel, the queue worker (which dispatches Pusher broadcasts), log viewer, and Vite concurrently.
 
 2. Visit `http://localhost:8000`
 
@@ -51,18 +51,18 @@ A Laravel application that generates and discovers available words that aren't i
 
 ## Real-time Features (WebSockets)
 
-The app uses [Laravel Reverb](https://reverb.laravel.com/) for real-time WebSocket features (live voting updates, definition notifications).
+The app uses [Pusher](https://pusher.com/) (via Laravel Echo + `pusher-js`) for real-time WebSocket features (live voting updates, new definition notifications).
 
-- Reverb starts automatically with `make dev` (or `php artisan reverb:start`)
-- It runs on `ws://127.0.0.1:8080` by default (configured in `.env`)
-- The queue worker must also be running to process broadcast events — also handled by `make dev`
+- The browser connects to `wss://ws-<cluster>.pusher.com` using `VITE_PUSHER_APP_KEY` / `VITE_PUSHER_APP_CLUSTER` (baked into the frontend build).
+- Events are broadcast via the `pusher` driver (`BROADCAST_CONNECTION=pusher`); the queue worker processes them (`make dev` starts `queue:listen`).
+- See `docs/realtime.md` for how it works, how to verify it, and how to debug it.
 
 ### Troubleshooting WebSockets
 
-If you see `WebSocket connection to 'wss://127.0.0.1:8080/...' failed`:
-- Make sure your `.env` has `REVERB_SCHEME=http` and `VITE_REVERB_SCHEME="${REVERB_SCHEME}"`
-- Ensure `make dev` is running (which starts Reverb and the queue)
-- If serving the site over HTTPS, remove `'wss'` from `enabledTransports` in `resources/js/bootstrap.js`
+If you don't see live updates:
+- Make sure your `.env` has `BROADCAST_CONNECTION=pusher` and the `PUSHER_*`/`VITE_PUSHER_*` values set
+- Ensure the queue worker is running (`make dev` starts it) — broadcasts are dispatched as queued jobs
+- On production, `QUEUE_CONNECTION=sync` runs broadcasts inline, so no worker is needed
 
 ## Word Generation
 
