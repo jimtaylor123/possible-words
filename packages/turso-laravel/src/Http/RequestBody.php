@@ -23,7 +23,7 @@ class RequestBody implements Arrayable
     public function __construct(?string $baton = null)
     {
         $this->baton = $baton;
-        $this->queries = new Collection();
+        $this->queries = new Collection;
     }
 
     public static function create(?string $baton = null): self
@@ -33,7 +33,7 @@ class RequestBody implements Arrayable
 
     public function clearQueries(): self
     {
-        $this->queries = new Collection();
+        $this->queries = new Collection;
 
         return $this;
     }
@@ -41,7 +41,7 @@ class RequestBody implements Arrayable
     public function getQuery(int $index): TursoQuery
     {
         if (! $this->queries->has($index)) {
-            throw new InvalidArgumentException('Can not find the TursoQuery instance with the specified index: ' . $index . '.');
+            throw new InvalidArgumentException('Can not find the TursoQuery instance with the specified index: '.$index.'.');
         }
 
         return $this->queries->get($index);
@@ -100,7 +100,7 @@ class RequestBody implements Arrayable
         $body['requests'] = $this->queries->toArray();
 
         if ($this->shouldClose) {
-            $body['requests'][] = (new CloseQuery())->toArray();
+            $body['requests'][] = (new CloseQuery)->toArray();
         }
 
         return $body;

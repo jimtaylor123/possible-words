@@ -32,7 +32,7 @@ class ResponseBody
 
     protected function extractQueryResponses(array $response): Collection
     {
-        $queryResponses = new Collection();
+        $queryResponses = new Collection;
 
         collect((array) data_get($response, 'results', []))
             ->each(function (array $queryResponse, int $index) use ($queryResponses) {
@@ -58,7 +58,7 @@ class ResponseBody
     public function getQueryResponse(int $index): QueryResponse
     {
         if (! $this->queryResponses->has($index)) {
-            throw new InvalidArgumentException('Can not find the QueryResponse instance with the specified index: ' . $index . '.');
+            throw new InvalidArgumentException('Can not find the QueryResponse instance with the specified index: '.$index.'.');
         }
 
         return $this->queryResponses->get($index);

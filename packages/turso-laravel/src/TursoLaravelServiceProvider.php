@@ -36,7 +36,7 @@ class TursoLaravelServiceProvider extends PackageServiceProvider
             ->hasCommand(TursoSyncCommand::class);
 
         $this->publishes([
-            realpath(dirname(__DIR__) . '/turso-sync.mjs') => base_path('turso-sync.mjs'),
+            realpath(dirname(__DIR__).'/turso-sync.mjs') => base_path('turso-sync.mjs'),
         ], 'sync-script');
     }
 
@@ -45,14 +45,14 @@ class TursoLaravelServiceProvider extends PackageServiceProvider
         parent::register();
 
         $this->app->scoped(TursoManager::class, function () {
-            return new TursoManager();
+            return new TursoManager;
         });
 
         DB::extend('turso', function (array $config, string $name) {
             $config['database'] = null;
             $config['name'] = $name;
 
-            $connector = new TursoConnector();
+            $connector = new TursoConnector;
             $pdo = $connector->connect($config);
 
             $connection = new TursoConnection($pdo, $config['name'], $config['prefix'], $config);

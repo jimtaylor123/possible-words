@@ -61,7 +61,7 @@ class TursoSyncCommand extends Command
             ->run($this->compileRunProcess($connectionName));
 
         if ($result->failed()) {
-            throw new RuntimeException('Turso sync command failed: ' . $result->errorOutput());
+            throw new RuntimeException('Turso sync command failed: '.$result->errorOutput());
         }
 
         $this->info($result->output());

@@ -69,7 +69,7 @@ class TursoSchemaBuilder extends SQLiteBuilder
     protected function grammar(): TursoSchemaGrammar
     {
         if (! ($this->grammar instanceof TursoSchemaGrammar)) {
-            $this->grammar = new TursoSchemaGrammar();
+            $this->grammar = new TursoSchemaGrammar;
         }
 
         return $this->grammar;

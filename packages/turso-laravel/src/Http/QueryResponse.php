@@ -68,20 +68,20 @@ class QueryResponse
 
     protected function extractRows(array $response): Collection
     {
-        $rows = new Collection();
+        $rows = new Collection;
 
         collect((array) data_get($response, 'response.result.rows', []))
             ->each(function (array $item) use (&$rows) {
-                $row = new Collection();
+                $row = new Collection;
 
                 collect($item)
                     ->each(function (array $column, int $index) use (&$row) {
                         $value = match ($column['type']) {
-                            'blob'    => base64_decode((string) base64_decode((string) $column['base64'], true), true),
+                            'blob' => base64_decode((string) base64_decode((string) $column['base64'], true), true),
                             'integer' => (int) $column['value'],
-                            'float'   => (float) $column['value'],
-                            'null'    => null,
-                            default   => (string) $column['value'],
+                            'float' => (float) $column['value'],
+                            'null' => null,
+                            default => (string) $column['value'],
                         };
 
                         $row->put($this->columns->get($index), $value);

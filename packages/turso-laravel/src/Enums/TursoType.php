@@ -45,20 +45,20 @@ enum TursoType: string
     {
         return match ($this) {
             self::NULL => [
-                'type'  => $this->value,
+                'type' => $this->value,
                 'value' => 'null',
             ],
             self::FLOAT => [
-                'type'  => $this->value,
+                'type' => $this->value,
                 'value' => $value,
             ],
             self::BLOB => [
-                'type'   => $this->value,
+                'type' => $this->value,
                 'base64' => base64_encode(base64_encode($value)),
             ],
 
             default => [
-                'type'  => $this->value,
+                'type' => $this->value,
                 'value' => (string) $value,
             ],
         };

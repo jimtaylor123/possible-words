@@ -33,7 +33,7 @@ class TursoConnection extends Connection
             return null;
         }
 
-        $pdo = new PDO('sqlite:' . $replicaPath);
+        $pdo = new PDO('sqlite:'.$replicaPath);
 
         $this->setReadPdo($pdo);
 
@@ -49,7 +49,7 @@ class TursoConnection extends Connection
 
     protected function getDefaultPostProcessor(): TursoQueryProcessor
     {
-        return new TursoQueryProcessor();
+        return new TursoQueryProcessor;
     }
 
     protected function getDefaultQueryGrammar(): TursoQueryGrammar

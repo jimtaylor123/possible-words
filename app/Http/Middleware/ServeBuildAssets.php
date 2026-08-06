@@ -12,13 +12,13 @@ class ServeBuildAssets
     {
         $path = rawurldecode(ltrim($request->getPathInfo(), '/'));
 
-        if (!str_starts_with($path, 'build/') && !str_starts_with($path, 'favicon')) {
+        if (! str_starts_with($path, 'build/') && ! str_starts_with($path, 'favicon')) {
             return $next($request);
         }
 
         $file = public_path($path);
 
-        if (!file_exists($file) || is_dir($file)) {
+        if (! file_exists($file) || is_dir($file)) {
             return $next($request);
         }
 

@@ -36,9 +36,9 @@ class TursoClient
         ));
         $this->baseUrl = (string) $this->config->get('db_url', '');
 
-        $this->connectionStore = new ArrayStore();
+        $this->connectionStore = new ArrayStore;
 
-        $this->queryLog = new Collection();
+        $this->queryLog = new Collection;
 
         $this->disableQueryLog();
         $this->resetHttpClientState();
@@ -91,7 +91,7 @@ class TursoClient
 
     public function flushQueryLog(): void
     {
-        $this->queryLog = new Collection();
+        $this->queryLog = new Collection;
     }
 
     public function freshHttpRequest(): PendingRequest
@@ -142,8 +142,8 @@ class TursoClient
 
         if ($this->loggingQueries) {
             $this->queryLog->push([
-                'request'   => $requestBody->toArray(),
-                'response'  => $responseBody->getRawResponse(),
+                'request' => $requestBody->toArray(),
+                'response' => $responseBody->getRawResponse(),
             ]);
         }
 

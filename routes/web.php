@@ -26,8 +26,8 @@ Route::middleware('auth')->group(function () {
 
 // Serve built assets (for serverless where no static file serving is available)
 Route::get('/build/{path}', function (string $path) {
-    $file = public_path('build/' . $path);
-    if (!file_exists($file) || is_dir($file)) {
+    $file = public_path('build/'.$path);
+    if (! file_exists($file) || is_dir($file)) {
         abort(404);
     }
     $ext = pathinfo($file, PATHINFO_EXTENSION);
@@ -43,6 +43,7 @@ Route::get('/build/{path}', function (string $path) {
         'txt' => 'text/plain',
         default => finfo_file(finfo_open(FILEINFO_MIME_TYPE), $file) ?: 'application/octet-stream',
     };
+
     return response()->file($file, [
         'Content-Type' => $mime,
         'Cache-Control' => 'public, max-age=31536000, immutable',
