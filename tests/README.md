@@ -14,7 +14,7 @@ There is also a static analysis and style check pipeline: `composer qa` runs Pin
 
 ## Prerequisites
 
-- PHP 8.2+ and Composer (`composer install`)
+- PHP 8.4 and Composer (`composer install`)
 - Node 20+ (`npm install`)
 - Playwright browsers: `npx playwright install`
 
@@ -170,7 +170,7 @@ npm run lint
 
 GitHub Actions runs on every push to `main` and on pull requests (see `.github/workflows/ci.yml`):
 
-- **PHP job** — `composer qa` (Pint, PHPStan, Pest) on PHP 8.3.
+- **PHP job** — `composer qa` (Pint, PHPStan, Pest) on PHP 8.4.
 - **Frontend job** — `npm run lint` + `npm run test` (Vitest) on Node 22.
 - **E2E job** — installs PHP + Node deps, copies `.env.example` to `.env`, restores the committed snapshot (`.snapshots/dev-data.sqlite`) into `database/database.sqlite`, appends `E2E_AUTH_ENABLED=true`, builds assets, installs Playwright browsers, and runs `npm run test:e2e`. Failing runs upload the Playwright HTML report as an artifact.
 
