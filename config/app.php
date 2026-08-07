@@ -30,6 +30,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Testing-only auth helpers
+    |--------------------------------------------------------------------------
+    |
+    | Enables the /testing/login and /testing/logout routes used by the
+    | Playwright e2e suite. Never set to true in production.
+    |
+    */
+
+    'e2e_auth_enabled' => (bool) env('E2E_AUTH_ENABLED', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Debug Mode
     |--------------------------------------------------------------------------
     |

@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
-    Storage::fake('public');
+    Storage::fake(config('filesystems.default'));
 });
 
 it('generates audio via OpenAI TTS', function () {
@@ -30,7 +30,7 @@ it('generates audio via OpenAI TTS', function () {
             && $request['model'] === 'tts-1';
     });
 
-    Storage::disk('public')->assertExists('audio/testword.mp3');
+    Storage::disk(config('filesystems.default'))->assertExists('audio/testword.mp3');
     expect($result)->not->toBeNull();
 });
 

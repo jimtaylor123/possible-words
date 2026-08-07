@@ -8,98 +8,102 @@ beforeEach(function () {
     $this->service = new PronunciationService(mock(TtsProvider::class));
 });
 
-it('generates IPA from stored phonemes', function () {
-    $word = Word::factory()->create([
-        'phonemes' => [
-            ['onset' => 'b', 'nucleus' => 'a', 'coda' => 't'],
-        ],
-    ]);
+describe('generating IPA', function () {
+    test('Given stored phonemes, IPA is generated from them', function () {
+        $word = Word::factory()->create([
+            'phonemes' => [
+                ['onset' => 'b', 'nucleus' => 'a', 'coda' => 't'],
+            ],
+        ]);
 
-    $ipa = $this->service->generateIPA($word);
+        $ipa = $this->service->generateIPA($word);
 
-    expect($ipa)->toBe('/bæt/');
+        expect($ipa)->toBe('/bæt/');
+    });
+
+    test('Given a multi-syllable word, IPA is generated per syllable', function () {
+        $word = Word::factory()->create([
+            'phonemes' => [
+                ['onset' => 'h', 'nucleus' => 'a', 'coda' => ''],
+                ['onset' => 'l', 'nucleus' => 'ow', 'coda' => ''],
+            ],
+        ]);
+
+        $ipa = $this->service->generateIPA($word);
+
+        expect($ipa)->toBe('/hæ.laʊ/');
+    });
+
+    test('Given no stored phonemes, the text is used as a fallback', function () {
+        $word = Word::factory()->create([
+            'phonemes' => null,
+            'text' => 'testword',
+        ]);
+
+        $ipa = $this->service->generateIPA($word);
+
+        expect($ipa)->toBe('/testword/');
+    });
 });
 
-it('generates IPA for multi-syllable words', function () {
-    $word = Word::factory()->create([
-        'phonemes' => [
-            ['onset' => 'h', 'nucleus' => 'a', 'coda' => ''],
-            ['onset' => 'l', 'nucleus' => 'ow', 'coda' => ''],
-        ],
-    ]);
+describe('ensuring pronunciation', function () {
+    test('Given an available provider, IPA and audio are generated', function () {
+        $provider = mock(TtsProvider::class);
+        $provider->shouldReceive('isAvailable')->andReturn(true);
+        $provider->shouldReceive('generateAudio')->andReturn('http://localhost/audio/testword.mp3');
 
-    $ipa = $this->service->generateIPA($word);
+        $service = new PronunciationService($provider);
 
-    expect($ipa)->toBe('/hæ.laʊ/');
-});
+        $word = Word::factory()->create([
+            'text' => 'testword',
+            'slug' => 'testword',
+            'phonemes' => [
+                ['onset' => 't', 'nucleus' => 'e', 'coda' => 'st'],
+            ],
+        ]);
 
-it('falls back to grapheme when no phonemes stored', function () {
-    $word = Word::factory()->create([
-        'phonemes' => null,
-        'text' => 'testword',
-    ]);
+        $result = $service->ensurePronunciation($word);
+        expect($result->ipa)->toBe('/tɛst/');
+        expect($result->audio_url)->toBe('http://localhost/audio/testword.mp3');
+    });
 
-    $ipa = $this->service->generateIPA($word);
+    test('Given an unavailable provider, IPA is set but audio is skipped', function () {
+        $provider = mock(TtsProvider::class);
+        $provider->shouldReceive('isAvailable')->andReturn(false);
+        $provider->shouldNotReceive('generateAudio');
 
-    expect($ipa)->toBe('/testword/');
-});
+        $service = new PronunciationService($provider);
 
-it('generates audio via TTS provider', function () {
-    $provider = mock(TtsProvider::class);
-    $provider->shouldReceive('isAvailable')->andReturn(true);
-    $provider->shouldReceive('generateAudio')->andReturn('http://localhost/audio/testword.mp3');
+        $word = Word::factory()->create([
+            'text' => 'testword',
+            'slug' => 'testword',
+            'phonemes' => [
+                ['onset' => 't', 'nucleus' => 'e', 'coda' => 'st'],
+            ],
+        ]);
 
-    $service = new PronunciationService($provider);
+        $result = $service->ensurePronunciation($word);
+        expect($result->ipa)->toBe('/tɛst/');
+        expect($result->audio_url)->toBeNull();
+    });
 
-    $word = Word::factory()->create([
-        'text' => 'testword',
-        'slug' => 'testword',
-        'phonemes' => [
-            ['onset' => 't', 'nucleus' => 'e', 'coda' => 'st'],
-        ],
-    ]);
+    test('Given a failed TTS generation, audio_url stays null', function () {
+        $provider = mock(\App\Contracts\TtsProvider::class);
+        $provider->shouldReceive('isAvailable')->andReturn(true);
+        $provider->shouldReceive('generateAudio')->andReturn(null);
 
-    $result = $service->ensurePronunciation($word);
-    expect($result->ipa)->toBe('/tɛst/');
-    expect($result->audio_url)->toBe('http://localhost/audio/testword.mp3');
-});
+        $service = new \App\Services\PronunciationService($provider);
 
-it('skips audio when provider not available', function () {
-    $provider = mock(TtsProvider::class);
-    $provider->shouldReceive('isAvailable')->andReturn(false);
-    $provider->shouldNotReceive('generateAudio');
+        $word = Word::factory()->create([
+            'text' => 'testword',
+            'slug' => 'testword',
+            'phonemes' => [
+                ['onset' => 't', 'nucleus' => 'e', 'coda' => 'st'],
+            ],
+        ]);
 
-    $service = new PronunciationService($provider);
-
-    $word = Word::factory()->create([
-        'text' => 'testword',
-        'slug' => 'testword',
-        'phonemes' => [
-            ['onset' => 't', 'nucleus' => 'e', 'coda' => 'st'],
-        ],
-    ]);
-
-    $result = $service->ensurePronunciation($word);
-    expect($result->ipa)->toBe('/tɛst/');
-    expect($result->audio_url)->toBeNull();
-});
-
-it('leaves audio_url null when TTS generation fails', function () {
-    $provider = mock(\App\Contracts\TtsProvider::class);
-    $provider->shouldReceive('isAvailable')->andReturn(true);
-    $provider->shouldReceive('generateAudio')->andReturn(null);
-
-    $service = new \App\Services\PronunciationService($provider);
-
-    $word = Word::factory()->create([
-        'text' => 'testword',
-        'slug' => 'testword',
-        'phonemes' => [
-            ['onset' => 't', 'nucleus' => 'e', 'coda' => 'st'],
-        ],
-    ]);
-
-    $result = $service->ensurePronunciation($word);
-    expect($result->ipa)->toBe('/tɛst/');
-    expect($result->audio_url)->toBeNull();
+        $result = $service->ensurePronunciation($word);
+        expect($result->ipa)->toBe('/tɛst/');
+        expect($result->audio_url)->toBeNull();
+    });
 });

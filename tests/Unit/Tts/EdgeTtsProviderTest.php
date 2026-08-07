@@ -6,7 +6,7 @@ use Bestmomo\LaravelEdgeTts\Facades\EdgeTts;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
-    Storage::fake('public');
+    Storage::fake(config('filesystems.default'));
 });
 
 it('returns null when synthesis fails', function () {
@@ -30,7 +30,7 @@ it('stores audio on successful synthesis', function () {
     $provider = new EdgeTtsProvider;
     $result = $provider->generateAudio($word);
 
-    Storage::disk('public')->assertExists('audio/testword.mp3');
+    Storage::disk(config('filesystems.default'))->assertExists('audio/testword.mp3');
     expect($result)->not->toBeNull();
 });
 

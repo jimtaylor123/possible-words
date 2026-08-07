@@ -14,67 +14,69 @@ beforeEach(function () {
     $this->app->instance(TtsProvider::class, $mock);
 });
 
-it('show page returns word with pronunciation data', function () {
-    $word = Word::factory()->withPronunciation()->create();
+describe('pronunciation on the word detail page', function () {
+    test('Given a word with pronunciation, the show page returns IPA and audio', function () {
+        $word = Word::factory()->withPronunciation()->create();
 
-    $this->get(route('words.show', $word))
-        ->assertStatus(200)
-        ->assertInertia(fn ($page) => $page
-            ->component('Words/Show')
-            ->has('word.ipa')
-            ->has('word.audio_url')
-        );
+        $this->get(route('words.show', $word))
+            ->assertStatus(200)
+            ->assertInertia(fn ($page) => $page
+                ->component('Words/Show')
+                ->has('word.ipa')
+                ->has('word.audio_url')
+            );
+    });
+
+    test('Given a word without pronunciation, the show page omits it', function () {
+        $word = Word::factory()->create(['ipa' => null]);
+
+        $this->get(route('words.show', $word))
+            ->assertStatus(200)
+            ->assertInertia(fn ($page) => $page
+                ->component('Words/Show')
+                ->where('word.ipa', null)
+            );
+    });
 });
 
-it('artisan command generates pronunciation for words without it', function () {
-    $word = Word::factory()->create([
-        'phonemes' => [
-            ['onset' => 'c', 'nucleus' => 'a', 'coda' => 't'],
-        ],
-        'ipa' => null,
-        'audio_url' => null,
-    ]);
+describe('generating pronunciation via artisan', function () {
+    test('Given a word without pronunciation, the command generates it', function () {
+        $word = Word::factory()->create([
+            'phonemes' => [
+                ['onset' => 'c', 'nucleus' => 'a', 'coda' => 't'],
+            ],
+            'ipa' => null,
+            'audio_url' => null,
+        ]);
 
-    $this->artisan('words:generate-pronunciation')
-        ->expectsOutputToContain('Generated pronunciation for 1 words.')
-        ->assertExitCode(0);
+        $this->artisan('words:generate-pronunciation')
+            ->expectsOutputToContain('Generated pronunciation for 1 words.')
+            ->assertExitCode(0);
 
-    $word->refresh();
-    expect($word->ipa)->toBe('/kæt/');
-    expect($word->audio_url)->not->toBeNull();
-});
+        $word->refresh();
+        expect($word->ipa)->toBe('/kæt/');
+        expect($word->audio_url)->not->toBeNull();
+    });
 
-it('artisan command skips words that already have pronunciation', function () {
-    $word = Word::factory()->withPronunciation()->create([
-        'ipa' => '/ɔld/',
-    ]);
+    test('Given words that already have pronunciation, the command skips them', function () {
+        $word = Word::factory()->withPronunciation()->create([
+            'ipa' => '/ɔld/',
+        ]);
 
-    $this->artisan('words:generate-pronunciation')
-        ->expectsOutput('No words to process.')
-        ->assertExitCode(0);
-});
+        $this->artisan('words:generate-pronunciation')
+            ->expectsOutput('No words to process.')
+            ->assertExitCode(0);
+    });
 
-it('artisan command regenerates with force flag', function () {
-    $word = Word::factory()->withPronunciation()->create([
-        'ipa' => '/ɔld/',
-    ]);
+    test('Given the --force flag, the command regenerates existing pronunciation', function () {
+        $word = Word::factory()->withPronunciation()->create([
+            'ipa' => '/ɔld/',
+        ]);
 
-    $originalIpa = $word->ipa;
+        $this->artisan('words:generate-pronunciation --force')
+            ->assertExitCode(0);
 
-    $this->artisan('words:generate-pronunciation --force')
-        ->assertExitCode(0);
-
-    $word->refresh();
-    expect($word->ipa)->not->toBeNull();
-});
-
-it('show page returns word without pronunciation when not set', function () {
-    $word = Word::factory()->create(['ipa' => null]);
-
-    $this->get(route('words.show', $word))
-        ->assertStatus(200)
-        ->assertInertia(fn ($page) => $page
-            ->component('Words/Show')
-            ->where('word.ipa', null)
-        );
+        $word->refresh();
+        expect($word->ipa)->not->toBeNull();
+    });
 });

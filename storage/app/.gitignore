@@ -1,4 +1,6 @@
 *
 !private/
 !public/
+!dictionary/
+!dictionary/banned-words.json
 !.gitignore
