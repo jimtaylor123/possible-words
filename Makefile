@@ -1,4 +1,4 @@
-.PHONY: start setup install migrate seed audio build dev snapshot reset fresh reseed-words zip-audio restore-audio
+.PHONY: start setup install migrate seed audio build dev snapshot reset fresh reseed-words zip-audio restore-audio test test-load
 
 start: reset dev
 
@@ -27,6 +27,12 @@ build:
 
 dev:
 	@composer dev
+
+test:
+	@composer test
+
+test-load:
+	@composer test:load
 
 SNAPSHOT_DIR = .snapshots
 SNAPSHOT_FILE = $(SNAPSHOT_DIR)/dev-data.sqlite

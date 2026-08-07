@@ -39,6 +39,10 @@ Local dev uses a **stable set of 1000 words** committed as a fixture (`database/
 - **`make reseed-words`** — the only thing that generates **new** words and calls the TTS service for audio. Use this only when you want a fresh set of words (e.g. after a fundamental change to the word data structure). It updates the committed fixture and audio zip so subsequent `make fresh` runs reuse the new set.
 - **`make start`** — restores the committed snapshot (`.snapshots/dev-data.sqlite` + `audio.zip`) and starts the dev servers; zero regeneration.
 
+## Testing
+
+See [tests/README.md](tests/README.md) for how to run the PHP (Pest), frontend (Vitest), and end-to-end (Playwright) test suites.
+
 ## Usage
 
 1. Run the dev servers:
