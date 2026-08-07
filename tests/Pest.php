@@ -17,6 +17,30 @@ pest()->extend(Tests\TestCase::class)
 
 /*
 |--------------------------------------------------------------------------
+| Vite manifest stub
+|--------------------------------------------------------------------------
+|
+| Feature tests render the app Blade view, which calls @vite. Provide a
+| minimal manifest when no frontend build exists (e.g. a fresh checkout
+| or CI), so the suite runs without an `npm run build` first.
+|
+*/
+
+$manifestPath = dirname(__DIR__).'/public/build/manifest.json';
+
+if (! file_exists($manifestPath)) {
+    $buildDir = dirname(__DIR__).'/public/build';
+    if (! is_dir($buildDir)) {
+        mkdir($buildDir, 0755, true);
+    }
+    file_put_contents($manifestPath, json_encode([
+        'resources/js/app.js' => ['file' => 'assets/app.js', 'src' => 'resources/js/app.js', 'isEntry' => true],
+        'resources/css/app.css' => ['file' => 'assets/app.css', 'src' => 'resources/css/app.css', 'isEntry' => true],
+    ], JSON_PRETTY_PRINT));
+}
+
+/*
+|--------------------------------------------------------------------------
 | Expectations
 |--------------------------------------------------------------------------
 |
