@@ -40,6 +40,7 @@
                         size="small"
                         quaternary
                         circle
+                        :aria-label="favouriteIds.includes(word.id) ? 'Remove from favourites' : 'Add to favourites'"
                         @click.stop="toggleFavourite(word)"
                       >
                         <template #icon>

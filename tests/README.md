@@ -1,12 +1,12 @@
 # Testing
 
-This project has four test suites:
+This project has five test suites:
 
 | Suite | Stack | Location | Command |
 |---|---|---|---|
 | Unit & feature (PHP) | Pest/PHPUnit | `tests/Unit`, `tests/Feature` | `composer test` |
-| Load / stress (dev) | Pest + Stressless (k6) | `tests/Load` | `composer test:load` |
-| Load / stress (prod) | Pest + Stressless (k6) | `tests/LoadProd` | `PROD_LOAD_CONFIRM=1 composer test:load:prod` |
+| Load / stress (dev) | Pest + Stressless | `tests/Load` | `composer test:load` |
+| Load / stress (prod) | Pest + Stressless | `tests/LoadProd` | `PROD_LOAD_CONFIRM=1 composer test:load:prod` |
 | Frontend unit | Vitest | alongside JS components | `npm run test` |
 | End-to-end | Playwright | `tests/e2e` | `npm run test:e2e` |
 
@@ -41,9 +41,29 @@ php artisan test --filter="home page lists"
 
 Feature tests use `RefreshDatabase` (or manual `migrate:fresh`) against an in-memory SQLite DB, so they are isolated from your dev data. Note: the e2e suite is different — see below.
 
+### Deferred scenarios (test when the feature lands)
+
+The Pest suite is organised as BDD `describe()` blocks (Given/When/Then style). Features that are not yet implemented do not have tests yet; add them when the underlying issues land:
+
+- Flag / report a word (#38)
+- Banning & moderation (#57)
+- Word ownership (#8)
+- Publishing windows / scheduling (#10)
+- Dark / light theme toggle (#47)
+- Notifications (#17)
+
+## Testing-only auth route
+
+Playwright journeys that need a signed-in user (admin, definitions, favourites) log in without Google OAuth using a testing-only endpoint:
+
+- `POST /testing/login?email=...&is_admin=0` — finds or creates the user and logs them in.
+- `POST /testing/logout` — logs out and invalidates the session.
+
+These routes (and their CSRF exemption) are registered **only** when the app runs with `APP_ENV=testing` **or** `E2E_AUTH_ENABLED=true` in `.env`. Production never sets `E2E_AUTH_ENABLED`, so the routes are absent there. To run the signed-in e2e specs locally, append `E2E_AUTH_ENABLED=true` to your `.env` (do **not** commit `.env`). The Pest suite needs no flag — `phpunit.xml` already sets `APP_ENV=testing`.
+
 ## Load / stress tests (Pest Stressless)
 
-The load tests hit a **real, running HTTP server** — they are not part of `composer test` (the `Unit`/`Feature` suites run against an in-memory DB). They use Pest's Stressless plugin, which drives [k6](https://k6.io/) under the hood (the binary downloads on first use). They assert on failure rate and response latency (p95) for the homepage, word detail, and about pages.
+The load tests hit a **real, running HTTP server** — they are not part of `composer test` (the `Unit`/`Feature` suites run against an in-memory DB). They use Pest's Stressless plugin, which drives [k6](https://k6.io/) under the hood (the binary downloads on first use). They assert on failure rate and response latency (p95) for the homepage, word detail, and about pages. This satisfies issue #48's "load testing" requirement; a standalone k6 setup was deliberately **not** added because Stressless already provides the same guarantees from within Pest.
 
 ```bash
 # Make sure a server with seeded data is running first, then:
@@ -97,6 +117,12 @@ The e2e suite boots the real Laravel app via Playwright's `webServer` (see `play
 make fresh
 ```
 
+Signed-in e2e specs also need the testing auth route enabled:
+
+```bash
+echo 'E2E_AUTH_ENABLED=true' >> .env
+```
+
 ```bash
 # Run the whole e2e suite
 npm run test:e2e
@@ -142,4 +168,10 @@ npm run lint
 
 ## CI
 
-CI for these suites is not wired up yet (see [TODO.md](../TODO.md) / GitHub issue #48).
+GitHub Actions runs on every push to `main` and on pull requests (see `.github/workflows/ci.yml`):
+
+- **PHP job** — `composer qa` (Pint, PHPStan, Pest) on PHP 8.3.
+- **Frontend job** — `npm run lint` + `npm run test` (Vitest) on Node 22.
+- **E2E job** — installs PHP + Node deps, copies `.env.example` to `.env`, restores the committed snapshot (`.snapshots/dev-data.sqlite`) into `database/database.sqlite`, appends `E2E_AUTH_ENABLED=true`, builds assets, installs Playwright browsers, and runs `npm run test:e2e`. Failing runs upload the Playwright HTML report as an artifact.
+
+The load/stress suites are **not** part of CI: `test:load` needs a running dev server and `test:load:prod` hits the live site and consumes AWS usage, so both stay manual by design.

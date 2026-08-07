@@ -11,6 +11,7 @@
                 size="small"
                 quaternary
                 circle
+                :aria-label="favouriteIds.includes(props.word.id) ? 'Remove from favourites' : 'Add to favourites'"
                 @click="toggleFavourite"
               >
                 <template #icon>

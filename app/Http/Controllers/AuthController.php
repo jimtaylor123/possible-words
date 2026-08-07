@@ -108,4 +108,45 @@ class AuthController extends Controller
 
         return redirect('/');
     }
+
+    /**
+     * Testing-only helper: log in as a find-or-create user.
+     *
+     * Exposed via /testing/login, only registered when APP_ENV=testing or
+     * config('app.e2e_auth_enabled') is true.
+     * Options: ?email=...&is_admin=1
+     */
+    public function testingLogin(Request $request)
+    {
+        abort_unless(app()->environment('testing') || config('app.e2e_auth_enabled'), 404);
+
+        $user = User::where('email', $request->input('email', 'e2e@example.com'))->first()
+            ?? User::create([
+                'name' => $request->input('name', 'E2E Test User'),
+                'email' => $request->input('email', 'e2e@example.com'),
+                'provider' => 'google',
+                'password' => null,
+                'is_admin' => $request->boolean('is_admin'),
+            ]);
+
+        if ($request->has('is_admin') && (bool) $user->is_admin !== $request->boolean('is_admin')) {
+            $user->forceFill(['is_admin' => $request->boolean('is_admin')])->save();
+        }
+
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function testingLogout(Request $request)
+    {
+        abort_unless(app()->environment('testing') || config('app.e2e_auth_enabled'), 404);
+
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return response()->json(['ok' => true]);
+    }
 }

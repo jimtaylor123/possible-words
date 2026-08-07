@@ -3,6 +3,7 @@
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\WordController;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
@@ -56,3 +57,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
         return inertia('Admin/Dashboard');
     })->name('admin.dashboard');
 });
+
+// Testing-only helpers. Registered only when running the Pest suite
+// (APP_ENV=testing) or when E2E_AUTH_ENABLED=true (see config/app.php).
+// The CSRF exemption is registered here too because routes/web.php is loaded after
+// the environment variables, unlike the withMiddleware closure in bootstrap/app.php.
+if (app()->environment('testing') || config('app.e2e_auth_enabled')) {
+    ValidateCsrfToken::except(['testing/login', 'testing/logout']);
+
+    Route::middleware('web')->group(function () {
+        Route::post('/testing/login', [AuthController::class, 'testingLogin'])->name('testing.login');
+        Route::post('/testing/logout', [AuthController::class, 'testingLogout'])->name('testing.logout');
+    });
+}
