@@ -93,6 +93,25 @@ describe('liking a definition', function () {
         expect($definition->votes()->where('user_id', $liker->id)->exists())->toBeFalse();
     });
 
+    test('Given a definition the author auto-liked, a second user liking it increments the count to two', function () {
+        $author = User::factory()->create();
+        $liker = User::factory()->create();
+        $word = createWord();
+
+        $this->actingAs($author)
+            ->post(route('words.definitions.store', $word), ['text' => 'auto-liked'])
+            ->assertRedirect();
+
+        $definition = $word->definitions()->first();
+        expect($definition->votes_count)->toBe(1);
+
+        $this->actingAs($liker)
+            ->post(route('definitions.vote', $definition))
+            ->assertRedirect();
+
+        expect($definition->fresh()->votes_count)->toBe(2);
+    });
+
     test('Given a guest, liking redirects to login', function () {
         $author = User::factory()->create();
         $word = createWord();
@@ -131,6 +150,17 @@ describe('favouriting', function () {
             ->assertRedirect();
 
         expect(\App\Models\Favourite::where('user_id', $user->id)->where('word_id', $word->id)->exists())->toBeFalse();
+    });
+
+    test('Given a user with no favourites, the favourites page shows an empty list', function () {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->get(route('words.favourites'))
+            ->assertInertia(fn ($page) => $page
+                ->component('Favourites/Index')
+                ->has('words.data', 0)
+            );
     });
 
     test('Given a guest, favouriting redirects to login', function () {

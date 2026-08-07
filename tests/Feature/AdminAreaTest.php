@@ -59,6 +59,18 @@ describe('promoting users via artisan', function () {
         $this->artisan('user:role', ['email' => 'nobody@example.com', 'role' => 'admin'])
             ->assertFailed();
     });
+
+    test('Given an invalid role, the command fails', function () {
+        $user = User::factory()->create();
+
+        $this->artisan('user:role', ['email' => $user->email, 'role' => 'superadmin'])
+            ->assertFailed();
+    });
+
+    test('Given an invalid email, the command fails', function () {
+        $this->artisan('user:role', ['email' => 'not-an-email', 'role' => 'admin'])
+            ->assertFailed();
+    });
 });
 
 describe('admin account setup', function () {
