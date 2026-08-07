@@ -10,6 +10,9 @@ export default defineConfig({
     use: {
         baseURL: 'http://localhost:8002',
         trace: 'on-first-retry',
+        launchOptions: {
+            slowMo: 0,
+        },
     },
     webServer: {
         command: 'php artisan serve --port=8002 --env=testing 2>/dev/null',

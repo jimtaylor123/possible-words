@@ -346,7 +346,7 @@ const onSortChange = () => {
 }
 
 const clearFilters = () => {
-  filters.value = {}
+  filters.value = { search: null, syllables: null, length: null, starts_with: null }
   router.get(route('home'), { sort: 'created_at', direction: 'desc' }, {
     preserveState: true,
     replace: true,
