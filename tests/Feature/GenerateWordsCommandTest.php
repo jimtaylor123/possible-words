@@ -14,61 +14,63 @@ beforeEach(function () {
     $this->app->instance(DictionaryService::class, $mock);
 });
 
-test('words:generate creates the default number of words', function () {
-    $this->artisan('words:generate')
-        ->assertExitCode(0);
+describe('generating words via artisan', function () {
+    test('Given the command runs, it creates the default number of words', function () {
+        $this->artisan('words:generate')
+            ->assertExitCode(0);
 
-    expect(Word::count())->toBe(20);
-});
+        expect(Word::count())->toBe(20);
+    });
 
-test('words:generate creates specified number of words with --count', function () {
-    $this->artisan('words:generate --count=50')
-        ->assertExitCode(0);
+    test('Given a --count option, it creates that many words', function () {
+        $this->artisan('words:generate --count=50')
+            ->assertExitCode(0);
 
-    expect(Word::count())->toBe(50);
-});
+        expect(Word::count())->toBe(50);
+    });
 
-test('words:generate sets generated_at on created words', function () {
-    $this->artisan('words:generate --count=5')
-        ->assertExitCode(0);
+    test('Given the command runs, created words have a generated_at timestamp', function () {
+        $this->artisan('words:generate --count=5')
+            ->assertExitCode(0);
 
-    foreach (Word::all() as $word) {
-        expect($word->generated_at)->not->toBeNull();
-    }
-});
+        foreach (Word::all() as $word) {
+            expect($word->generated_at)->not->toBeNull();
+        }
+    });
 
-test('words:generate with --fast flag creates words', function () {
-    $this->artisan('words:generate --count=10 --fast')
-        ->assertExitCode(0);
+    test('Given the --fast flag, it creates words without dictionary checks', function () {
+        $this->artisan('words:generate --count=10 --fast')
+            ->assertExitCode(0);
 
-    expect(Word::count())->toBe(10);
-});
+        expect(Word::count())->toBe(10);
+    });
 
-test('words:generate skips existing duplicate words', function () {
-    Word::factory()->create(['text' => 'zorp']);
+    test('Given an existing duplicate word, generation skips it', function () {
+        Word::factory()->create(['text' => 'zorp']);
 
-    $this->artisan('words:generate --count=5')
-        ->assertExitCode(0);
+        $this->artisan('words:generate --count=5')
+            ->assertExitCode(0);
 
-    expect(Word::count())->toBe(6);
-});
+        expect(Word::count())->toBe(6);
+    });
 
-test('words:generate outputs summary information', function () {
-    $this->artisan('words:generate --count=5')
-        ->expectsOutputToContain('fresh words planted')
-        ->assertExitCode(0);
-});
+    test('Given the command runs, it prints a summary', function () {
+        $this->artisan('words:generate --count=5')
+            ->expectsOutputToContain('fresh words planted')
+            ->assertExitCode(0);
+    });
 
-test('words:generate dispatches CheckWordDictionary job for normal mode', function () {
-    $this->artisan('words:generate --count=3')
-        ->assertExitCode(0);
+    test('Given normal mode, it dispatches a dictionary check per word', function () {
+        $this->artisan('words:generate --count=3')
+            ->assertExitCode(0);
 
-    Queue::assertPushed(\App\Jobs\CheckWordDictionary::class, 3);
-});
+        Queue::assertPushed(\App\Jobs\CheckWordDictionary::class, 3);
+    });
 
-test('words:generate does not dispatch CheckWordDictionary job in fast mode', function () {
-    $this->artisan('words:generate --count=3 --fast')
-        ->assertExitCode(0);
+    test('Given --fast mode, it skips dictionary check jobs', function () {
+        $this->artisan('words:generate --count=3 --fast')
+            ->assertExitCode(0);
 
-    Queue::assertNotPushed(\App\Jobs\CheckWordDictionary::class);
+        Queue::assertNotPushed(\App\Jobs\CheckWordDictionary::class);
+    });
 });
