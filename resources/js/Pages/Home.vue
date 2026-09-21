@@ -11,11 +11,14 @@
             :options="suggestionOptions"
             :loading="suggestionsLoading"
             :get-show="getSuggestionShow"
+            :input-props="suggestionInputProps"
             placeholder="Search words..."
             clearable
             show-empty
             class="flex-1"
             @select="onSuggestionSelect"
+            @focus="searchFocused = true"
+            @blur="searchFocused = false"
           >
             <template #prefix>
               <svg viewBox="0 0 24 24" width="20" height="20" style="fill: currentColor;">
@@ -28,6 +31,13 @@
               </div>
             </template>
           </n-auto-complete>
+          <p
+            class="sr-only"
+            role="status"
+            aria-live="polite"
+          >
+            {{ suggestionAnnouncement }}
+          </p>
           <n-button
             quaternary
             circle
@@ -362,6 +372,37 @@ const getSuggestionShow = (value) => {
   const term = (value || '').trim()
   return term.length >= suggestionsMinLength
 }
+
+const searchFocused = ref(false)
+
+const suggestionsVisible = computed(
+  () => searchFocused.value && getSuggestionShow(filters.value.search),
+)
+
+const suggestionInputProps = computed(() => ({
+  'aria-label': 'Search words',
+  role: 'combobox',
+  'aria-autocomplete': 'list',
+  'aria-expanded': suggestionsVisible.value ? 'true' : 'false',
+}))
+
+const suggestionAnnouncement = computed(() => {
+  if (!suggestionsVisible.value) {
+    return ''
+  }
+
+  if (suggestionsLoading.value) {
+    return 'Searching for suggestions'
+  }
+
+  const count = suggestionOptions.value.length
+
+  if (count === 0) {
+    return 'No matching words'
+  }
+
+  return `${count} suggestion${count === 1 ? '' : 's'} available`
+})
 
 const onSuggestionSelect = (value) => {
   if (value) {

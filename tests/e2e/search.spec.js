@@ -69,4 +69,18 @@ test.describe('Search suggestions', () => {
 
         await expect(page).toHaveURL(/\/words\/.+/);
     });
+
+    test('exposes combobox semantics and announces results for assistive tech', async ({ page }) => {
+        await page.goto('/');
+
+        const input = searchInput(page);
+        await expect(input).toHaveAttribute('role', 'combobox');
+        await expect(input).toHaveAttribute('aria-label', 'Search words');
+
+        await input.focus();
+        await input.fill('blo');
+
+        await expect(input).toHaveAttribute('aria-expanded', 'true');
+        await expect(page.getByRole('status')).toContainText('suggestion');
+    });
 });
