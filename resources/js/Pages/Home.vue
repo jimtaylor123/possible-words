@@ -5,56 +5,75 @@
       <div class="mb-8">
         <h1 class="text-3xl font-bold text-gray-900 mb-4">Discover Available Words</h1>
 
-        <div class="bg-white p-6 rounded-lg shadow-sm border">
-          <div class="flex items-center gap-4">
-            <n-input
-              v-model:value="filters.search"
-              placeholder="Search words..."
-              clearable
-              class="flex-1"
-            />
-            <n-button @click="toggleAdvanced">
-              <template #icon>
-                <svg v-if="!showAdvanced" viewBox="0 0 24 24" width="22" height="22" style="fill: currentColor;">
-                  <path :d="mdiFilter" />
-                </svg>
-                <svg v-else viewBox="0 0 24 24" width="22" height="22" style="fill: currentColor;">
-                  <path :d="mdiFilterOff" />
-                </svg>
-              </template>
-            </n-button>
-          </div>
-
-          <transition name="fade">
-            <div v-if="showAdvanced" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 pt-4 border-t">
-              <n-select
-                v-model:value="filters.syllables"
-                placeholder="Syllables"
-                clearable
-                :options="syllableOptions"
-                @update:value="search"
-              />
-              <n-select
-                v-model:value="filters.length"
-                placeholder="Length"
-                clearable
-                :options="lengthOptions"
-                @update:value="search"
-              />
-              <n-input
-                v-model:value="filters.starts_with"
-                placeholder="Starts with..."
-                clearable
-              />
-              <n-select
-                v-model:value="sortValue"
-                :options="sortOptions"
-                placeholder="Sort by..."
-                @update:value="onSortChange"
-              />
-            </div>
-          </transition>
+        <div class="flex items-center gap-3">
+          <n-auto-complete
+            v-model:value="filters.search"
+            :options="suggestionOptions"
+            :loading="suggestionsLoading"
+            :get-show="getSuggestionShow"
+            placeholder="Search words..."
+            clearable
+            show-empty
+            class="flex-1"
+            @select="onSuggestionSelect"
+          >
+            <template #prefix>
+              <svg viewBox="0 0 24 24" width="20" height="20" style="fill: currentColor;">
+                <path :d="mdiMagnify" />
+              </svg>
+            </template>
+            <template #empty>
+              <div class="px-3 py-2 text-sm text-gray-500">
+                No matching words
+              </div>
+            </template>
+          </n-auto-complete>
+          <n-button
+            quaternary
+            circle
+            :aria-label="showAdvanced ? 'Hide filters' : 'Show filters'"
+            @click="toggleAdvanced"
+          >
+            <template #icon>
+              <svg v-if="!showAdvanced" viewBox="0 0 24 24" width="22" height="22" style="fill: currentColor;">
+                <path :d="mdiFilter" />
+              </svg>
+              <svg v-else viewBox="0 0 24 24" width="22" height="22" style="fill: currentColor;">
+                <path :d="mdiFilterOff" />
+              </svg>
+            </template>
+          </n-button>
         </div>
+
+        <transition name="fade">
+          <div v-if="showAdvanced" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+            <n-select
+              v-model:value="filters.syllables"
+              placeholder="Syllables"
+              clearable
+              :options="syllableOptions"
+              @update:value="search"
+            />
+            <n-select
+              v-model:value="filters.length"
+              placeholder="Length"
+              clearable
+              :options="lengthOptions"
+              @update:value="search"
+            />
+            <n-input
+              v-model:value="filters.starts_with"
+              placeholder="Starts with..."
+              clearable
+            />
+            <n-select
+              v-model:value="sortValue"
+              :options="sortOptions"
+              placeholder="Sort by..."
+              @update:value="onSortChange"
+            />
+          </div>
+        </transition>
       </div>
 
       <!-- Words Grid -->
@@ -172,7 +191,7 @@
 <script setup>
 import { router, usePage } from '@inertiajs/vue3'
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { mdiFilter, mdiFilterOff, mdiPlay, mdiStar } from '@mdi/js'
+import { mdiFilter, mdiFilterOff, mdiMagnify, mdiPlay, mdiStar } from '@mdi/js'
 import Layout from '@/Components/Layout.vue'
 
 const page = usePage()
@@ -273,13 +292,81 @@ onMounted(() => {
 })
 
 const debounceMs = Number(import.meta.env.VITE_SEARCH_DEBOUNCE_MS) || 200
+const suggestionsMinLength = 2
 let searchTimer = null
+let suggestionsRequestId = 0
+let suggestionsAbortController = null
+
+const suggestionOptions = ref([])
+const suggestionsLoading = ref(false)
 
 const debouncedSearch = () => {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
     search()
+    fetchSuggestions()
   }, debounceMs)
+}
+
+const fetchSuggestions = async () => {
+  const term = (filters.value.search || '').trim()
+
+  if (term.length < suggestionsMinLength) {
+    suggestionOptions.value = []
+    suggestionsLoading.value = false
+    return
+  }
+
+  suggestionsLoading.value = true
+
+  const requestId = ++suggestionsRequestId
+  if (suggestionsAbortController) {
+    suggestionsAbortController.abort()
+  }
+  const controller = new AbortController()
+  suggestionsAbortController = controller
+
+  try {
+    const response = await fetch(route('words.suggestions', { q: term }), {
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      throw new Error(`Suggestions request failed: ${response.status}`)
+    }
+
+    const words = await response.json()
+
+    if (requestId !== suggestionsRequestId) {
+      return
+    }
+
+    suggestionOptions.value = words.map((word) => ({
+      label: word.text,
+      value: word.slug,
+      syllables: word.syllables,
+    }))
+  } catch (error) {
+    if (error.name === 'AbortError' || requestId !== suggestionsRequestId) {
+      return
+    }
+    suggestionOptions.value = []
+  } finally {
+    if (requestId === suggestionsRequestId) {
+      suggestionsLoading.value = false
+    }
+  }
+}
+
+const getSuggestionShow = (value) => {
+  const term = (value || '').trim()
+  return term.length >= suggestionsMinLength
+}
+
+const onSuggestionSelect = (value) => {
+  if (value) {
+    router.visit(route('words.show', value))
+  }
 }
 
 watch(() => filters.value.search, debouncedSearch)
@@ -288,6 +375,10 @@ watch(() => filters.value.starts_with, debouncedSearch)
 
 onBeforeUnmount(() => {
   clearTimeout(searchTimer)
+  suggestionsRequestId++
+  if (suggestionsAbortController) {
+    suggestionsAbortController.abort()
+  }
   if (observer) observer.disconnect()
 })
 

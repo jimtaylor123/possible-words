@@ -7,6 +7,7 @@ import {
     // create naive ui
     create,
     // component
+    NAutoComplete,
     NAvatar,
     NButton,
     NCard,
@@ -19,6 +20,7 @@ import {
 
 const naive = create({
     components: [
+        NAutoComplete,
         NAvatar,
         NButton,
         NCard,

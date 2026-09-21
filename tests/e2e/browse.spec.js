@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 const searchInput = page => page.locator('input[placeholder="Search words..."]');
 
 const openAdvancedPanel = async (page) => {
-    const row = page.locator('.flex.items-center.gap-4')
+    const row = page.locator('.flex.items-center.gap-3')
         .filter({ has: page.locator('input[placeholder="Search words..."]') })
         .first();
     await row.locator('button').first().click();

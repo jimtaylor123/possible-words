@@ -107,6 +107,29 @@ class WordController extends Controller
         ]);
     }
 
+    public function suggestions(Request $request)
+    {
+        $term = trim((string) $request->input('q'));
+
+        if (mb_strlen($term) < 2 || str_contains($term, '%') || str_contains($term, '_') || str_contains($term, '\\')) {
+            return response()->json([]);
+        }
+
+        $words = Word::search($term)
+            ->where('status', 'available')
+            ->whereIn('dictionary_status', ['unchecked', 'not_found', 'exists_as_name'])
+            ->take(8)
+            ->get()
+            ->map(fn (Word $word) => [
+                'id' => $word->id,
+                'text' => $word->text,
+                'slug' => $word->slug,
+                'syllables' => $word->syllables,
+            ]);
+
+        return response()->json($words);
+    }
+
     public function storeDefinition(Request $request, Word $word)
     {
         $request->validate([

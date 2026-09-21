@@ -7,11 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
+use Laravel\Scout\Searchable;
 
 class Word extends Model
 {
     /** @use HasFactory<\Database\Factories\WordFactory> */
-    use HasFactory;
+    use HasFactory, Searchable;
 
     /**
      * Word URLs use the slug (see routes/web.php `{word}`).
@@ -19,6 +20,14 @@ class Word extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    /**
+     * What Scout indexes and searches for typeahead suggestions.
+     */
+    public function toSearchableArray(): array
+    {
+        return ['text' => $this->text];
     }
 
     protected $fillable = [
