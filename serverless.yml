@@ -26,6 +26,8 @@ provider:
         LOG_STDERR_FORMATTER: Bref\Monolog\CloudWatchFormatter
         SESSION_DRIVER: cookie
 
+        SCOUT_DRIVER: database
+
         DB_CONNECTION: turso
         TURSO_DATABASE_URL: ${env:TURSO_DATABASE_URL}
         TURSO_AUTH_TOKEN: ${env:TURSO_AUTH_TOKEN}
