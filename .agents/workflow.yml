@@ -131,4 +131,4 @@ steps:
       - link to GitHub issue
       - link to worktree dev URL (if relevant)
 
-      The workflow terminates here. The scheduled PR Manager agent takes over: it updates the branch with latest main, responds to review threads, and merges when ready.
+      The workflow terminates here. The PR Manager agent (run locally via opencode, e.g. `/pr-manager`) takes over: it updates the branch with latest main, responds to review threads, and merges when ready.

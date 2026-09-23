@@ -56,4 +56,4 @@ task(
 ## 5. Handoff (you do this directly)
 Once the PR is created, the coder workflow terminates. Do not post reviews, respond to comments, or merge the PR from this workflow.
 
-A separate `pr-manager` agent (defined in `.opencode/agent/pr-manager.md`, run on a schedule in CI) owns everything after creation: it updates the branch with latest main, reacts to review threads (Gemini bot or human), and merges when ready.
+A separate `pr-manager` agent (defined in `.opencode/agent/pr-manager.md`) owns everything after creation: it updates the branch with latest main, reacts to review threads (Gemini bot or human), and merges when ready. Run it locally via opencode with the `/pr-manager` command, or schedule it (e.g. the `opencode-scheduler` plugin on launchd).
