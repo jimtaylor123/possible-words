@@ -130,24 +130,5 @@ steps:
       - known limitations
       - link to GitHub issue
       - link to worktree dev URL (if relevant)
-      - assign to jimtaylor123 and request a review from jimtaylor123
 
-  - id: pr_ai_review_comments
-    agent: orchestrator
-    depends_on: pr_creation
-    prompt: |
-      Post the AI code review onto the open GitHub PR so the work is publicly visible on the PR.
-
-      REQUIRED ACTIONS:
-      1. Determine the PR number (from the pushed branch, or `gh pr list --head <branch>`).
-      2. Read the in-progress review notes at .agents/review.md.
-      3. Produce a concise final AI-assisted review of the PR by inspecting the pushed branch:
-         - Run: gh pr diff <PR_NUMBER>
-         - Highlight 2-5 genuine findings only (correctness, edge cases, tests, dead code).
-         - If a finding was already addressed during the fix loop, state "Addressed during development" with a one-line note.
-      4. Post it as a pull request review comment:
-         gh pr review <PR_NUMBER> --comment --body "<markdown review>"
-         Start the body with "## AI-assisted code review" so it is clearly labelled.
-      5. Add a short "Pipeline" section listing the steps already run (analysis, review, fix loop, lint, tests, e2e).
-
-      OUTPUT: the PR review URL or comment ID.
+      The workflow terminates here. The scheduled PR Manager agent takes over: it updates the branch with latest main, responds to review threads, and merges when ready.

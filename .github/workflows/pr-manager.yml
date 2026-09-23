@@ -1,0 +1,34 @@
+name: PR Manager
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  checks: read
+
+concurrency:
+  group: pr-manager
+  cancel-in-progress: false
+
+jobs:
+  pr-manager:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: anomalyco/opencode/github@latest
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: google/gemini-2.5-flash
+          agent: pr-manager
+          use_github_token: true
+          prompt: |
+            Run the PR maintenance pass now. Follow the pr-manager agent's procedure: list your open PRs, update the stale ones with latest main, respond to review threads, and merge the ones that meet every gate.
