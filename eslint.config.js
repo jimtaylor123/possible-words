@@ -12,6 +12,8 @@ export default [
                 setTimeout: 'readonly',
                 clearTimeout: 'readonly',
                 IntersectionObserver: 'readonly',
+                AbortController: 'readonly',
+                fetch: 'readonly',
             },
         },
     },
