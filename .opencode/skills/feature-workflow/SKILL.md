@@ -43,6 +43,7 @@ task(
 - For the `planning_approval_gate` step: pause and use the `question` tool to ask the user for explicit approval before proceeding
 - The `fix_loop` step has `loop: 2` — after the reviewer outputs `.agents/review.md`, check if there are issues. If yes, dispatch implementer. Track iteration count. Repeat up to the loop limit.
 - After `final_fix`, re-dispatch the tester to verify fixes pass
+- After `pr_creation`, execute the `pr_ai_review_comments` step yourself (you are the orchestrator)
 
 ## 4. State files in .agents/
 - `todo.md` — task tracking
@@ -51,3 +52,14 @@ task(
 - `review.md` — review findings
 - `browser_logs.md` — test results
 - `port.txt` — dev server port
+
+## 5. Post the AI review onto the PR (you do this directly)
+After the PR is created, make the review publicly visible on the PR:
+
+1. Find the PR number: `gh pr list --head <branch>` (or the number returned by PR creation).
+2. Read `.agents/review.md` for the findings raised during the pipeline.
+3. Inspect the pushed branch with `gh pr diff <PR_NUMBER>` to confirm what the PR actually contains.
+4. Compose a concise review (2-5 genuine findings; pre-facing each addressed item with "Addressed during development") headed `## AI-assisted code review`, plus a short `Pipeline` section listing the steps already run.
+5. Post it with:
+   `gh pr review <PR_NUMBER> --comment --body "<markdown review>"`
+6. Report back the PR review URL.
