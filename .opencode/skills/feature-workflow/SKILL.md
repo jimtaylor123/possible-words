@@ -43,6 +43,7 @@ task(
 - For the `planning_approval_gate` step: pause and use the `question` tool to ask the user for explicit approval before proceeding
 - The `fix_loop` step has `loop: 2` — after the reviewer outputs `.agents/review.md`, check if there are issues. If yes, dispatch implementer. Track iteration count. Repeat up to the loop limit.
 - After `final_fix`, re-dispatch the tester to verify fixes pass
+- After `pr_creation`, the coder workflow is complete.
 
 ## 4. State files in .agents/
 - `todo.md` — task tracking
@@ -51,3 +52,8 @@ task(
 - `review.md` — review findings
 - `browser_logs.md` — test results
 - `port.txt` — dev server port
+
+## 5. Handoff (you do this directly)
+Once the PR is created, the coder workflow terminates. Do not post reviews, respond to comments, or merge the PR from this workflow.
+
+A separate `pr-manager` agent (defined in `.opencode/agent/pr-manager.md`) owns everything after creation: it updates the branch with latest main, reacts to review threads (Gemini bot or human), and merges when ready. Run it locally via opencode with the `/pr-manager` command, or schedule it (e.g. the `opencode-scheduler` plugin on launchd).

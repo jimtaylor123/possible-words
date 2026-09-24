@@ -120,6 +120,7 @@ steps:
 
   - id: pr_creation
     agent: implementer
+    depends_on: final_fix
     prompt: |
       Push branch.
 
@@ -129,4 +130,5 @@ steps:
       - known limitations
       - link to GitHub issue
       - link to worktree dev URL (if relevant)
-      - assign to jimtaylor123 and request a review from jimtaylor123
+
+      The workflow terminates here. The PR Manager agent (run locally via opencode, e.g. `/pr-manager`) takes over: it updates the branch with latest main, responds to review threads, and merges when ready.
