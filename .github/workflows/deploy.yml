@@ -60,8 +60,27 @@ jobs:
       - name: Deploy with Serverless
         run: npx serverless@$SERVERLESS_VERSION deploy
 
-      - name: Smoke-test production
+      - name: Smoke-test API endpoint (blocking)
         run: |
-          code=$(curl -sS -o /dev/null -w '%{http_code}' https://possiblewords.jimtaylor.space/)
-          echo "Home page status: $code"
-          [ "$code" = 200 ] || [ "$code" = 302 ] || [ "$code" = 401 ] || [ "$code" = 403 ] || exit 1
+          endpoint=$(aws apigatewayv2 get-apis --region "$AWS_DEFAULT_REGION" \
+            --query "Items[?starts_with(Name, \`possiblewords\`)].ApiEndpoint | [0]" \
+            --output text)
+          [ -n "$endpoint" ] && [ "$endpoint" != "None" ] || { echo "API endpoint not found"; exit 1; }
+          ok=""
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$endpoint/")
+            echo "attempt $attempt: HTTP $code"
+            if [ "$code" = 200 ] || [ "$code" = 302 ] || [ "$code" = 401 ] || [ "$code" = 403 ]; then
+              ok=1
+              break
+            fi
+            sleep 10
+          done
+          [ -n "$ok" ] || exit 1
+
+      - name: Public domain check (non-blocking)
+        run: |
+          set +e
+          public=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 https://possiblewords.jimtaylor.space/ 2>/dev/null)
+          set -e
+          echo "Public domain (custom DNS) status: ${public:-unreachable - check DNS}"
