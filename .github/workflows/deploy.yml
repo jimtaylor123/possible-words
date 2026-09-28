@@ -63,7 +63,7 @@ jobs:
       - name: Smoke-test API endpoint (blocking)
         run: |
           endpoint=$(aws apigatewayv2 get-apis --region "$AWS_DEFAULT_REGION" \
-            --query "Items[?starts_with(Name, \`possiblewords\`)].ApiEndpoint | [0]" \
+            --query "Items[?contains(Name, \`possiblewords\`)].ApiEndpoint | [0]" \
             --output text)
           [ -n "$endpoint" ] && [ "$endpoint" != "None" ] || { echo "API endpoint not found"; exit 1; }
           ok=""
