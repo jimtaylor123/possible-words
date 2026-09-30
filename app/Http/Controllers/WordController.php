@@ -55,14 +55,21 @@ class WordController extends Controller
             ->whereIn('dictionary_status', ['unchecked', 'not_found', 'exists_as_name']);
 
         // Apply sorting
-        $sort = $request->input('sort', 'created_at');
-        $direction = $request->input('direction', 'desc');
+        $sort = (string) $request->input('sort', '');
+        if (! in_array($sort, ['alphabetical', 'letters', 'popularity', 'created_at'], true)) {
+            $sort = 'created_at';
+        }
+
+        // Whitelist the direction: anything that is not exactly "asc" falls back to "desc".
+        // Interpolated into orderByRaw() below, so it must never carry request input.
+        $direction = strtolower(trim((string) $request->input('direction', ''))) === 'asc' ? 'asc' : 'desc';
 
         switch ($sort) {
             case 'alphabetical':
                 $query->orderBy('text', $direction);
                 break;
             case 'letters':
+                // Safe: $direction is one of two literals, not request input.
                 $query->orderByRaw('LENGTH(text) '.$direction);
                 break;
             case 'popularity':
@@ -79,10 +86,15 @@ class WordController extends Controller
 
         $words = $query->paginate(20)->withQueryString();
 
-        $filters = array_merge(
-            ['search' => null, 'syllables' => null, 'length' => null, 'starts_with' => null, 'sort' => 'created_at', 'direction' => 'desc'],
-            $request->only(['search', 'syllables', 'length', 'starts_with', 'sort', 'direction'])
-        );
+        // Reflect the sanitised sort/direction back to the client, never the raw input.
+        $filters = [
+            'search' => $request->input('search'),
+            'syllables' => $request->input('syllables'),
+            'length' => $request->input('length'),
+            'starts_with' => $request->input('starts_with'),
+            'sort' => $sort,
+            'direction' => $direction,
+        ];
 
         return Inertia::render('Home', [
             'words' => $words,
