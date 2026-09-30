@@ -3,6 +3,7 @@ model = "groq/meta-llama/llama-3.3-70b-versatile"
 fallback_models = ["gemini/gemini-3.8-flash"]
 retry_with_fallback = true
 ai_timeout = 90
+custom_model_max_tokens = 4096
 
 [github_action_config]
 auto_review = true
