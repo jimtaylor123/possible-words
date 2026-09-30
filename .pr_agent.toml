@@ -1,6 +1,6 @@
 [config]
-model = "gemini/gemini-2.5-flash"
-fallback_models = ["gemini/gemini-2.5-flash"]
+model = "gemini/gemini-3.8-flash"
+fallback_models = ["gemini/gemini-3.8-flash"]
 
 [github_action_config]
 auto_review = true
