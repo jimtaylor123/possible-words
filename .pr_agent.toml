@@ -1,5 +1,5 @@
 [config]
-model = "groq/meta-llama/llama-3.3-70b-versatile"
+model = "groq/openai/gpt-oss-120b"
 fallback_models = ["gemini/gemini-3.8-flash"]
 retry_with_fallback = true
 ai_timeout = 90
