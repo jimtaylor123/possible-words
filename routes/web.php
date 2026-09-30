@@ -28,10 +28,18 @@ Route::middleware('auth')->group(function () {
 
 // Serve built assets (for serverless where no static file serving is available)
 Route::get('/build/{path}', function (string $path) {
-    $file = public_path('build/'.$path);
-    if (! file_exists($file) || is_dir($file)) {
+    // Resolve both paths and require the result to sit inside public/build.
+    // A prefix check alone is not enough: public/build-secrets would match "public/build".
+    $base = realpath(public_path('build'));
+    if ($base === false || $path === '' || str_contains($path, "\0")) {
         abort(404);
     }
+
+    $file = realpath(public_path('build/'.$path));
+    if ($file === false || is_dir($file) || ! str_starts_with($file, $base.DIRECTORY_SEPARATOR)) {
+        abort(404);
+    }
+
     $ext = pathinfo($file, PATHINFO_EXTENSION);
     $mime = match ($ext) {
         'js' => 'text/javascript',
