@@ -25,12 +25,13 @@ class WordController extends Controller
         ])->withCount('definitions');
 
         // Apply filters
-        if ($request->filled('search')) {
-            $query->where('text', 'like', '%'.$request->search.'%');
+        $search = $this->queryString($request, 'search');
+        if ($search !== '') {
+            $query->where('text', 'like', '%'.$search.'%');
         }
 
-        if ($request->filled('syllables')) {
-            $syllables = (int) $request->syllables;
+        $syllables = (int) $this->queryString($request, 'syllables');
+        if ($syllables > 0) {
             if ($syllables >= 5) {
                 $query->where('syllables', '>=', $syllables);
             } else {
@@ -38,8 +39,8 @@ class WordController extends Controller
             }
         }
 
-        if ($request->filled('length')) {
-            $length = (int) $request->length;
+        $length = (int) $this->queryString($request, 'length');
+        if ($length > 0) {
             if ($length >= 8) {
                 $query->whereRaw('LENGTH(text) >= ?', [$length]);
             } else {
@@ -47,22 +48,23 @@ class WordController extends Controller
             }
         }
 
-        if ($request->filled('starts_with')) {
-            $query->where('text', 'like', $request->starts_with.'%');
+        $startsWith = $this->queryString($request, 'starts_with');
+        if ($startsWith !== '') {
+            $query->where('text', 'like', $startsWith.'%');
         }
 
         $query->where('status', 'available')
             ->whereIn('dictionary_status', ['unchecked', 'not_found', 'exists_as_name']);
 
         // Apply sorting
-        $sort = (string) $request->input('sort', '');
+        $sort = $this->queryString($request, 'sort');
         if (! in_array($sort, ['alphabetical', 'letters', 'popularity', 'created_at'], true)) {
             $sort = 'created_at';
         }
 
         // Whitelist the direction: anything that is not exactly "asc" falls back to "desc".
         // Interpolated into orderByRaw() below, so it must never carry request input.
-        $direction = strtolower(trim((string) $request->input('direction', ''))) === 'asc' ? 'asc' : 'desc';
+        $direction = strtolower($this->queryString($request, 'direction')) === 'asc' ? 'asc' : 'desc';
 
         switch ($sort) {
             case 'alphabetical':
@@ -86,12 +88,12 @@ class WordController extends Controller
 
         $words = $query->paginate(20)->withQueryString();
 
-        // Reflect the sanitised sort/direction back to the client, never the raw input.
+        // Reflect the sanitised values back to the client, never the raw input.
         $filters = [
-            'search' => $request->input('search'),
-            'syllables' => $request->input('syllables'),
-            'length' => $request->input('length'),
-            'starts_with' => $request->input('starts_with'),
+            'search' => $search,
+            'syllables' => $syllables > 0 ? $syllables : null,
+            'length' => $length > 0 ? $length : null,
+            'starts_with' => $startsWith,
             'sort' => $sort,
             'direction' => $direction,
         ];
@@ -100,6 +102,20 @@ class WordController extends Controller
             'words' => $words,
             'filters' => $filters,
         ]);
+    }
+
+    /**
+     * Read a query parameter as a trimmed string.
+     *
+     * A repeated or bracketed parameter (?direction[]=asc&direction[]=id) arrives as an
+     * array, and casting or concatenating that throws "Array to string conversion",
+     * which is a 500. Anything non-scalar is treated as absent.
+     */
+    private function queryString(Request $request, string $key): string
+    {
+        $value = $request->query($key);
+
+        return is_scalar($value) ? trim((string) $value) : '';
     }
 
     public function show(Word $word)

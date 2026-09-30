@@ -92,4 +92,35 @@ describe('sorting the word list', function () {
                 ->where('filters.direction', 'desc')
             );
     });
+
+    test('Given an array-valued sort or direction, the request succeeds instead of erroring', function (string $query) {
+        $response = $this->get('/words?'.$query);
+
+        $response->assertStatus(200)
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.sort', 'created_at')
+                ->where('filters.direction', 'desc')
+            );
+    })->with([
+        'bracketed direction' => 'direction[]=asc&direction[]=id',
+        'bracketed sort' => 'sort[]=letters&sort[]=id',
+        'repeated direction' => 'direction=asc&direction=id',
+        'repeated sort' => 'sort=letters&sort=id',
+        'both bracketed' => 'sort[]=letters&direction[]=asc',
+    ]);
+
+    test('Given an array-valued filter, the request succeeds and echoes a scalar', function (string $query, string $key, mixed $expected) {
+        $response = $this->get('/words?'.$query);
+
+        $response->assertStatus(200)
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.'.$key, $expected)
+                ->etc()
+            );
+    })->with([
+        'array search' => ['search[]=a&search[]=b', 'search', ''],
+        'array starts_with' => ['starts_with[]=a&starts_with[]=b', 'starts_with', ''],
+        'array syllables' => ['syllables[]=2&syllables[]=3', 'syllables', null],
+        'array length' => ['length[]=2&length[]=3', 'length', null],
+    ]);
 });
