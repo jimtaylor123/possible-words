@@ -18,4 +18,5 @@ jobs:
       - uses: the-pr-agent/pr-agent@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          groq.key: ${{ secrets.GROQ_KEY }}
           GOOGLE_AI_STUDIO__GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
