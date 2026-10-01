@@ -18,6 +18,16 @@ export default [
         },
     },
     {
+        // Node tooling scripts, not browser code.
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            globals: {
+                console: 'readonly',
+                process: 'readonly',
+            },
+        },
+    },
+    {
         ignores: [
             'public/build/**',
             'vendor/**',

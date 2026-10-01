@@ -5,12 +5,13 @@
     "scripts": {
         "build": "vite build",
         "dev": "vite",
-        "lint": "eslint resources/js --max-warnings=0",
+        "lint": "eslint resources/js scripts --max-warnings=0",
         "lint:fix": "eslint resources/js --fix",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:e2e": "playwright test",
-        "test:e2e:ui": "playwright test --ui"
+        "test:e2e:ui": "playwright test --ui",
+        "db:e2e": "node scripts/seed-e2e-db.mjs"
     },
     "devDependencies": {
         "@eslint/js": "^9.39.4",

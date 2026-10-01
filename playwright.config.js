@@ -15,7 +15,9 @@ export default defineConfig({
         },
     },
     webServer: {
-        command: 'php artisan serve --port=8002 --env=testing 2>/dev/null',
+        // Seed the throwaway database first so a local run starts from the same
+        // fixture CI uses, then serve with .env.testing.
+        command: 'npm run db:e2e && php artisan serve --port=8002 --env=testing 2>/dev/null',
         url: 'http://localhost:8002',
         reuseExistingServer: !process.env.CI,
         cwd: '.',

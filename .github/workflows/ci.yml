@@ -90,13 +90,14 @@ jobs:
           composer install --no-interaction --prefer-dist --no-progress
           npm ci
 
-      - name: Set up environment and database
+      - name: Set up environment
         run: |
           cp .env.example .env
           php artisan key:generate --ansi
-          cp .snapshots/dev-data.sqlite database/database.sqlite
-          echo 'E2E_AUTH_ENABLED=true' >> .env
 
+      # The E2E database is seeded by playwright.config.js from
+      # .snapshots/dev-data.sqlite into database/testing.sqlite, and the server
+      # reads the committed .env.testing. Same path as a local `npm run test:e2e`.
       - name: Build frontend assets
         run: npm run build
 
