@@ -18,8 +18,11 @@ class WordController extends Controller
     public function index(Request $request)
     {
         $query = Word::with([
+            // The browse card quotes the top definition. A removed one is still listed
+            // on the word page, but quoting "[deleted]" in a card is worse than falling
+            // through to the next definition, so the teaser skips removed rows.
             'definitions' => function ($q) {
-                $q->orderBy('votes_count', 'desc')->limit(1);
+                $q->withoutRemoved()->orderBy('votes_count', 'desc')->limit(1);
             },
             'definitions.user',
         ])->withCount('definitions');
@@ -185,6 +188,16 @@ class WordController extends Controller
 
     public function voteDefinition(Definition $definition)
     {
+        // A removed definition is inert: its text is redacted and it offers no
+        // actions, so Show.vue already hides the vote button. That was only a UI
+        // convention though — the button is gone, the endpoint is not, and this
+        // app has no policies or gates to fall back on. Guarding here makes the
+        // server agree with the UI, which is the invariant the E2E spec asserts
+        // (`card.locator('button')).toHaveCount(0)`).
+        if ($definition->isRemoved()) {
+            return redirect()->back();
+        }
+
         $vote = Vote::where([
             'definition_id' => $definition->id,
             'user_id' => Auth::id(),
@@ -205,6 +218,28 @@ class WordController extends Controller
         broadcast(new DefinitionVoted($definition, $liked))->toOthers();
 
         return redirect()->back();
+    }
+
+    public function removeDefinition(Definition $definition)
+    {
+        // Inline ownership check: this app has no policies and no gates (AGENTS.md).
+        // This runs before the removed-state check so a non-author cannot use the
+        // response to probe whether a definition has already been removed.
+        if ($definition->user_id !== Auth::id()) {
+            abort(403, 'Forbidden.');
+        }
+
+        // Idempotent: removing a definition that is already removed is a no-op, and
+        // votes_count is never touched here at all — only removed_at is written, so
+        // every existing like stands (including the author's own auto-self-like).
+        if ($definition->removed_at === null) {
+            // Assign directly rather than mass-assigning: removed_at is deliberately
+            // not fillable, and mass assignment would silently drop it and write nothing.
+            $definition->removed_at = now();
+            $definition->save();
+        }
+
+        return redirect()->back()->with('success', 'Definition removed.');
     }
 
     public function toggleFavourite(Word $word)
@@ -232,8 +267,10 @@ class WordController extends Controller
         $query = Word::whereHas('favourites', function ($q) {
             $q->where('user_id', Auth::id());
         })->with([
+            // Same reason as index(): a "[deleted]" teaser on a favourites card reads as
+            // a broken card, so fall through to the definition that is still live.
             'definitions' => function ($q) {
-                $q->orderBy('votes_count', 'desc')->limit(1);
+                $q->withoutRemoved()->orderBy('votes_count', 'desc')->limit(1);
             },
             'definitions.user',
         ])->withCount('definitions');

@@ -22,6 +22,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::middleware('auth')->group(function () {
     Route::post('/words/{word}/definitions', [WordController::class, 'storeDefinition'])->name('words.definitions.store');
     Route::post('/definitions/{definition}/vote', [WordController::class, 'voteDefinition'])->name('definitions.vote');
+    Route::post('/definitions/{definition}/remove', [WordController::class, 'removeDefinition'])->name('definitions.remove');
     Route::post('/words/{word}/favourite', [WordController::class, 'toggleFavourite'])->name('words.favourite');
     Route::get('/favourites', [WordController::class, 'favourites'])->name('words.favourites');
 });

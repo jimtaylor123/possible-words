@@ -265,3 +265,51 @@ describe('definition list integrity', function () {
         expect($def->user->id)->toBe($user->id);
     });
 });
+
+describe('removed definitions in browse cards', function () {
+    test('Given a word whose top definition is removed, the browse card falls through to the next one', function () {
+        $word = makeWord();
+        $user = User::factory()->create();
+        $removed = $word->definitions()->create(['user_id' => $user->id, 'text' => 'withdrawn', 'votes_count' => 9]);
+        $kept = $word->definitions()->create(['user_id' => $user->id, 'text' => 'still here', 'votes_count' => 1]);
+        $removed->removed_at = now();
+        $removed->save();
+
+        // A "[deleted]" teaser on a browse card reads as a broken card, so the teaser
+        // skips removed rows — even though the word page still lists them.
+        $this->get(route('words.index'))
+            ->assertInertia(fn ($page) => $page
+                ->has('words.data.0.definitions', 1)
+                ->where('words.data.0.definitions.0.id', $kept->id)
+                ->where('words.data.0.definitions.0.text', 'still here')
+            );
+    });
+
+    test('Given a word whose only definition is removed, the browse card shows no teaser', function () {
+        $word = makeWord();
+        $user = User::factory()->create();
+        $removed = $word->definitions()->create(['user_id' => $user->id, 'text' => 'withdrawn', 'votes_count' => 4]);
+        $removed->removed_at = now();
+        $removed->save();
+
+        $this->get(route('words.index'))
+            ->assertInertia(fn ($page) => $page
+                ->has('words.data.0.definitions', 0)
+                // The historical count still includes the removed definition: a count
+                // that dropped on removal would signal the row is gone, which is the
+                // opposite of what removal means here.
+                ->where('words.data.0.definitions_count', 1)
+            );
+    });
+
+    test('Given a removed definition, the browse card never quotes its text', function () {
+        $word = makeWord();
+        $user = User::factory()->create();
+        $secret = 'BROWSE-TEASER-MUST-NOT-LEAK-8b3';
+        $removed = $word->definitions()->create(['user_id' => $user->id, 'text' => $secret, 'votes_count' => 5]);
+        $removed->removed_at = now();
+        $removed->save();
+
+        $this->get(route('words.index'))->assertDontSee($secret, false);
+    });
+});

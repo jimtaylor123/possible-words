@@ -118,7 +118,7 @@
               <p class="text-gray-800">{{ definition.text }}</p>
               <div class="flex items-center gap-1 ml-2 shrink-0">
                 <button
-                  v-if="$page.props.auth.user"
+                  v-if="$page.props.auth.user && !definition.removed_at"
                   class="flex items-center justify-center rounded p-1 hover:bg-gray-100 transition-colors"
                   :disabled="animatingId === definition.id"
                   @click="vote(definition.id)"
@@ -137,6 +137,17 @@
                   </svg>
                 </button>
                 <span class="text-sm text-gray-500 w-14 text-right tabular-nums">{{ definition.votes_count }} {{ definition.votes_count === 1 ? 'like' : 'likes' }}</span>
+                <n-popconfirm
+                  v-if="isOwnDefinition(definition)"
+                  positive-text="Remove definition"
+                  negative-text="Cancel"
+                  @positive-click="removeDefinition(definition.id)"
+                >
+                  <template #trigger>
+                    <n-button size="tiny" quaternary type="error" class="ml-1">Remove</n-button>
+                  </template>
+                  Remove this definition? Its likes are kept, but its text stops being shown.
+                </n-popconfirm>
               </div>
             </div>
             <div class="text-sm text-gray-500 flex items-center gap-1.5">
@@ -267,6 +278,22 @@ const animatingId = ref(null)
 
 const likedByUser = (definition) => {
   return definition.votes.some(v => v.user_id === page.props.auth.user?.id)
+}
+
+// Only the author may remove a definition, and only while it is still live: a
+// removed definition stays listed as a [deleted] card but offers no actions.
+// The identity comes from the definition's already-loaded user relation. The
+// authenticated check comes first on purpose: comparing two optional chains
+// lets a guest match a definition that somehow had no user, since
+// `undefined === undefined` is true.
+const isOwnDefinition = (definition) => {
+  return !!page.props.auth?.user && definition.user?.id === page.props.auth.user.id && !definition.removed_at
+}
+
+const removeDefinition = (definitionId) => {
+  router.post(route('definitions.remove', definitionId), {}, {
+    preserveScroll: true,
+  })
 }
 
 const submitDefinition = () => {

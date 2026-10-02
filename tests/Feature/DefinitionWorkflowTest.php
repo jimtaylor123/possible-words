@@ -210,3 +210,233 @@ describe('definition integrity', function () {
             ->assertStatus(404);
     });
 });
+
+describe('removing a definition', function () {
+    test('Given the author, removing their definition sets removed_at in the database', function () {
+        Event::fake([DefinitionCreated::class]);
+        $author = User::factory()->create();
+        $word = createWord();
+
+        $this->actingAs($author)
+            ->post(route('words.definitions.store', $word), ['text' => 'A made-up meaning'])
+            ->assertRedirect(route('words.show', $word));
+
+        $definition = $word->definitions()->first();
+        expect($definition->removed_at)->toBeNull();
+
+        $this->actingAs($author)
+            ->post(route('definitions.remove', $definition))
+            ->assertRedirect();
+
+        // Assert the column, not just the status: removed_at is deliberately not
+        // fillable, so a mass-assigned update() would 302 while writing nothing.
+        $fresh = $definition->fresh();
+        expect($fresh->removed_at)->not->toBeNull();
+        expect($fresh->isRemoved())->toBeTrue();
+
+        // Retained rather than destroyed: neither the text nor the count moves.
+        expect($fresh->text)->toBe('A made-up meaning');
+        expect($fresh->votes_count)->toBe(1);
+    });
+
+    test('Given a non-author, removing the definition is forbidden and changes nothing', function () {
+        $author = User::factory()->create();
+        $stranger = User::factory()->create();
+        $word = createWord();
+        $definition = $word->definitions()->create(['user_id' => $author->id, 'text' => 'mine', 'votes_count' => 3]);
+
+        $this->actingAs($stranger)
+            ->post(route('definitions.remove', $definition))
+            ->assertForbidden();
+
+        expect($definition->fresh()->removed_at)->toBeNull();
+        expect($definition->fresh()->votes_count)->toBe(3);
+    });
+
+    test('Given a guest, removing a definition redirects to login', function () {
+        $author = User::factory()->create();
+        $word = createWord();
+        $definition = $word->definitions()->create(['user_id' => $author->id, 'text' => 'mine']);
+
+        $this->post(route('definitions.remove', $definition))
+            ->assertRedirect(route('auth.google'));
+
+        expect($definition->fresh()->removed_at)->toBeNull();
+    });
+
+    test('Given a definition already removed, removing it again is a no-op', function () {
+        $author = User::factory()->create();
+        $word = createWord();
+        $definition = $word->definitions()->create(['user_id' => $author->id, 'text' => 'mine', 'votes_count' => 2]);
+        $definition->votes()->create(['user_id' => User::factory()->create()->id]);
+
+        $this->actingAs($author)->post(route('definitions.remove', $definition))->assertRedirect();
+        $firstRemoval = $definition->fresh()->removed_at;
+
+        $this->actingAs($author)->post(route('definitions.remove', $definition))->assertRedirect();
+
+        $afterSecond = $definition->fresh();
+        expect($afterSecond->removed_at->toDateTimeString())->toBe($firstRemoval->toDateTimeString());
+        expect($afterSecond->votes_count)->toBe(2);
+    });
+
+    test('Given a liked definition, removal preserves the count and the vote rows', function () {
+        Event::fake([DefinitionCreated::class]);
+        $author = User::factory()->create();
+        $liker = User::factory()->create();
+        $word = createWord();
+
+        // storeDefinition() auto-likes on the author's behalf, so the definition starts
+        // at one like before anyone else touches it.
+        $this->actingAs($author)
+            ->post(route('words.definitions.store', $word), ['text' => 'auto-liked'])
+            ->assertRedirect();
+
+        $definition = $word->definitions()->first();
+        $this->actingAs($liker)->post(route('definitions.vote', $definition))->assertRedirect();
+        expect($definition->fresh()->votes_count)->toBe(2);
+
+        $this->actingAs($author)->post(route('definitions.remove', $definition))->assertRedirect();
+
+        $removed = $definition->fresh();
+        expect($removed->removed_at)->not->toBeNull();
+        expect($removed->votes_count)->toBe(2);
+        expect($removed->votes()->count())->toBe(2);
+        expect($removed->votes()->where('user_id', $author->id)->exists())->toBeTrue();
+        expect($removed->votes()->where('user_id', $liker->id)->exists())->toBeTrue();
+    });
+
+    test('Given a removed definition, a third party voting on it changes nothing', function () {
+        $author = User::factory()->create();
+        $liker = User::factory()->create();
+        $word = createWord();
+
+        // storeDefinition() auto-likes on the author's behalf, so the definition starts
+        // at one like before anyone else touches it.
+        $this->actingAs($author)
+            ->post(route('words.definitions.store', $word), ['text' => 'auto-liked'])
+            ->assertRedirect();
+
+        $definition = $word->definitions()->first();
+        expect($definition->fresh()->votes_count)->toBe(1);
+
+        $this->actingAs($author)->post(route('definitions.remove', $definition))->assertRedirect();
+
+        // A removed definition is inert, and the endpoint has to enforce that on its
+        // own: Show.vue hides the vote button, but without a server-side guard a
+        // crafted POST would still add a vote row and bump the [deleted] card's count
+        // for every other viewer watching over the broadcast.
+        $this->actingAs($liker)
+            ->post(route('definitions.vote', $definition))
+            ->assertRedirect();
+
+        $fresh = $definition->fresh();
+        expect($fresh->removed_at)->not->toBeNull();
+        expect($fresh->isRemoved())->toBeTrue();
+        expect($fresh->votes_count)->toBe(1);
+        expect($fresh->votes()->count())->toBe(1);
+        expect($fresh->votes()->where('user_id', $liker->id)->exists())->toBeFalse();
+    });
+
+    test('Given a removed definition, removed_at is cast to a Carbon instance', function () {
+        $author = User::factory()->create();
+        $word = createWord();
+        $definition = $word->definitions()->create(['user_id' => $author->id, 'text' => 'mine']);
+
+        $this->actingAs($author)->post(route('definitions.remove', $definition))->assertRedirect();
+
+        // Guards against a `$dates` declaration, which Laravel 12 ignores silently:
+        // the value would still be truthy as a raw string, so only the type catches it.
+        expect($definition->fresh()->removed_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+    });
+
+    test('Given a removed definition, the database text survives untouched', function () {
+        $author = User::factory()->create();
+        $word = createWord();
+        $definition = $word->definitions()->create(['user_id' => $author->id, 'text' => 'the original meaning']);
+
+        $this->actingAs($author)->post(route('definitions.remove', $definition))->assertRedirect();
+
+        // toArray() is where the redaction lives, so the model's own attribute still
+        // reads the original — proving nothing is destroyed on the way out.
+        $fresh = $definition->fresh();
+        expect($fresh->text)->toBe('the original meaning');
+        expect($fresh->toArray()['text'])->toBe('[deleted]');
+
+        // And because the substitution is not on the attribute itself, saving the
+        // instance cannot write the placeholder back into the row. This is the
+        // difference between overriding toArray() and adding a text accessor.
+        $fresh->save();
+        expect($definition->fresh()->text)->toBe('the original meaning');
+    });
+});
+
+describe('a removed definition on the word page', function () {
+    test('Given a removed definition, the page still lists it as a deleted card with its count', function () {
+        Event::fake([DefinitionCreated::class]);
+        $author = User::factory()->create();
+        $word = createWord();
+
+        $this->actingAs($author)
+            ->post(route('words.definitions.store', $word), ['text' => 'A made-up meaning'])
+            ->assertRedirect();
+
+        $definition = $word->definitions()->first();
+        $this->actingAs($author)->post(route('definitions.remove', $definition))->assertRedirect();
+
+        $this->get(route('words.show', $word))
+            ->assertInertia(fn ($page) => $page
+                ->component('Words/Show')
+                ->has('word.definitions', 1)
+                ->where('word.definitions.0.id', $definition->id)
+                // The placeholder is the server's substituted string, so the client
+                // can branch on removed_at without any string being duplicated in JS.
+                ->where('word.definitions.0.text', '[deleted]')
+                ->where('word.definitions.0.votes_count', 1)
+                ->where('word.definitions.0.removed_at', fn ($value) => $value !== null)
+            );
+    });
+
+    test('Given a word whose only definition is removed, the list is not empty', function () {
+        $author = User::factory()->create();
+        $word = createWord();
+        $definition = $word->definitions()->create(['user_id' => $author->id, 'text' => 'mine']);
+
+        $this->actingAs($author)->post(route('definitions.remove', $definition))->assertRedirect();
+
+        // The "no definitions yet" empty state is for a word that never had one; a
+        // removed definition keeps its [deleted] card, so the list stays non-empty.
+        $this->get(route('words.show', $word))
+            ->assertInertia(fn ($page) => $page->has('word.definitions', 1));
+    });
+
+    test('Given a word with no definitions at all, the empty state still applies', function () {
+        $word = createWord();
+
+        $this->get(route('words.show', $word))
+            ->assertInertia(fn ($page) => $page->has('word.definitions', 0));
+    });
+
+    test('Given a removed definition, its text is absent from every page that quotes one', function () {
+        Event::fake([DefinitionCreated::class]);
+        $author = User::factory()->create();
+        $word = createWord();
+        $secret = 'ORIGINAL-TEXT-MUST-NOT-LEAK-4f21';
+
+        $this->actingAs($author)
+            ->post(route('words.definitions.store', $word), ['text' => $secret])
+            ->assertRedirect();
+
+        $definition = $word->definitions()->first();
+        $this->actingAs($author)->post(route('definitions.remove', $definition))->assertRedirect();
+        $this->actingAs($author)->post(route('words.favourite', $word))->assertRedirect();
+
+        // All three server-to-client paths, not just show(): the browse card and the
+        // favourites card both quote word.definitions[0].text verbatim. The text is
+        // checked against the raw body because Inertia embeds the whole page payload in
+        // the HTML — painting over it in the template would not remove it from here.
+        $this->get(route('words.show', $word))->assertDontSee($secret, false);
+        $this->get(route('home'))->assertDontSee($secret, false);
+        $this->get(route('words.favourites'))->assertDontSee($secret, false);
+    });
+});
