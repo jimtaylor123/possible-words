@@ -28,6 +28,19 @@ export default [
         },
     },
     {
+        // E2E specs run in Node, but callbacks handed to page.evaluate() and
+        // page.addInitScript() are serialised and executed in the browser.
+        files: ['tests/e2e/**/*.js'],
+        languageOptions: {
+            globals: {
+                document: 'readonly',
+                MutationObserver: 'readonly',
+                setInterval: 'readonly',
+                clearInterval: 'readonly',
+            },
+        },
+    },
+    {
         ignores: [
             'public/build/**',
             'vendor/**',
