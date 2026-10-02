@@ -8,7 +8,7 @@
     {{-- No `inertia` attribute: Inertia owns that element and deletes it when no
          page supplies a <Head> title, which blanks the browser tab. The product
          name is not per-page, so the server renders it and owns it outright. --}}
-    <title>{{ config('app.name', 'Possible Words') }}</title>
+    <title>{{ config('app.name') }}</title>
 
     <!-- Favicon -->
     @php
