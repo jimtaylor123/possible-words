@@ -69,6 +69,9 @@ jobs:
       - name: Deploy with Serverless
         run: npx serverless@$SERVERLESS_VERSION deploy --package /tmp/sls-package
 
+      - name: Run production migrations
+        run: npx serverless@$SERVERLESS_VERSION invoke -f artisan --data '{"cli":"migrate --force"}'
+
       - name: Smoke-test API endpoint (blocking)
         run: |
           endpoint=$(aws apigatewayv2 get-apis --region "$AWS_DEFAULT_REGION" \
