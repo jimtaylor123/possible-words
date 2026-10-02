@@ -19,6 +19,7 @@ function makeSuggestionWord(array $attrs = []): Word
         'slug' => 'blorg',
         'syllables' => 2,
         'status' => 'available',
+        'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
     ], $attrs));
 }
 
@@ -84,9 +85,33 @@ describe('suggestions endpoint', function () {
     });
 
     test('Given a dictionary-matched word, it is not suggested', function () {
-        makeSuggestionWord(['text' => 'realword', 'slug' => 'realword', 'dictionary_status' => 'exists']);
+        makeSuggestionWord(['text' => 'realword', 'slug' => 'realword', 'dictionary_status' => Word::DICTIONARY_EXISTS_AS_WORD]);
 
         $this->getJson(route('words.suggestions', ['q' => 'real']))
+            ->assertOk()
+            ->assertJsonCount(0);
+    });
+
+    test('Given an unchecked word, it is not suggested', function () {
+        makeSuggestionWord(['text' => 'pendingword', 'slug' => 'pendingword', 'dictionary_status' => Word::DICTIONARY_UNCHECKED]);
+
+        $this->getJson(route('words.suggestions', ['q' => 'pend']))
+            ->assertOk()
+            ->assertJsonCount(0);
+    });
+
+    test('Given a word whose dictionary lookup failed, it is not suggested', function () {
+        makeSuggestionWord(['text' => 'failword', 'slug' => 'failword', 'dictionary_status' => Word::DICTIONARY_CHECK_FAILED]);
+
+        $this->getJson(route('words.suggestions', ['q' => 'fail']))
+            ->assertOk()
+            ->assertJsonCount(0);
+    });
+
+    test('Given a withdrawn word, it is not suggested', function () {
+        makeSuggestionWord(['text' => 'goneword', 'slug' => 'goneword'])->delete();
+
+        $this->getJson(route('words.suggestions', ['q' => 'gone']))
             ->assertOk()
             ->assertJsonCount(0);
     });

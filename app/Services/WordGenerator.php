@@ -120,7 +120,7 @@ class WordGenerator
                 'phonemes' => $word['phonemes'],
                 'syllables' => $this->countSyllables($word['text']),
                 'status' => 'available',
-                'dictionary_status' => 'unchecked',
+                'dictionary_status' => Word::DICTIONARY_UNCHECKED,
                 'slug' => Str::slug($word['text']),
             ]);
 

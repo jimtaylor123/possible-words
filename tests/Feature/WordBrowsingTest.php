@@ -19,6 +19,7 @@ function makeWord(array $attrs = []): Word
         'slug' => 'blorg',
         'syllables' => 2,
         'status' => 'available',
+        'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
     ], $attrs));
 }
 
@@ -46,12 +47,42 @@ describe('browsing the catalogue', function () {
     });
 
     test('Given a word matched by the dictionary, it is hidden from the public list', function () {
-        makeWord(['text' => 'realword', 'slug' => 'realword', 'dictionary_status' => 'exists']);
+        makeWord(['text' => 'realword', 'slug' => 'realword', 'dictionary_status' => Word::DICTIONARY_EXISTS_AS_WORD]);
 
         $this->get(route('home'))
             ->assertInertia(fn ($page) => $page
                 ->has('words.data', 0)
             );
+    });
+
+    test('Given a word that has never been checked, it is hidden from the public list', function () {
+        makeWord(['text' => 'pending', 'slug' => 'pending', 'dictionary_status' => Word::DICTIONARY_UNCHECKED]);
+
+        $this->get(route('home'))
+            ->assertInertia(fn ($page) => $page
+                ->has('words.data', 0)
+            );
+    });
+
+    test('Given a word whose dictionary lookup failed, it is hidden from the public list', function () {
+        makeWord(['text' => 'maybeunknowable', 'slug' => 'maybeunknowable', 'dictionary_status' => Word::DICTIONARY_CHECK_FAILED]);
+
+        $this->get(route('home'))
+            ->assertInertia(fn ($page) => $page
+                ->has('words.data', 0)
+            );
+    });
+
+    test('Given a withdrawn word, it is hidden from the public list and 404s', function () {
+        $word = makeWord(['text' => 'withdrawn', 'slug' => 'withdrawn']);
+        $word->delete();
+
+        $this->get(route('home'))
+            ->assertInertia(fn ($page) => $page
+                ->has('words.data', 0)
+            );
+
+        $this->get(route('words.show', $word))->assertStatus(404);
     });
 });
 

@@ -2,13 +2,38 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class DictionaryService
 {
+    /**
+     * Errors recorded by the most recent checkWord() call, keyed by source.
+     *
+     * @var array<string, string>
+     */
+    private array $lastErrors = [];
+
+    /**
+     * Banned word lists memoised by path, so a file is read once per run.
+     *
+     * @var array<string, array<int, string>>
+     */
+    private array $bannedCache = [];
+
+    /**
+     * @return array<string, string>
+     */
+    public function errors(): array
+    {
+        return $this->lastErrors;
+    }
+
     public function checkWord(string $text): array
     {
+        $this->lastErrors = [];
         $sources = [];
 
         if (config('dictionary.free_dictionary_enabled')) {
@@ -25,12 +50,51 @@ class DictionaryService
             }
         }
 
-        $status = $this->classify($sources);
-
         return [
-            'status' => $status,
+            'status' => $this->classify($sources),
             'sources' => $sources,
+            'errors' => $this->lastErrors,
         ];
+    }
+
+    /**
+     * GET a dictionary endpoint, retrying transient failures.
+     *
+     * A 404 is a real answer and is returned immediately. Connection errors and
+     * unexpected statuses (the free dictionary API returns 522 fairly often) are
+     * retried with a linear backoff; the last failure is re-thrown so the caller
+     * records it and the word is classified as an incomplete check rather than
+     * a confirmed non-word.
+     */
+    private function getWithRetry(string $url): Response
+    {
+        $attempts = max(1, (int) config('dictionary.attempts', 3));
+        $sleepMs = (int) config('dictionary.retry_sleep_ms', 400);
+        $lastError = 'unknown error';
+
+        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+            try {
+                $response = Http::timeout((int) config('dictionary.timeout', 10))->get($url);
+
+                if ($response->notFound() || $attempt === $attempts) {
+                    return $response;
+                }
+
+                $lastError = "unexpected HTTP {$response->status()}";
+            } catch (Throwable $e) {
+                $lastError = $e->getMessage();
+
+                if ($attempt === $attempts) {
+                    throw $e;
+                }
+            }
+
+            if ($sleepMs > 0) {
+                usleep($sleepMs * $attempt * 1000);
+            }
+        }
+
+        throw new \RuntimeException("Dictionary request failed: {$lastError}");
     }
 
     public function checkFreeDictionary(string $text): ?array
@@ -38,7 +102,7 @@ class DictionaryService
         $url = 'https://api.dictionaryapi.dev/api/v2/entries/en/'.urlencode(strtolower($text));
 
         try {
-            $response = Http::timeout(10)->get($url);
+            $response = $this->getWithRetry($url);
 
             if ($response->notFound()) {
                 return ['found' => false];
@@ -65,8 +129,10 @@ class DictionaryService
                     'meanings' => $meanings,
                 ];
             }
-        } catch (\Exception $e) {
-            Log::warning("FreeDictionaryAPI check failed for '{$text}': {$e->getMessage()}");
+
+            $this->recordError('free_dictionary', $text, "unexpected HTTP {$response->status()}");
+        } catch (Throwable $e) {
+            $this->recordError('free_dictionary', $text, $e->getMessage());
         }
 
         return null;
@@ -83,7 +149,7 @@ class DictionaryService
         $url = 'https://www.dictionaryapi.com/api/v3/references/collegiate/json/'.urlencode(strtolower($text)).'?key='.$apiKey;
 
         try {
-            $response = Http::timeout(10)->get($url);
+            $response = $this->getWithRetry($url);
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -99,11 +165,23 @@ class DictionaryService
 
                 return ['found' => true];
             }
-        } catch (\Exception $e) {
-            Log::warning("Merriam-Webster check failed for '{$text}': {$e->getMessage()}");
+
+            $this->recordError('merriam_webster', $text, "unexpected HTTP {$response->status()}");
+        } catch (Throwable $e) {
+            $this->recordError('merriam_webster', $text, $e->getMessage());
         }
 
         return null;
+    }
+
+    /**
+     * Record a failed lookup so the caller can report why a check was inconclusive.
+     */
+    private function recordError(string $source, string $text, string $message): void
+    {
+        $this->lastErrors[$source] = $message;
+
+        Log::warning(ucfirst(str_replace('_', ' ', $source))." check failed for '{$text}': {$message}");
     }
 
     public function classify(array $sources): string
@@ -139,20 +217,40 @@ class DictionaryService
             }
         }
 
+        if ($sources === []) {
+            // Fail closed: no source returned a verdict, so we know nothing about
+            // this word. Recording 'not_found' here publishes an unchecked word as
+            // a confirmed-unused one — 81% of production was created this way.
+            return 'check_failed';
+        }
+
         return 'not_found';
     }
 
+    /**
+     * Load the banned words list, memoised by path.
+     *
+     * @return array<int, string>
+     */
     public function loadBannedWords(): array
     {
         $path = config('dictionary.banned_words_path');
 
-        if (! file_exists($path)) {
-            return [];
+        if (array_key_exists($path, $this->bannedCache)) {
+            return $this->bannedCache[$path];
         }
 
-        $words = json_decode(file_get_contents($path), true);
+        $words = is_file($path) ? json_decode((string) file_get_contents($path), true) : null;
+        $words = is_array($words) ? $words : [];
 
-        return is_array($words) ? $words : [];
+        if ($words === [] && config('dictionary.banned_words_required')) {
+            throw new \RuntimeException(
+                "Banned words list missing or empty at {$path}. Refusing to generate words "
+                .'without the banned-words gate. Set BANNED_WORDS_REQUIRED=false to disable.'
+            );
+        }
+
+        return $this->bannedCache[$path] = $words;
     }
 
     public function isInBannedList(string $text): bool

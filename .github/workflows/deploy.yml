@@ -57,8 +57,17 @@ jobs:
           VITE_PUSHER_APP_CLUSTER: ${{ secrets.PUSHER_APP_CLUSTER }}
         run: npm run build
 
+      - name: Package and verify the banned-words gate
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/sls-package && mkdir -p /tmp/sls-package
+          npx serverless@$SERVERLESS_VERSION package --package /tmp/sls-package
+          unzip -l /tmp/sls-package/possiblewords.zip \
+            | grep -q 'storage/app/dictionary/banned-words.json' \
+            || { echo '::error::storage/app/dictionary/banned-words.json is missing from the deployment package'; exit 1; }
+
       - name: Deploy with Serverless
-        run: npx serverless@$SERVERLESS_VERSION deploy
+        run: npx serverless@$SERVERLESS_VERSION deploy --package /tmp/sls-package
 
       - name: Smoke-test API endpoint (blocking)
         run: |

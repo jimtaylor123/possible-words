@@ -24,6 +24,34 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Lookup Resilience
+    |--------------------------------------------------------------------------
+    |
+    | The free dictionary API is flaky (Cloudflare 522s are common). Retry a
+    | failed lookup with a linear backoff before giving up on a word, so an
+    | unreachable API is not mistaken for "the word is not in the dictionary".
+    |
+    */
+    'timeout' => (int) env('DICTIONARY_TIMEOUT', 10),
+
+    'attempts' => (int) env('DICTIONARY_ATTEMPTS', 3),
+
+    'retry_sleep_ms' => (int) env('DICTIONARY_RETRY_SLEEP_MS', 400),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Banned Words Enforcement
+    |--------------------------------------------------------------------------
+    |
+    | When true, a missing/unreadable banned-words file is a hard error rather
+    | than an empty list. Production sets this so a packaging mistake cannot
+    | silently disable the generation gate.
+    |
+    */
+    'banned_words_required' => (bool) env('BANNED_WORDS_REQUIRED', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | API Toggles
     |--------------------------------------------------------------------------
     |

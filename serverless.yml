@@ -28,6 +28,10 @@ provider:
 
         SCOUT_DRIVER: database
 
+        # Fail loudly in the nightly generate job if the banned-words file is
+        # missing from the package, instead of silently accepting every word.
+        BANNED_WORDS_REQUIRED: 'true'
+
         DB_CONNECTION: turso
         TURSO_DATABASE_URL: ${env:TURSO_DATABASE_URL}
         TURSO_AUTH_TOKEN: ${env:TURSO_AUTH_TOKEN}
@@ -83,7 +87,7 @@ functions:
             - schedule:
                   rate: cron(0 6 * * ? *)
                   input:
-                      cli: 'words:check-dictionary --chunk=50'
+                      cli: 'words:check-dictionary --chunk=50 --retry-failed'
 
 package:
     patterns:
@@ -95,6 +99,13 @@ package:
         - '!resources/images/**'
         - '!resources/js/**'
         - '!storage/**'
+        # storage/** is excluded above, but the generation gate needs this file at
+        # runtime. Serverless applies the package.patterns list in order
+        # (lib/plugins/package/lib/package-service.js pushes every include after
+        # the excludes and filters with micromatch in that order), so the
+        # re-inclusion below wins. Bref mounts the app at /var/task, so the file
+        # resolves at /var/task/storage/app/dictionary/banned-words.json.
+        - 'storage/app/dictionary/banned-words.json'
         - '!tests/**'
         - '!database/*.sqlite'
         - '!public/build/**'
