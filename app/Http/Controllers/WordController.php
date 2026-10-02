@@ -188,6 +188,16 @@ class WordController extends Controller
 
     public function voteDefinition(Definition $definition)
     {
+        // A removed definition is inert: its text is redacted and it offers no
+        // actions, so Show.vue already hides the vote button. That was only a UI
+        // convention though — the button is gone, the endpoint is not, and this
+        // app has no policies or gates to fall back on. Guarding here makes the
+        // server agree with the UI, which is the invariant the E2E spec asserts
+        // (`card.locator('button')).toHaveCount(0)`).
+        if ($definition->isRemoved()) {
+            return redirect()->back();
+        }
+
         $vote = Vote::where([
             'definition_id' => $definition->id,
             'user_id' => Auth::id(),

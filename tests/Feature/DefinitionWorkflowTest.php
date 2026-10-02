@@ -306,6 +306,38 @@ describe('removing a definition', function () {
         expect($removed->votes()->where('user_id', $liker->id)->exists())->toBeTrue();
     });
 
+    test('Given a removed definition, a third party voting on it changes nothing', function () {
+        $author = User::factory()->create();
+        $liker = User::factory()->create();
+        $word = createWord();
+
+        // storeDefinition() auto-likes on the author's behalf, so the definition starts
+        // at one like before anyone else touches it.
+        $this->actingAs($author)
+            ->post(route('words.definitions.store', $word), ['text' => 'auto-liked'])
+            ->assertRedirect();
+
+        $definition = $word->definitions()->first();
+        expect($definition->fresh()->votes_count)->toBe(1);
+
+        $this->actingAs($author)->post(route('definitions.remove', $definition))->assertRedirect();
+
+        // A removed definition is inert, and the endpoint has to enforce that on its
+        // own: Show.vue hides the vote button, but without a server-side guard a
+        // crafted POST would still add a vote row and bump the [deleted] card's count
+        // for every other viewer watching over the broadcast.
+        $this->actingAs($liker)
+            ->post(route('definitions.vote', $definition))
+            ->assertRedirect();
+
+        $fresh = $definition->fresh();
+        expect($fresh->removed_at)->not->toBeNull();
+        expect($fresh->isRemoved())->toBeTrue();
+        expect($fresh->votes_count)->toBe(1);
+        expect($fresh->votes()->count())->toBe(1);
+        expect($fresh->votes()->where('user_id', $liker->id)->exists())->toBeFalse();
+    });
+
     test('Given a removed definition, removed_at is cast to a Carbon instance', function () {
         $author = User::factory()->create();
         $word = createWord();

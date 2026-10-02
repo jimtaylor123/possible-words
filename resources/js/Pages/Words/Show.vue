@@ -282,9 +282,12 @@ const likedByUser = (definition) => {
 
 // Only the author may remove a definition, and only while it is still live: a
 // removed definition stays listed as a [deleted] card but offers no actions.
-// The identity comes from the definition's already-loaded user relation.
+// The identity comes from the definition's already-loaded user relation. The
+// authenticated check comes first on purpose: comparing two optional chains
+// lets a guest match a definition that somehow had no user, since
+// `undefined === undefined` is true.
 const isOwnDefinition = (definition) => {
-  return definition.user?.id === page.props.auth?.user?.id && !definition.removed_at
+  return !!page.props.auth?.user && definition.user?.id === page.props.auth.user.id && !definition.removed_at
 }
 
 const removeDefinition = (definitionId) => {
