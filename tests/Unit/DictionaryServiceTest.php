@@ -5,6 +5,8 @@ use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
     $this->service = new DictionaryService;
+
+    config()->set('dictionary.retry_sleep_ms', 0);
 });
 
 describe('banned word list', function () {
@@ -18,6 +20,108 @@ describe('banned word list', function () {
     test('Given a banned word, it is detected; a made-up word is not', function () {
         expect($this->service->isInBannedList('the'))->toBeTrue();
         expect($this->service->isInBannedList('xyzzyn'))->toBeFalse();
+    });
+
+    test('Given the banned list is required and missing, loading it throws', function () {
+        config()->set('dictionary.banned_words_path', '/tmp/does-not-exist-banned-words.json');
+        config()->set('dictionary.banned_words_required', true);
+
+        expect(fn () => (new DictionaryService)->loadBannedWords())
+            ->toThrow(RuntimeException::class, 'Banned words list missing or empty');
+    });
+
+    test('Given the banned list is required and present, it loads without throwing', function () {
+        config()->set('dictionary.banned_words_required', true);
+
+        expect((new DictionaryService)->loadBannedWords())->not->toBeEmpty();
+    });
+
+    test('Given the banned list is missing but not required, loading it returns an empty array', function () {
+        config()->set('dictionary.banned_words_path', '/tmp/does-not-exist-banned-words.json');
+        config()->set('dictionary.banned_words_required', false);
+
+        expect((new DictionaryService)->loadBannedWords())->toBe([]);
+    });
+});
+
+describe('failing closed when the dictionary cannot be reached', function () {
+    test('Given no source returned a verdict, the word is check_failed rather than not_found', function () {
+        expect($this->service->classify([]))->toBe('check_failed');
+        expect($this->service->classify([]))->not->toBe('not_found');
+    });
+
+    test('Given the API is unreachable, the word is check_failed with no sources', function () {
+        Http::fake([
+            'api.dictionaryapi.dev/*' => Http::response(null, 500),
+        ]);
+
+        $result = $this->service->checkWord('xyzzyn');
+
+        expect($result['status'])->toBe('check_failed');
+        expect($result['sources'])->toBe([]);
+        expect($result['errors'])->not->toBeEmpty();
+    });
+
+    test('Given a persistent Cloudflare 522, the word is check_failed after every attempt', function () {
+        Http::fake([
+            'api.dictionaryapi.dev/*' => Http::response(null, 522),
+        ]);
+
+        $result = $this->service->checkWord('xyzzyn');
+
+        expect($result['status'])->toBe('check_failed');
+        Http::assertSentCount(3);
+    });
+});
+
+describe('retrying a flaky dictionary lookup', function () {
+    test('Given a lookup that recovers on the third attempt, the real verdict wins', function () {
+        Http::fakeSequence()
+            ->push('', 522)
+            ->push('', 522)
+            ->push([
+                [
+                    'word' => 'begin',
+                    'meanings' => [
+                        [
+                            'partOfSpeech' => 'verb',
+                            'definitions' => [
+                                ['definition' => 'To start, to initiate or take the first step into something.'],
+                            ],
+                        ],
+                    ],
+                ],
+            ], 200);
+
+        $result = $this->service->checkWord('begin');
+
+        expect($result['status'])->toBe('exists_as_word');
+        Http::assertSentCount(3);
+    });
+
+    test('Given a 404, the lookup is never retried', function () {
+        Http::fake([
+            'api.dictionaryapi.dev/*' => Http::response(null, 404),
+        ]);
+
+        $result = $this->service->checkWord('xyzzyn');
+
+        expect($result['status'])->toBe('not_found');
+        Http::assertSentCount(1);
+    });
+
+    test('Given a connection error on every attempt, the last failure is recorded', function () {
+        Http::fake([
+            'api.dictionaryapi.dev/*' => Http::response(function () {
+                throw new RuntimeException('Connection timed out');
+            }),
+        ]);
+
+        $result = $this->service->checkWord('xyzzyn');
+
+        expect($result['status'])->toBe('check_failed');
+        expect($result['errors']['free_dictionary'])->toContain('Connection timed out');
+        Http::assertSentCount(3);
     });
 });
 

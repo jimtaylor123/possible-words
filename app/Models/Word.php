@@ -2,17 +2,42 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Laravel\Scout\Searchable;
 
 class Word extends Model
 {
     /** @use HasFactory<\Database\Factories\WordFactory> */
-    use HasFactory, Searchable;
+    use HasFactory, Searchable, SoftDeletes;
+
+    public const DICTIONARY_UNCHECKED = 'unchecked';
+
+    public const DICTIONARY_CHECK_FAILED = 'check_failed';
+
+    public const DICTIONARY_NOT_FOUND = 'not_found';
+
+    public const DICTIONARY_EXISTS_AS_NAME = 'exists_as_name';
+
+    public const DICTIONARY_EXISTS_AS_WORD = 'exists_as_word';
+
+    /**
+     * Dictionary verdicts that make a word safe to publish as an unused word.
+     *
+     * 'unchecked' and 'check_failed' are deliberately absent: a word whose lookup
+     * has not succeeded is not a confirmed-unused word.
+     *
+     * @var array<int, string>
+     */
+    public const PUBLISHABLE_DICTIONARY_STATUSES = [
+        self::DICTIONARY_NOT_FOUND,
+        self::DICTIONARY_EXISTS_AS_NAME,
+    ];
 
     /**
      * Word URLs use the slug (see routes/web.php `{word}`).
@@ -52,7 +77,25 @@ class Word extends Model
         'dictionary_data' => 'array',
         'owned_until' => 'datetime',
         'generated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
+
+    /**
+     * Words safe to show on the public site: available, not withdrawn, and carrying
+     * a dictionary verdict that says nothing was found.
+     */
+    public function scopePublishable(Builder $query): void
+    {
+        $query->where('status', 'available')
+            ->whereIn('dictionary_status', self::PUBLISHABLE_DICTIONARY_STATUSES);
+    }
+
+    public function isPublishable(): bool
+    {
+        return $this->status === 'available'
+            && ! $this->trashed()
+            && in_array($this->dictionary_status, self::PUBLISHABLE_DICTIONARY_STATUSES, true);
+    }
 
     protected static function boot()
     {

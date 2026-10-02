@@ -53,8 +53,7 @@ class WordController extends Controller
             $query->where('text', 'like', $startsWith.'%');
         }
 
-        $query->where('status', 'available')
-            ->whereIn('dictionary_status', ['unchecked', 'not_found', 'exists_as_name']);
+        $query->publishable();
 
         // Apply sorting
         $sort = $this->queryString($request, 'sort');
@@ -143,9 +142,11 @@ class WordController extends Controller
             return response()->json([]);
         }
 
+        // Scout builds its own Eloquent query, so the publishable scope has to be
+        // applied through the query callback. Soft deletes are already excluded:
+        // Scout starts from newQuery() and config/scout.php leaves soft_delete off.
         $words = Word::search($term)
-            ->where('status', 'available')
-            ->whereIn('dictionary_status', ['unchecked', 'not_found', 'exists_as_name'])
+            ->query(fn ($query) => $query->publishable())
             ->take(8)
             ->get()
             ->map(fn (Word $word) => [
