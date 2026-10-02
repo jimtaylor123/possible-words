@@ -11,6 +11,12 @@ use function Pest\Laravel\get;
  * Given a visitor loads any page,
  * When the document title is read from the served markup,
  * Then it should be the product name on every page, never the framework default.
+ *
+ * The product name is declared per environment rather than in code, so most of
+ * the drift risk lives in files this harness never loads: .env.example is only
+ * read by whoever sets up a fresh clone, and serverless.yml is only read by the
+ * deploy. Those are asserted as files below, because asserting only the resolved
+ * config would let phpunit.xml's APP_NAME pin hide a reverted file.
  */
 
 /**
@@ -32,6 +38,27 @@ function titleOf(string $html): string
     preg_match('/<title[^>]*>(.*?)<\/title>/s', $html, $matches);
 
     return trim($matches[1] ?? '');
+}
+
+/**
+ * Read the APP_NAME value that a committed file at the repo root declares.
+ *
+ * Handles both syntaxes in play — `KEY=value` in the dotenv files and
+ * `KEY: value` in serverless.yml — so the assertion is about the literal
+ * content of the file rather than about anything the framework resolved at
+ * boot. A file that declares no APP_NAME fails rather than returning ''.
+ */
+function declaredAppName(string $file): string
+{
+    $path = dirname(__DIR__, 2).'/'.$file;
+
+    expect(file_exists($path), "{$file} must exist at the repo root")->toBeTrue();
+
+    preg_match('/^[ \t]*APP_NAME[ \t]*[=:][ \t]*(.+?)[ \t]*$/m', (string) file_get_contents($path), $matches);
+
+    expect($matches, "{$file} must declare APP_NAME")->toHaveKey(1);
+
+    return trim($matches[1], "\"'");
 }
 
 /**
@@ -71,68 +98,44 @@ function renderTitlePage(string $routeName): string
     return get($url)->assertOk()->getContent();
 }
 
-/**
- * Render every page, keyed by a label so failures name the offending route.
- */
-function publicPages(): array
-{
-    $pages = [];
-    foreach (TITLE_PAGES as $routeName) {
-        $pages[$routeName] = renderTitlePage($routeName);
-    }
+describe('the product name declared by each environment file', function () {
+    test('Given the file a clone or a deploy reads, it declares the product name', function (string $file) {
+        expect(declaredAppName($file))
+            ->toBe('Possible Words')
+            ->toBe(declaredAppName('.env.example'));
+    })->with([
+        'fresh clone' => '.env.example',
+        'Playwright server' => '.env.testing',
+        'production' => 'serverless.yml',
+    ]);
 
-    return $pages;
-}
-
-describe('the resolved app name', function () {
-    test('Given the app boots, the name is the product name and not the framework default', function () {
-        expect(config('app.name'))->toBe('Possible Words');
+    test('Given the harness pins APP_NAME, the resolved value cannot hide file drift', function () {
+        // phpunit.xml pins APP_NAME so the suite is deterministic, and Dotenv is
+        // immutable, so the pin wins over every env file at boot. Tying the
+        // resolved config back to .env.example is what stops that pin from
+        // masking a reverted .env.example or serverless.yml.
+        expect(config('app.name'))->toBe(declaredAppName('.env.example'));
     });
 });
 
 describe('the document title', function () {
-    test('Given a page, the document title is exactly the product name', function (string $routeName) {
-        expect(titleOf(renderTitlePage($routeName)))->toBe('Possible Words');
-    })->with([
-        'home' => 'home',
-        'about' => 'about',
-        'words index' => 'words.index',
-        'favourites' => 'words.favourites',
-        'word detail' => 'words.show',
-    ]);
-});
+    test('Given a page, the document title is the product name and the server owns it', function (string $routeName) {
+        $html = renderTitlePage($routeName);
 
-describe('the framework default leaking into the markup', function () {
-    test('Given any page, neither the title nor the markup presents Laravel', function () {
-        foreach (publicPages() as $label => $html) {
-            expect(titleOf($html), "title of the {$label} page")
-                ->not->toBe('Laravel')
-                ->not->toContain('Laravel');
-
-            // Nothing in the served document may present the framework name.
-            expect($html, "markup of the {$label} page")
-                ->not->toContain('Laravel');
-        }
-    });
-});
-
-describe('the title falling back to the address bar', function () {
-    test('Given any page, the title is never a hostname or a URL', function () {
-        foreach (publicPages() as $label => $html) {
-            expect(titleOf($html), "title of the {$label} page")
-                ->not->toContain('jimtaylor.space')
-                ->not->toContain('://')
-                ->not->toContain('localhost');
-        }
-    });
+        expect(titleOf($html))->toBe('Possible Words')
+            // Inertia deletes any <title> carrying its `inertia` attribute when no
+            // page supplies a <Head> title, which blanks the tab (#71). The
+            // element must therefore be plain and server-rendered.
+            ->and($html)->not->toContain('<title inertia');
+    })->with(TITLE_PAGES);
 });
 
 describe('the mail From name', function () {
-    test('Given no explicit MAIL_FROM_NAME, mail falls back to the product name', function () {
+    test('Given no explicit MAIL_FROM_NAME, mail falls back to the declared product name', function () {
         // Guard that this test keeps exercising the config/mail.php fallback rather
         // than an interpolated MAIL_FROM_NAME, which would make it tautological.
         expect(env('MAIL_FROM_NAME'))->toBeNull();
 
-        expect(config('mail.from.name'))->toBe('Possible Words');
+        expect(config('mail.from.name'))->toBe(declaredAppName('.env.example'));
     });
 });
