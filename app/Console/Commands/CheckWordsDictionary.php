@@ -5,14 +5,25 @@ namespace App\Console\Commands;
 use App\Models\Word;
 use App\Services\DictionaryService;
 use Illuminate\Console\Command;
+use Throwable;
 
+/**
+ * Check generated words against the dictionary APIs.
+ *
+ * Words are only recorded once a lookup actually returns a verdict: an
+ * unreachable API leaves the word at check_failed so the next run retries it,
+ * rather than promoting it to a confirmed non-word.
+ */
 class CheckWordsDictionary extends Command
 {
     protected $signature = 'words:check-dictionary
                             {--force : Re-check words that have already been checked}
+                            {--retry-failed : Also re-check not_found words whose lookup recorded no dictionary_data}
                             {--chunk=50 : Number of words to process per chunk}';
 
     protected $description = 'Check words against dictionary APIs to verify they are not real words';
+
+    private const PREVIEW_LIMIT = 25;
 
     public function handle(DictionaryService $service): int
     {
@@ -20,8 +31,25 @@ class CheckWordsDictionary extends Command
 
         if ($this->option('force')) {
             $this->warn('Re-checking all words (including already-checked ones).');
+        } elseif ($this->option('retry-failed')) {
+            $this->warn('Re-checking unchecked, failed and unverified not_found words.');
+
+            // 'not_found' with an empty dictionary_data is a verdict the old
+            // fail-open classifier invented: no source ever answered. A real
+            // not_found carries {"free_dictionary":{"found":false}} and is skipped.
+            $query->whereIn('dictionary_status', [
+                Word::DICTIONARY_UNCHECKED,
+                Word::DICTIONARY_CHECK_FAILED,
+                Word::DICTIONARY_NOT_FOUND,
+            ])->where(function ($q) {
+                $q->whereNull('dictionary_data')
+                    ->orWhere('dictionary_data', '[]');
+            });
         } else {
-            $query->where('dictionary_status', 'unchecked');
+            $query->whereIn('dictionary_status', [
+                Word::DICTIONARY_UNCHECKED,
+                Word::DICTIONARY_CHECK_FAILED,
+            ]);
         }
 
         $total = $query->count();
@@ -38,10 +66,20 @@ class CheckWordsDictionary extends Command
 
         $throttle = config('dictionary.throttle_per_second', 2);
         $processed = 0;
-        $results = ['not_found' => 0, 'exists_as_name' => 0, 'exists_as_word' => 0];
+        $failures = 0;
+        $results = array_fill_keys([
+            Word::DICTIONARY_NOT_FOUND,
+            Word::DICTIONARY_EXISTS_AS_NAME,
+            Word::DICTIONARY_EXISTS_AS_WORD,
+            Word::DICTIONARY_CHECK_FAILED,
+        ], 0);
+        $leftPublicList = [];
+        $enteredPublicList = [];
 
-        $query->chunk($chunkSize, function ($words) use ($service, $bar, $throttle, &$processed, &$results) {
+        $query->chunk($chunkSize, function ($words) use ($service, $bar, $throttle, &$processed, &$failures, &$results, &$leftPublicList, &$enteredPublicList) {
             foreach ($words as $word) {
+                $wasPublishable = $word->isPublishable();
+
                 try {
                     $result = $service->checkWord($word->text);
 
@@ -51,15 +89,24 @@ class CheckWordsDictionary extends Command
                         'dictionary_data' => $result['sources'],
                     ]);
 
-                    $results[$result['status']]++;
+                    $results[$result['status']] = ($results[$result['status']] ?? 0) + 1;
                     $processed++;
-
-                    if ($throttle > 0) {
-                        usleep((int) (1000000 / $throttle));
-                    }
-                } catch (\Exception $e) {
+                } catch (Throwable $e) {
+                    $failures++;
                     $this->newLine();
                     $this->error("Failed to check '{$word->text}': {$e->getMessage()}");
+                }
+
+                $isPublishable = $word->refresh()->isPublishable();
+
+                if ($wasPublishable && ! $isPublishable) {
+                    $leftPublicList[] = $word->text;
+                } elseif (! $wasPublishable && $isPublishable) {
+                    $enteredPublicList[] = $word->text;
+                }
+
+                if ($throttle > 0) {
+                    usleep((int) (1000000 / $throttle));
                 }
 
                 $bar->advance();
@@ -68,13 +115,51 @@ class CheckWordsDictionary extends Command
 
         $bar->finish();
         $this->newLine();
-        $this->info("Checked {$processed} words.");
-        $this->info("Results: {$results['not_found']} not found, {$results['exists_as_name']} names, {$results['exists_as_word']} real words");
 
-        if ($results['exists_as_word'] > 0) {
-            $this->warn("{$results['exists_as_word']} real words found — these are now hidden from the site.");
+        $this->info("Checked {$processed} words ({$failures} failures).");
+        $this->line(sprintf(
+            '  %d not found, %d names, %d real words, %d checks that did not complete',
+            $results[Word::DICTIONARY_NOT_FOUND],
+            $results[Word::DICTIONARY_EXISTS_AS_NAME],
+            $results[Word::DICTIONARY_EXISTS_AS_WORD],
+            $results[Word::DICTIONARY_CHECK_FAILED],
+        ));
+
+        $this->reportPublicListChange('Left the public list', $leftPublicList);
+        $this->reportPublicListChange('Joined the public list', $enteredPublicList);
+
+        if ($results[Word::DICTIONARY_CHECK_FAILED] > 0) {
+            $this->warn(
+                $results[Word::DICTIONARY_CHECK_FAILED]
+                .' word(s) could not be checked and are still hidden — re-run this command to retry them.'
+            );
         }
 
+        if ($failures > 0) {
+            $this->warn("{$failures} word(s) could not be checked at all — re-run this command to retry them.");
+        }
+
+        // Always SUCCESS: a flaky third-party API must not fail the scheduled event.
         return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, string>  $texts
+     */
+    private function reportPublicListChange(string $label, array $texts): void
+    {
+        if ($texts === []) {
+            return;
+        }
+
+        $this->line("{$label}: ".count($texts));
+
+        foreach (array_slice($texts, 0, self::PREVIEW_LIMIT) as $text) {
+            $this->line("  - {$text}");
+        }
+
+        if (count($texts) > self::PREVIEW_LIMIT) {
+            $this->line('  ... and '.(count($texts) - self::PREVIEW_LIMIT).' more');
+        }
     }
 }
