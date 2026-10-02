@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title inertia>{{ config('app.name', 'Laravel') }}</title>
+    {{-- No `inertia` attribute: Inertia owns that element and deletes it when no
+         page supplies a <Head> title, which blanks the browser tab. The product
+         name is not per-page, so the server renders it and owns it outright. --}}
+    <title>{{ config('app.name') }}</title>
 
     <!-- Favicon -->
     @php

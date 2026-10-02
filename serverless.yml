@@ -21,6 +21,7 @@ provider:
         APP_ENV: production
         APP_KEY: ${env:APP_KEY}
         APP_DEBUG: 0
+        APP_NAME: "Possible Words"
         APP_URL: https://possiblewords.jimtaylor.space
         LOG_CHANNEL: stderr
         LOG_STDERR_FORMATTER: Bref\Monolog\CloudWatchFormatter
