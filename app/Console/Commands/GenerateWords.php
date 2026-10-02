@@ -25,7 +25,9 @@ class GenerateWords extends Command
         $generatedCount = count($words);
         $rejectedAsRealWords = $generator->rejectedAsRealWords;
 
-        $existingTexts = Word::whereIn('text', array_column($words, 'text'))->pluck('text')->toArray();
+        // withTrashed(): words.text is UNIQUE, so a withdrawn word must count as
+        // taken. Without it Word::create() would throw on a soft-deleted row.
+        $existingTexts = Word::withTrashed()->whereIn('text', array_column($words, 'text'))->pluck('text')->toArray();
         $newWords = array_values(array_filter($words, fn ($w) => ! in_array($w['text'], $existingTexts)));
         $duplicateCount = $generatedCount - count($newWords);
 

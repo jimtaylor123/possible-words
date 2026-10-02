@@ -21,10 +21,14 @@ class RegenerateWords extends Command
         $count = (int) $this->option('count');
         $withAudio = ! $this->option('no-audio');
 
-        Word::query()->delete();
+        // forceDelete(), not delete(): this is a dev "start over" command, so
+        // withdrawn rows have to actually go before the unique text column is reused.
+        Word::withTrashed()->forceDelete();
 
         $this->line("Generating {$count} words...");
-        $generated = $generator->generateWords($count, checkDictionary: false);
+        // The banned list is a local file lookup (no API call), so run the gate
+        // here too — it is the same gate that was silently disabled in production.
+        $generated = $generator->generateWords($count, checkDictionary: true);
         $created = $generator->createWords($generated, dispatchCheckJob: false);
 
         if ($withAudio) {
