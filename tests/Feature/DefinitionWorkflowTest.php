@@ -15,10 +15,21 @@ function createWord(): Word
         'syllables' => 1,
         'status' => 'available',
         'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
+        'published_at' => now(),
     ]);
 }
 
 describe('adding a definition', function () {
+    test('Given an unreleased word, adding a definition returns 404', function () {
+        $user = User::factory()->create();
+        $word = createWord();
+        $word->update(['published_at' => null]);
+
+        $this->actingAs($user)
+            ->post(route('words.definitions.store', $word), ['text' => 'Hidden meaning'])
+            ->assertNotFound();
+    });
+
     test('Given a logged-in user, they can add a definition and it is auto-liked', function () {
         Event::fake([DefinitionCreated::class]);
         $user = User::factory()->create();
@@ -150,6 +161,22 @@ describe('liking a definition', function () {
 });
 
 describe('favouriting', function () {
+    test('Given an unreleased word, it cannot be favourited or listed', function () {
+        $user = User::factory()->create();
+        $word = createWord();
+        $word->update(['published_at' => null]);
+
+        $this->actingAs($user)
+            ->post(route('words.favourite', $word))
+            ->assertNotFound();
+
+        \App\Models\Favourite::create(['user_id' => $user->id, 'word_id' => $word->id]);
+
+        $this->actingAs($user)
+            ->get(route('words.favourites'))
+            ->assertInertia(fn ($page) => $page->has('words.data', 0));
+    });
+
     test('Given a logged-in user, they can favourite a word and see it on the favourites page', function () {
         $user = User::factory()->create();
         $word = createWord();

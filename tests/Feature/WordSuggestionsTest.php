@@ -20,6 +20,7 @@ function makeSuggestionWord(array $attrs = []): Word
         'syllables' => 2,
         'status' => 'available',
         'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
+        'published_at' => now(),
     ], $attrs));
 }
 
@@ -149,6 +150,15 @@ describe('suggestions endpoint', function () {
         makeSuggestionWord(['text' => 'goneword', 'slug' => 'goneword'])->delete();
 
         $this->getJson(route('words.suggestions', ['q' => 'gone']))
+            ->assertOk()
+            ->assertJsonCount(0);
+    });
+
+    test('Given an unreleased or future-dated word, it is not suggested', function () {
+        makeSuggestionWord(['text' => 'unreleased', 'slug' => 'unreleased', 'published_at' => null]);
+        makeSuggestionWord(['text' => 'futureword', 'slug' => 'futureword', 'published_at' => now()->addHour()]);
+
+        $this->getJson(route('words.suggestions', ['q' => 'word']))
             ->assertOk()
             ->assertJsonCount(0);
     });
