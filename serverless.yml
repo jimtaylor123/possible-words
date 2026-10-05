@@ -33,6 +33,12 @@ provider:
         # missing from the package, instead of silently accepting every word.
         BANNED_WORDS_REQUIRED: 'true'
 
+        # Merriam-Webster is the authoritative production dictionary source.
+        # dictionaryapi.dev times out from the Lambda environment.
+        FREE_DICTIONARY_ENABLED: 'false'
+        MERRIAM_WEBSTER_ENABLED: 'true'
+        MERRIAM_WEBSTER_API_KEY: ${env:MERRIAM_WEBSTER_API_KEY}
+
         DB_CONNECTION: turso
         TURSO_DATABASE_URL: ${env:TURSO_DATABASE_URL}
         TURSO_AUTH_TOKEN: ${env:TURSO_AUTH_TOKEN}
