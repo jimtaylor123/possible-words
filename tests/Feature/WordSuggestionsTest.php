@@ -67,22 +67,31 @@ describe('suggestions endpoint', function () {
             ->assertJsonCount(0);
     });
 
-    test('Given an absent or empty query parameter, an empty list is returned', function (string $query) {
-        $this->getJson('/suggestions?'.$query)
+    test('Given an absent or empty query parameter, an empty list is returned', function (array $query) {
+        $this->getJson(route('words.suggestions', $query))
             ->assertOk()
             ->assertJsonCount(0);
     })->with([
-        'omitted parameter' => '',
-        'empty value' => 'q=',
+        // Each value is wrapped: Pest spreads a dataset's keys as named arguments,
+        // so an unwrapped ['q' => ...] would arrive as an unknown parameter.
+        'omitted parameter' => [[]],
+        'empty value' => [['q' => '']],
+        // Trims to an empty string, so it is covered by the same <2 guard.
+        'whitespace only' => [['q' => '   ']],
     ]);
 
-    test('Given an array query parameter, an empty list is returned', function (string $query) {
-        $this->getJson('/suggestions?'.$query)
+    test('Given an array query parameter, an empty list is returned', function (array $query) {
+        // A word that DOES match the array's first value. If the controller ever
+        // stopped treating an array as absent, this would return a match rather
+        // than an empty list, so the assertion below genuinely covers the guard.
+        makeSuggestionWord(['text' => 'ablorg', 'slug' => 'ablorg']);
+
+        $this->getJson(route('words.suggestions', ['q' => $query]))
             ->assertOk()
             ->assertJsonCount(0);
     })->with([
-        'one value' => 'q[]=ab',
-        'multiple values' => 'q[]=ab&q[]=cd',
+        'one value' => [['blorg']],
+        'multiple values' => [['blorg', 'cd']],
     ]);
 
     test('Given no matching words, an empty list is returned', function () {
