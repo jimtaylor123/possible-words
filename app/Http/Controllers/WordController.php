@@ -147,7 +147,7 @@ class WordController extends Controller
 
     public function suggestions(Request $request)
     {
-        $term = trim((string) $request->input('q'));
+        $term = $this->queryString($request, 'q');
 
         if (mb_strlen($term) < 2 || str_contains($term, '%') || str_contains($term, '_') || str_contains($term, '\\')) {
             return response()->json([]);
