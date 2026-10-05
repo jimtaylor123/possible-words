@@ -48,7 +48,9 @@ jobs:
               body: JSON.stringify({
                 model: process.env.GROQ_MODEL,
                 messages: [{ role: "user", content: prompt }],
-                temperature: 0.1,
+                include_reasoning: false,
+                max_completion_tokens: 4096,
+                temperature: 0.5,
               }),
             });
             if (!response.ok) {
