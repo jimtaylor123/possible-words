@@ -87,6 +87,21 @@ describe('adding a definition', function () {
 });
 
 describe('liking a definition', function () {
+    test('Given an unreleased word, liking its definition returns 404 without voting', function () {
+        $author = User::factory()->create();
+        $liker = User::factory()->create();
+        $word = createWord();
+        $word->update(['published_at' => null]);
+        $definition = $word->definitions()->create(['user_id' => $author->id, 'text' => 'hidden', 'votes_count' => 0]);
+
+        $this->actingAs($liker)
+            ->post(route('definitions.vote', $definition))
+            ->assertNotFound();
+
+        expect($definition->fresh()->votes_count)->toBe(0)
+            ->and($definition->votes()->exists())->toBeFalse();
+    });
+
     test('Given a definition, a user can like it and the count increments', function () {
         $author = User::factory()->create();
         $liker = User::factory()->create();
@@ -239,6 +254,19 @@ describe('definition integrity', function () {
 });
 
 describe('removing a definition', function () {
+    test('Given an unreleased word, removing its definition returns 404 without removing it', function () {
+        $author = User::factory()->create();
+        $word = createWord();
+        $word->update(['published_at' => null]);
+        $definition = $word->definitions()->create(['user_id' => $author->id, 'text' => 'hidden']);
+
+        $this->actingAs($author)
+            ->post(route('definitions.remove', $definition))
+            ->assertNotFound();
+
+        expect($definition->fresh()->removed_at)->toBeNull();
+    });
+
     test('Given the author, removing their definition sets removed_at in the database', function () {
         Event::fake([DefinitionCreated::class]);
         $author = User::factory()->create();

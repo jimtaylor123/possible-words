@@ -30,6 +30,7 @@ function withdrawableWord(array $attrs = []): Word
         'syllables' => 1,
         'status' => 'available',
         'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
+        'published_at' => now(),
     ], $attrs));
 }
 

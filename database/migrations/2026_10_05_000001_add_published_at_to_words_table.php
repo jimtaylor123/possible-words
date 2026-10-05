@@ -13,10 +13,13 @@ return new class extends Migration
             $table->timestamp('published_at')->nullable()->after('generated_at')->index();
         });
 
-        // The catalogue predates scheduled releases. Keep every existing visible row
-        // visible when the new release gate is introduced.
+        // The catalogue predates scheduled releases. Preserve only rows that were
+        // public under the former eligibility rules; pending inventory must wait for
+        // words:release even if it later receives a publishable dictionary verdict.
         DB::table('words')
             ->whereNull('deleted_at')
+            ->where('status', 'available')
+            ->whereIn('dictionary_status', ['not_found', 'exists_as_name'])
             ->update(['published_at' => DB::raw('COALESCE(generated_at, created_at)')]);
     }
 
