@@ -1,5 +1,8 @@
 import { defineConfig } from '@playwright/test';
 
+const port = process.env.PLAYWRIGHT_PORT ?? '8002';
+const baseURL = `http://localhost:${port}`;
+
 export default defineConfig({
     testDir: './tests/e2e',
     fullyParallel: true,
@@ -8,7 +11,7 @@ export default defineConfig({
     workers: process.env.CI ? 1 : undefined,
     reporter: 'html',
     use: {
-        baseURL: 'http://localhost:8002',
+        baseURL,
         trace: 'on-first-retry',
         launchOptions: {
             slowMo: 0,
@@ -21,9 +24,9 @@ export default defineConfig({
         // carries the migrations that existed when it was captured, so any migration
         // added since then has to be applied before the specs can exercise it. It is
         // a no-op when the schema is already current.
-        command: 'npm run db:e2e && php artisan migrate --env=testing --force && php artisan serve --port=8002 --env=testing 2>/dev/null',
-        url: 'http://localhost:8002',
-        reuseExistingServer: !process.env.CI,
+        command: `npm run build && npm run db:e2e && php artisan migrate --env=testing --force && APP_ENV=testing APP_URL=${baseURL} php artisan serve --port=${port} --env=testing 2>/dev/null`,
+        url: baseURL,
+        reuseExistingServer: false,
         cwd: '.',
     },
 });

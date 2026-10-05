@@ -54,6 +54,21 @@ test.describe('Adding definitions and voting', () => {
         await expect(page.locator('.border.rounded-lg.p-4').filter({ hasText: definition })).toHaveCount(0);
     });
 
+    test('the character count treats emoji as single characters', async ({ page }) => {
+        const definition = '😀'.repeat(600);
+        await login(page, 'unicode-e2e@example.com');
+
+        await openFirstWord(page);
+
+        const textarea = page.locator('textarea[placeholder="What does this word mean?"]');
+        await textarea.fill(definition);
+        await expect(page.getByText('600 / 1000 characters')).toBeVisible();
+        await page.getByRole('button', { name: 'Submit Definition' }).click();
+
+        await expect(page.getByText(definition)).toBeVisible();
+        await expect(textarea).toBeEmpty();
+    });
+
     test('a second user liking a definition increments its count', async ({ page }) => {
         const phrase = `E2E definition to like ${Date.now()}`;
         await login(page, 'author-two@example.com');

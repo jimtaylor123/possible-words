@@ -188,7 +188,7 @@
             {{ definitionError }}
           </p>
           <p id="definition-length" class="mb-4 text-sm text-gray-500">
-            {{ definitionText.length }} / 1000 characters
+            {{ Array.from(definitionText).length }} / 1000 characters
           </p>
           <n-button type="primary" :loading="submitting" @click="submitDefinition">
             Submit Definition
