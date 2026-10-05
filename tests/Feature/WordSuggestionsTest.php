@@ -51,6 +51,14 @@ describe('suggestions endpoint', function () {
             ->assertJson([['text' => 'zorp']]);
     });
 
+    test('Given a query with surrounding whitespace, it is trimmed before searching', function () {
+        makeSuggestionWord(['text' => 'blorg', 'slug' => 'blorg']);
+
+        $this->getJson(route('words.suggestions', ['q' => ' blo ']))
+            ->assertJsonCount(1)
+            ->assertJson([['text' => 'blorg']]);
+    });
+
     test('Given a single-character query, an empty list is returned', function () {
         makeSuggestionWord(['text' => 'blorg', 'slug' => 'blorg']);
 
