@@ -59,6 +59,15 @@ describe('suggestions endpoint', function () {
             ->assertJsonCount(0);
     });
 
+    test('Given an array query parameter, an empty list is returned', function (string $query) {
+        $this->getJson('/suggestions?'.$query)
+            ->assertOk()
+            ->assertExactJson([]);
+    })->with([
+        'one value' => 'q[]=ab',
+        'multiple values' => 'q[]=ab&q[]=cd',
+    ]);
+
     test('Given no matching words, an empty list is returned', function () {
         makeSuggestionWord(['text' => 'blorg', 'slug' => 'blorg']);
 
