@@ -2,7 +2,7 @@ name: AI Code Review
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review]
+    types: [opened, reopened, ready_for_review, synchronize]
 
 permissions:
   contents: read
@@ -15,8 +15,59 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: the-pr-agent/pr-agent@main
+      - name: Submit Groq code review
+        uses: actions/github-script@v7
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          groq.key: ${{ secrets.GROQ_KEY }}
-          GOOGLE_AI_STUDIO__GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_KEY }}
+          GROQ_MODEL: llama-3.3-70b-versatile
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pullNumber = context.payload.pull_request.number;
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: pullNumber,
+              per_page: 100,
+            });
+
+            // Keep the prompt within the model context window while retaining file names.
+            const diff = files
+              .map((file) => `--- ${file.filename}\n${file.patch || "Binary file or patch unavailable."}`)
+              .join("\n\n")
+              .slice(0, 60000);
+            const prompt = `Review this pull request for correctness, regressions, security, and missing tests.\n\n` +
+              `Return concise Markdown for a GitHub code review. List only actionable findings with file and line references where possible. ` +
+              `If there are no findings, say exactly: No actionable findings.\n\nDiff:\n${diff}`;
+            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: process.env.GROQ_MODEL,
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.1,
+              }),
+            });
+            if (!response.ok) {
+              core.setFailed(`Groq review failed: ${response.status} ${await response.text()}`);
+              return;
+            }
+
+            const result = await response.json();
+            const body = result.choices?.[0]?.message?.content?.trim();
+            if (!body) {
+              core.setFailed("Groq returned no review content.");
+              return;
+            }
+
+            await github.rest.pulls.createReview({
+              owner,
+              repo,
+              pull_number: pullNumber,
+              commit_id: context.payload.pull_request.head.sha,
+              event: "COMMENT",
+              body: `## Groq code review\n\n${body}`,
+            });
