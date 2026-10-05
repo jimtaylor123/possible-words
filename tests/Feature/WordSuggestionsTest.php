@@ -70,9 +70,11 @@ describe('suggestions endpoint', function () {
     test('Given a query containing LIKE wildcards, an empty list is returned', function () {
         makeSuggestionWord(['text' => 'bl%rg', 'slug' => 'blorg']);
 
-        $this->getJson(route('words.suggestions', ['q' => 'bl%r']))
-            ->assertOk()
-            ->assertJsonCount(0);
+        foreach (['bl%r', 'bl_r', 'bl\\r'] as $query) {
+            $this->getJson(route('words.suggestions', ['q' => $query]))
+                ->assertOk()
+                ->assertJsonCount(0);
+        }
     });
 
     test('Given an owned word, it is not suggested', function () {
