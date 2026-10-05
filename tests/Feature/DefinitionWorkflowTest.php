@@ -38,6 +38,51 @@ describe('adding a definition', function () {
         Event::assertDispatched(DefinitionCreated::class);
     });
 
+    test('Given a selected category, it is persisted and broadcast with the definition', function (string $partOfSpeech) {
+        Event::fake([DefinitionCreated::class]);
+        $user = User::factory()->create();
+        $word = createWord();
+
+        $this->actingAs($user)
+            ->post(route('words.definitions.store', $word), [
+                'text' => 'A categorized meaning',
+                'part_of_speech' => $partOfSpeech,
+            ])
+            ->assertRedirect(route('words.show', $word));
+
+        $definition = $word->definitions()->first();
+        expect($definition->part_of_speech)->toBe($partOfSpeech);
+
+        Event::assertDispatched(DefinitionCreated::class, function (DefinitionCreated $event) use ($partOfSpeech) {
+            return $event->definition->part_of_speech === $partOfSpeech;
+        });
+    })->with(['noun', 'verb', 'other']);
+
+    test('Given no category, the definition stores an uncategorized null value', function () {
+        $user = User::factory()->create();
+        $word = createWord();
+
+        $this->actingAs($user)
+            ->post(route('words.definitions.store', $word), ['text' => 'An uncategorized meaning'])
+            ->assertRedirect(route('words.show', $word));
+
+        expect($word->definitions()->first()->part_of_speech)->toBeNull();
+    });
+
+    test('Given an invalid category, the definition is rejected without creating a row', function (string $partOfSpeech) {
+        $user = User::factory()->create();
+        $word = createWord();
+
+        $this->actingAs($user)
+            ->post(route('words.definitions.store', $word), [
+                'text' => 'An invalid categorized meaning',
+                'part_of_speech' => $partOfSpeech,
+            ])
+            ->assertSessionHasErrors('part_of_speech');
+
+        expect($word->definitions()->count())->toBe(0);
+    })->with(['adjective', 'Noun']);
+
     test('Given an empty text, the definition is rejected', function () {
         $user = User::factory()->create();
         $word = createWord();
@@ -438,5 +483,31 @@ describe('a removed definition on the word page', function () {
         $this->get(route('words.show', $word))->assertDontSee($secret, false);
         $this->get(route('home'))->assertDontSee($secret, false);
         $this->get(route('words.favourites'))->assertDontSee($secret, false);
+    });
+});
+
+describe('definition categories on the word page', function () {
+    test('Given categorized and uncategorized definitions, both category values are serialized', function () {
+        $author = User::factory()->create();
+        $word = createWord();
+        $categorized = $word->definitions()->create([
+            'user_id' => $author->id,
+            'text' => 'A noun meaning',
+            'part_of_speech' => 'noun',
+            'votes_count' => 1,
+        ]);
+        $uncategorized = $word->definitions()->create([
+            'user_id' => $author->id,
+            'text' => 'An uncategorized meaning',
+        ]);
+
+        $this->get(route('words.show', $word))
+            ->assertInertia(fn ($page) => $page
+                ->component('Words/Show')
+                ->where('word.definitions.0.id', $categorized->id)
+                ->where('word.definitions.0.part_of_speech', 'noun')
+                ->where('word.definitions.1.id', $uncategorized->id)
+                ->where('word.definitions.1.part_of_speech', null)
+            );
     });
 });

@@ -172,13 +172,15 @@ class WordController extends Controller
 
     public function storeDefinition(Request $request, Word $word)
     {
-        $request->validate([
+        $validated = $request->validate([
             'text' => 'required|string|max:1000',
+            'part_of_speech' => 'nullable|in:noun,verb,other',
         ]);
 
         $definition = $word->definitions()->create([
             'user_id' => Auth::id(),
-            'text' => $request->text,
+            'text' => $validated['text'],
+            'part_of_speech' => $validated['part_of_speech'] ?? null,
         ]);
 
         DB::transaction(function () use ($definition) {
