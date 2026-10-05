@@ -67,10 +67,19 @@ describe('suggestions endpoint', function () {
             ->assertJsonCount(0);
     });
 
+    test('Given an absent or empty query parameter, an empty list is returned', function (string $query) {
+        $this->getJson('/suggestions?'.$query)
+            ->assertOk()
+            ->assertJsonCount(0);
+    })->with([
+        'omitted parameter' => '',
+        'empty value' => 'q=',
+    ]);
+
     test('Given an array query parameter, an empty list is returned', function (string $query) {
         $this->getJson('/suggestions?'.$query)
             ->assertOk()
-            ->assertExactJson([]);
+            ->assertJsonCount(0);
     })->with([
         'one value' => 'q[]=ab',
         'multiple values' => 'q[]=ab&q[]=cd',
