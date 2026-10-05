@@ -51,6 +51,14 @@ describe('suggestions endpoint', function () {
             ->assertJson([['text' => 'zorp']]);
     });
 
+    test('Given a query with surrounding whitespace, it is trimmed before searching', function () {
+        makeSuggestionWord(['text' => 'blorg', 'slug' => 'blorg']);
+
+        $this->getJson(route('words.suggestions', ['q' => ' blo ']))
+            ->assertJsonCount(1)
+            ->assertJson([['text' => 'blorg']]);
+    });
+
     test('Given a single-character query, an empty list is returned', function () {
         makeSuggestionWord(['text' => 'blorg', 'slug' => 'blorg']);
 
@@ -58,6 +66,33 @@ describe('suggestions endpoint', function () {
             ->assertOk()
             ->assertJsonCount(0);
     });
+
+    test('Given an absent or empty query parameter, an empty list is returned', function (array $query) {
+        $this->getJson(route('words.suggestions', $query))
+            ->assertOk()
+            ->assertJsonCount(0);
+    })->with([
+        // Each value is wrapped: Pest spreads a dataset's keys as named arguments,
+        // so an unwrapped ['q' => ...] would arrive as an unknown parameter.
+        'omitted parameter' => [[]],
+        'empty value' => [['q' => '']],
+        // Trims to an empty string, so it is covered by the same <2 guard.
+        'whitespace only' => [['q' => '   ']],
+    ]);
+
+    test('Given an array query parameter, an empty list is returned', function (array $query) {
+        // A word that DOES match the array's first value. If the controller ever
+        // stopped treating an array as absent, this would return a match rather
+        // than an empty list, so the assertion below genuinely covers the guard.
+        makeSuggestionWord(['text' => 'ablorg', 'slug' => 'ablorg']);
+
+        $this->getJson(route('words.suggestions', ['q' => $query]))
+            ->assertOk()
+            ->assertJsonCount(0);
+    })->with([
+        'one value' => [['blorg']],
+        'multiple values' => [['blorg', 'cd']],
+    ]);
 
     test('Given no matching words, an empty list is returned', function () {
         makeSuggestionWord(['text' => 'blorg', 'slug' => 'blorg']);
@@ -70,9 +105,11 @@ describe('suggestions endpoint', function () {
     test('Given a query containing LIKE wildcards, an empty list is returned', function () {
         makeSuggestionWord(['text' => 'bl%rg', 'slug' => 'blorg']);
 
-        $this->getJson(route('words.suggestions', ['q' => 'bl%r']))
-            ->assertOk()
-            ->assertJsonCount(0);
+        foreach (['bl%r', 'bl_r', 'bl\\r'] as $query) {
+            $this->getJson(route('words.suggestions', ['q' => $query]))
+                ->assertOk()
+                ->assertJsonCount(0);
+        }
     });
 
     test('Given an owned word, it is not suggested', function () {

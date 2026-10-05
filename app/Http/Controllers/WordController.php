@@ -30,7 +30,7 @@ class WordController extends Controller
         // Apply filters
         $search = $this->queryString($request, 'search');
         if ($search !== '') {
-            $query->where('text', 'like', '%'.$search.'%');
+            $query->whereRaw("text LIKE ? ESCAPE '\\'", ['%'.$this->escapeLike($search).'%']);
         }
 
         $syllables = (int) $this->queryString($request, 'syllables');
@@ -53,7 +53,7 @@ class WordController extends Controller
 
         $startsWith = $this->queryString($request, 'starts_with');
         if ($startsWith !== '') {
-            $query->where('text', 'like', $startsWith.'%');
+            $query->whereRaw("text LIKE ? ESCAPE '\\'", [$this->escapeLike($startsWith).'%']);
         }
 
         $query->publishable();
@@ -120,6 +120,14 @@ class WordController extends Controller
         return is_scalar($value) ? trim((string) $value) : '';
     }
 
+    /**
+     * Escape a user value for a LIKE pattern that uses backslash as its escape character.
+     */
+    private function escapeLike(string $value): string
+    {
+        return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value);
+    }
+
     public function show(Word $word)
     {
         $word->load([
@@ -139,7 +147,7 @@ class WordController extends Controller
 
     public function suggestions(Request $request)
     {
-        $term = trim((string) $request->input('q'));
+        $term = $this->queryString($request, 'q');
 
         if (mb_strlen($term) < 2 || str_contains($term, '%') || str_contains($term, '_') || str_contains($term, '\\')) {
             return response()->json([]);
