@@ -29,11 +29,29 @@ test.describe('Adding definitions and voting', () => {
         await openFirstWord(page);
 
         const textarea = page.locator('textarea[placeholder="What does this word mean?"]');
+        await expect(page.getByText('0 / 1000 characters')).toBeVisible();
         await textarea.fill(phrase);
         await page.getByRole('button', { name: 'Submit Definition' }).click();
 
         await expect(page.getByText(phrase)).toBeVisible();
         await expect(page.getByText(phrase).locator('..').getByText(/1 like$/)).toBeVisible();
+        await expect(textarea).toBeEmpty();
+    });
+
+    test('an over-limit definition retains its draft and shows the validation error', async ({ page }) => {
+        const definition = 'a'.repeat(1001);
+        await login(page, 'over-limit-e2e@example.com');
+
+        await openFirstWord(page);
+
+        const textarea = page.locator('textarea[placeholder="What does this word mean?"]');
+        await textarea.fill(definition);
+        await expect(page.getByText('1001 / 1000 characters')).toBeVisible();
+        await page.getByRole('button', { name: 'Submit Definition' }).click();
+
+        await expect(textarea).toHaveValue(definition);
+        await expect(page.getByRole('alert')).toHaveText('The text field must not be greater than 1000 characters.');
+        await expect(page.locator('.border.rounded-lg.p-4').filter({ hasText: definition })).toHaveCount(0);
     });
 
     test('a second user liking a definition increments its count', async ({ page }) => {
