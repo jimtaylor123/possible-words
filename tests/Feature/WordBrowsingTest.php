@@ -105,6 +105,36 @@ describe('searching', function () {
         $this->get(route('words.index', ['search' => 'zzzz']))
             ->assertInertia(fn ($page) => $page->has('words.data', 0));
     });
+
+    test('Given LIKE metacharacters, search treats them as literal text', function () {
+        makeWord(['text' => 'blorg', 'slug' => 'blorg']);
+        makeWord(['text' => 'percent%word', 'slug' => 'percent-word']);
+        makeWord(['text' => 'under_score', 'slug' => 'under-score']);
+        makeWord(['text' => 'slash\\word', 'slug' => 'slash-word']);
+
+        foreach ([
+            '%' => 'percent%word',
+            '_' => 'under_score',
+            '\\' => 'slash\\word',
+        ] as $search => $text) {
+            $this->get(route('words.index', ['search' => $search]))
+                ->assertInertia(fn ($page) => $page
+                    ->has('words.data', 1)
+                    ->where('words.data.0.text', $text)
+                );
+        }
+    });
+
+    test('Given a literal underscore in a word, a longer search term finds it', function () {
+        makeWord(['text' => 'blorg', 'slug' => 'blorg']);
+        makeWord(['text' => 'under_score', 'slug' => 'under-score']);
+
+        $this->get(route('words.index', ['search' => 'under_']))
+            ->assertInertia(fn ($page) => $page
+                ->has('words.data', 1)
+                ->where('words.data.0.text', 'under_score')
+            );
+    });
 });
 
 describe('filtering by syllables', function () {
@@ -160,6 +190,29 @@ describe('filtering by first letter', function () {
             ->assertInertia(fn ($page) => $page
                 ->has('words.data', 1)
                 ->where('words.data.0.text', 'blorg')
+            );
+    });
+
+    test('Given LIKE metacharacters without literal prefixes, starts_with returns no words', function () {
+        makeWord(['text' => 'blorg', 'slug' => 'blorg']);
+        makeWord(['text' => 'percent%word', 'slug' => 'percent-word']);
+        makeWord(['text' => 'under_score', 'slug' => 'under-score']);
+        makeWord(['text' => 'slash\\word', 'slug' => 'slash-word']);
+
+        foreach (['%', '_', '\\'] as $startsWith) {
+            $this->get(route('words.index', ['starts_with' => $startsWith]))
+                ->assertInertia(fn ($page) => $page->has('words.data', 0));
+        }
+    });
+
+    test('Given a literal underscore in a word, starts_with finds its literal prefix', function () {
+        makeWord(['text' => 'under_score', 'slug' => 'under-score']);
+        makeWord(['text' => 'underxscore', 'slug' => 'underxscore']);
+
+        $this->get(route('words.index', ['starts_with' => 'under_']))
+            ->assertInertia(fn ($page) => $page
+                ->has('words.data', 1)
+                ->where('words.data.0.text', 'under_score')
             );
     });
 });
