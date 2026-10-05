@@ -22,6 +22,7 @@ class WordFactory extends Factory
             'syllables' => count($result['phonemes']),
             'status' => 'available',
             'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
+            'published_at' => now(),
             'slug' => Str::slug($result['text']),
         ];
     }

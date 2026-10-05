@@ -69,6 +69,7 @@ class Word extends Model
         'owned_until',
         'slug',
         'generated_at',
+        'published_at',
     ];
 
     protected $casts = [
@@ -77,16 +78,19 @@ class Word extends Model
         'dictionary_data' => 'array',
         'owned_until' => 'datetime',
         'generated_at' => 'datetime',
+        'published_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
 
     /**
-     * Words safe to show on the public site: available, not withdrawn, and carrying
-     * a dictionary verdict that says nothing was found.
+     * Words safe to show on the public site: available, released, not withdrawn,
+     * and carrying a dictionary verdict that says nothing was found.
      */
     public function scopePublishable(Builder $query): void
     {
         $query->where('status', 'available')
+            ->whereNotNull('published_at')
+            ->where('published_at', '<=', now())
             ->whereIn('dictionary_status', self::PUBLISHABLE_DICTIONARY_STATUSES);
     }
 
@@ -94,6 +98,8 @@ class Word extends Model
     {
         return $this->status === 'available'
             && ! $this->trashed()
+            && $this->published_at !== null
+            && $this->published_at->lte(now())
             && in_array($this->dictionary_status, self::PUBLISHABLE_DICTIONARY_STATUSES, true);
     }
 
