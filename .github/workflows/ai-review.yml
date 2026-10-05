@@ -39,29 +39,34 @@ jobs:
             const prompt = `Review this pull request for correctness, regressions, security, and missing tests.\n\n` +
               `Return concise Markdown for a GitHub code review. List only actionable findings with file and line references where possible. ` +
               `If there are no findings, say exactly: No actionable findings.\n\nDiff:\n${diff}`;
-            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                model: process.env.GROQ_MODEL,
-                messages: [{ role: "user", content: prompt }],
-                include_reasoning: false,
-                max_completion_tokens: 4096,
-                temperature: 0.5,
-              }),
-            });
-            if (!response.ok) {
-              core.setFailed(`Groq review failed: ${response.status} ${await response.text()}`);
-              return;
-            }
+            let body;
+            for (const maxCompletionTokens of [4096, 8192]) {
+              const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  model: process.env.GROQ_MODEL,
+                  messages: [{ role: "user", content: prompt }],
+                  include_reasoning: false,
+                  reasoning_effort: "low",
+                  max_completion_tokens: maxCompletionTokens,
+                  temperature: 0.5,
+                }),
+              });
+              if (!response.ok) {
+                core.setFailed(`Groq review failed: ${response.status} ${await response.text()}`);
+                return;
+              }
 
-            const result = await response.json();
-            const body = result.choices?.[0]?.message?.content?.trim();
+              const result = await response.json();
+              body = result.choices?.[0]?.message?.content?.trim();
+              if (body) break;
+            }
             if (!body) {
-              core.setFailed("Groq returned no review content.");
+              core.setFailed("Groq returned no review content after retrying with a larger output budget.");
               return;
             }
 
