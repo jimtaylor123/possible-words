@@ -22,7 +22,7 @@ const openFirstWord = async (page) => {
 };
 
 test.describe('Adding definitions and voting', () => {
-    test('a signed-in user can add a definition', async ({ page }) => {
+    test('a signed-in user can add a categorized definition', async ({ page }) => {
         const phrase = `E2E definition added at ${Date.now()}`;
         await login(page, 'author-e2e@example.com');
 
@@ -30,10 +30,28 @@ test.describe('Adding definitions and voting', () => {
 
         const textarea = page.locator('textarea[placeholder="What does this word mean?"]');
         await textarea.fill(phrase);
+        await page.getByLabel('Part of speech').click();
+        await page.getByText('Noun', { exact: true }).last().click();
         await page.getByRole('button', { name: 'Submit Definition' }).click();
 
-        await expect(page.getByText(phrase)).toBeVisible();
-        await expect(page.getByText(phrase).locator('..').getByText(/1 like$/)).toBeVisible();
+        const definition = page.locator('.border.rounded-lg.p-4').filter({ hasText: phrase });
+        await expect(definition).toBeVisible();
+        await expect(definition.getByText('Noun', { exact: true })).toBeVisible();
+        await expect(definition.getByText(/1 like$/)).toBeVisible();
+    });
+
+    test('a signed-in user can add an uncategorized definition', async ({ page }) => {
+        const phrase = `E2E uncategorized definition added at ${Date.now()}`;
+        await login(page, 'uncategorized-e2e@example.com');
+
+        await openFirstWord(page);
+
+        await page.locator('textarea[placeholder="What does this word mean?"]').fill(phrase);
+        await page.getByRole('button', { name: 'Submit Definition' }).click();
+
+        const definition = page.locator('.border.rounded-lg.p-4').filter({ hasText: phrase });
+        await expect(definition).toBeVisible();
+        await expect(definition.getByText(/^(Noun|Verb|Other)$/)).toHaveCount(0);
     });
 
     test('a second user liking a definition increments its count', async ({ page }) => {

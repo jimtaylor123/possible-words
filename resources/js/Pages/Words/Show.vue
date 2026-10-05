@@ -115,7 +115,15 @@
             class="border rounded-lg p-4"
           >
             <div class="flex justify-between items-start mb-2">
-              <p class="text-gray-800">{{ definition.text }}</p>
+              <div>
+                <p class="text-gray-800">{{ definition.text }}</p>
+                <span
+                  v-if="definition.part_of_speech"
+                  class="inline-block mt-1 text-xs font-medium text-gray-500"
+                >
+                  {{ definition.part_of_speech.charAt(0).toUpperCase() + definition.part_of_speech.slice(1) }}
+                </span>
+              </div>
               <div class="flex items-center gap-1 ml-2 shrink-0">
                 <button
                   v-if="$page.props.auth.user && !definition.removed_at"
@@ -181,6 +189,14 @@
             type="textarea"
             placeholder="What does this word mean?"
             :rows="3"
+            class="mb-4"
+          />
+          <n-select
+            v-model:value="partOfSpeech"
+            aria-label="Part of speech"
+            clearable
+            placeholder="Part of speech (optional)"
+            :options="partOfSpeechOptions"
             class="mb-4"
           />
           <n-button type="primary" :loading="submitting" @click="submitDefinition">
@@ -260,6 +276,12 @@ const shareLinkedIn = () => {
 }
 
 const definitionText = ref('')
+const partOfSpeech = ref(null)
+const partOfSpeechOptions = [
+  { label: 'Noun', value: 'noun' },
+  { label: 'Verb', value: 'verb' },
+  { label: 'Other', value: 'other' },
+]
 const submitting = ref(false)
 
 const definitions = ref(props.word.definitions.map(d => ({
@@ -301,11 +323,13 @@ const submitDefinition = () => {
 
   submitting.value = true
   router.post(route('words.definitions.store', props.word.slug), {
-    text: definitionText.value
+    text: definitionText.value,
+    part_of_speech: partOfSpeech.value,
   }, {
     onFinish: () => {
       submitting.value = false
       definitionText.value = ''
+      partOfSpeech.value = null
     }
   })
 }
