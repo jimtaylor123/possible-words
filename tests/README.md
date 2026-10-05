@@ -111,17 +111,9 @@ npm run test:watch
 
 The e2e suite boots the real Laravel app via Playwright's `webServer` (see `playwright.config.js`) and drives a real browser against it.
 
-**Important:** unlike the Pest suite, the e2e tests run against the app served from your **real `.env`** (there is no `.env.testing`), so they use your current dev database. Make sure you have seeded data before running them:
-
-```bash
-make fresh
-```
-
-Signed-in e2e specs also need the testing auth route enabled:
-
-```bash
-echo 'E2E_AUTH_ENABLED=true' >> .env
-```
+**Important:** the suite uses the committed `.env.testing` and recreates its
+throwaway SQLite database from `.snapshots/dev-data.sqlite`; it does not use
+your development database.
 
 ```bash
 # Run the whole e2e suite
@@ -143,8 +135,11 @@ npx playwright test --reporter=html
 Notes:
 
 - The default server port is `8002` (not the dev `8000`) to avoid clashing with `make dev`.
-- Playwright reuses an already-running server on `8002` when running locally (`reuseExistingServer: true`). If you have one running, make sure it points at the same code/DB.
-- On CI, Playwright starts its own server and runs with `--workers=1` and 2 retries.
+- Each run builds this worktree's frontend assets, seeds its throwaway database,
+  and starts its own Laravel server. Stop any process using port `8002` before
+  starting the suite, or choose another isolated port with
+  `PLAYWRIGHT_PORT=8003 npm run test:e2e`.
+- On CI, Playwright runs with `--workers=1` and 2 retries.
 - Tests that touch the network (e.g. Google OAuth redirects) assert against external hosts and can be affected by local auth state.
 
 ## Static analysis and style
