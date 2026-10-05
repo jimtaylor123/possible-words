@@ -189,6 +189,7 @@
             type="textarea"
             placeholder="What does this word mean?"
             :rows="3"
+            :aria-describedby="definitionError ? 'definition-error definition-length' : 'definition-length'"
             class="mb-4"
           />
           <n-select
@@ -199,6 +200,12 @@
             :options="partOfSpeechOptions"
             class="mb-4"
           />
+          <p v-if="definitionError" id="definition-error" role="alert" class="mb-2 text-sm text-red-600">
+            {{ definitionError }}
+          </p>
+          <p id="definition-length" class="mb-4 text-sm text-gray-500">
+            {{ Array.from(definitionText).length }} / 1000 characters
+          </p>
           <n-button type="primary" :loading="submitting" @click="submitDefinition">
             Submit Definition
           </n-button>
@@ -282,6 +289,7 @@ const partOfSpeechOptions = [
   { label: 'Verb', value: 'verb' },
   { label: 'Other', value: 'other' },
 ]
+const definitionError = ref('')
 const submitting = ref(false)
 
 const definitions = ref(props.word.definitions.map(d => ({
@@ -321,15 +329,21 @@ const removeDefinition = (definitionId) => {
 const submitDefinition = () => {
   if (!definitionText.value.trim()) return
 
+  definitionError.value = ''
   submitting.value = true
   router.post(route('words.definitions.store', props.word.slug), {
     text: definitionText.value,
     part_of_speech: partOfSpeech.value,
   }, {
-    onFinish: () => {
-      submitting.value = false
+    onError: (errors) => {
+      definitionError.value = errors.text
+    },
+    onSuccess: () => {
       definitionText.value = ''
       partOfSpeech.value = null
+    },
+    onFinish: () => {
+      submitting.value = false
     }
   })
 }

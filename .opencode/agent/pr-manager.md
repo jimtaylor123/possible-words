@@ -40,7 +40,7 @@ For each open PR (oldest first):
 - `git push`
 
 ### Step C — Respond to review thread feedback
-- Gather all top-level comments and inline review comments (the AI review bot, or human reviewers).
+- Gather all review bodies, top-level comments, and inline review comments (the AI review bot, or human reviewers).
 - Ignore gratitude/summary-only comments with no actionable request.
 - For each actionable request NOT already addressed in the current code:
   - Implement the change on the branch.

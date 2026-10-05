@@ -29,6 +29,7 @@ test.describe('Adding definitions and voting', () => {
         await openFirstWord(page);
 
         const textarea = page.locator('textarea[placeholder="What does this word mean?"]');
+        await expect(page.getByText('0 / 1000 characters')).toBeVisible();
         await textarea.fill(phrase);
         await page.getByLabel('Part of speech').click();
         await page.getByText('Noun', { exact: true }).last().click();
@@ -38,6 +39,7 @@ test.describe('Adding definitions and voting', () => {
         await expect(definition).toBeVisible();
         await expect(definition.getByText('Noun', { exact: true })).toBeVisible();
         await expect(definition.getByText(/1 like$/)).toBeVisible();
+        await expect(textarea).toBeEmpty();
     });
 
     test('a signed-in user can add an uncategorized definition', async ({ page }) => {
@@ -52,6 +54,38 @@ test.describe('Adding definitions and voting', () => {
         const definition = page.locator('.border.rounded-lg.p-4').filter({ hasText: phrase });
         await expect(definition).toBeVisible();
         await expect(definition.getByText(/^(Noun|Verb|Other)$/)).toHaveCount(0);
+        await expect(textarea).toBeEmpty();
+    });
+
+    test('an over-limit definition retains its draft and shows the validation error', async ({ page }) => {
+        const definition = 'a'.repeat(1001);
+        await login(page, 'over-limit-e2e@example.com');
+
+        await openFirstWord(page);
+
+        const textarea = page.locator('textarea[placeholder="What does this word mean?"]');
+        await textarea.fill(definition);
+        await expect(page.getByText('1001 / 1000 characters')).toBeVisible();
+        await page.getByRole('button', { name: 'Submit Definition' }).click();
+
+        await expect(textarea).toHaveValue(definition);
+        await expect(page.getByRole('alert')).toHaveText('The text field must not be greater than 1000 characters.');
+        await expect(page.locator('.border.rounded-lg.p-4').filter({ hasText: definition })).toHaveCount(0);
+    });
+
+    test('the character count treats emoji as single characters', async ({ page }) => {
+        const definition = '😀'.repeat(600);
+        await login(page, 'unicode-e2e@example.com');
+
+        await openFirstWord(page);
+
+        const textarea = page.locator('textarea[placeholder="What does this word mean?"]');
+        await textarea.fill(definition);
+        await expect(page.getByText('600 / 1000 characters')).toBeVisible();
+        await page.getByRole('button', { name: 'Submit Definition' }).click();
+
+        await expect(page.getByText(definition)).toBeVisible();
+        await expect(textarea).toBeEmpty();
     });
 
     test('a second user liking a definition increments its count', async ({ page }) => {
