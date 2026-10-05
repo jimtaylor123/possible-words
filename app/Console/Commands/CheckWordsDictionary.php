@@ -76,7 +76,9 @@ class CheckWordsDictionary extends Command
         $leftPublicList = [];
         $enteredPublicList = [];
 
-        $query->chunk($chunkSize, function ($words) use ($service, $bar, $throttle, &$processed, &$failures, &$results, &$leftPublicList, &$enteredPublicList) {
+        // Check statuses change inside this loop. Cursor by id so changing a
+        // row does not shift later rows past an offset-based chunk.
+        $query->chunkById($chunkSize, function ($words) use ($service, $bar, $throttle, &$processed, &$failures, &$results, &$leftPublicList, &$enteredPublicList) {
             foreach ($words as $word) {
                 $wasPublishable = $word->isPublishable();
 

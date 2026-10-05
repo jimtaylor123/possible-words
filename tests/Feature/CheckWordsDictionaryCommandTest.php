@@ -83,6 +83,20 @@ describe('choosing which words to check', function () {
         expect($word->fresh()->dictionary_status)->toBe(Word::DICTIONARY_EXISTS_AS_WORD);
     });
 
+    test('Given more words than a chunk, every unchecked word is checked', function () {
+        $first = checkableWord('first', ['dictionary_status' => Word::DICTIONARY_UNCHECKED]);
+        $second = checkableWord('second', ['dictionary_status' => Word::DICTIONARY_UNCHECKED]);
+        $third = checkableWord('third', ['dictionary_status' => Word::DICTIONARY_UNCHECKED]);
+
+        Http::fake(notFoundResponse());
+
+        $this->artisan('words:check-dictionary --chunk=1')->assertExitCode(0);
+
+        expect($first->fresh()->dictionary_status)->toBe(Word::DICTIONARY_NOT_FOUND)
+            ->and($second->fresh()->dictionary_status)->toBe(Word::DICTIONARY_NOT_FOUND)
+            ->and($third->fresh()->dictionary_status)->toBe(Word::DICTIONARY_NOT_FOUND);
+    });
+
     test('Given --force, an already-checked word is re-checked', function () {
         $word = checkableWord('done', [
             'dictionary_status' => Word::DICTIONARY_EXISTS_AS_WORD,
