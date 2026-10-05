@@ -17,6 +17,7 @@ class Definition extends Model
         'word_id',
         'user_id',
         'text',
+        'part_of_speech',
         'votes_count',
     ];
 
