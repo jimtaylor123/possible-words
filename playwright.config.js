@@ -24,7 +24,7 @@ export default defineConfig({
         // carries the migrations that existed when it was captured, so any migration
         // added since then has to be applied before the specs can exercise it. It is
         // a no-op when the schema is already current.
-        command: `npm run build && npm run db:e2e && php artisan migrate --env=testing --force && APP_ENV=testing APP_URL=${baseURL} php artisan serve --port=${port} --env=testing 2>/dev/null`,
+        command: `npm run build -- --mode testing && npm run db:e2e && php artisan migrate --env=testing --force && APP_ENV=testing APP_URL=${baseURL} php artisan serve --port=${port} --env=testing 2>/dev/null`,
         url: baseURL,
         reuseExistingServer: false,
         cwd: '.',
