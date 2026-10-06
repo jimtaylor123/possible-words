@@ -69,6 +69,16 @@ test('it sends the API key as a header, never in the URL', function () {
     });
 });
 
+test('it uses the supported Gemini definition model by default', function () {
+    Http::fake(['*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A pleasant made-up thing.","part_of_speech":"noun"}']]]]],
+    ])]);
+
+    app(GeminiDefinitionGenerator::class)->generate('blorg');
+
+    Http::assertSent(fn ($request) => $request->url() === 'https://example.test/v1beta/models/gemini-3.8-flash:generateContent');
+});
+
 test('it never exposes the API key in thrown exception messages', function () {
     Http::fake(['*' => Http::response(['error' => ['message' => 'secret']], 500)]);
 
