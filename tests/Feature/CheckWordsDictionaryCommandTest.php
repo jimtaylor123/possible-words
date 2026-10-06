@@ -19,6 +19,7 @@ function checkableWord(string $text, array $attrs = []): Word
         'slug' => $text,
         'syllables' => 1,
         'status' => 'available',
+        'published_at' => now(),
     ], $attrs));
 }
 

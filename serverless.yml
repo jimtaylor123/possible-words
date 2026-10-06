@@ -39,6 +39,9 @@ provider:
         MERRIAM_WEBSTER_ENABLED: 'true'
         MERRIAM_WEBSTER_API_KEY: ${env:MERRIAM_WEBSTER_API_KEY}
 
+        WORD_RELEASE_BATCH_SIZE: ${env:WORD_RELEASE_BATCH_SIZE, '10'}
+        WORD_RELEASE_SCHEDULE: ${env:WORD_RELEASE_SCHEDULE, 'cron(0 */6 * * ? *)'}
+
         DB_CONNECTION: turso
         TURSO_DATABASE_URL: ${env:TURSO_DATABASE_URL}
         TURSO_AUTH_TOKEN: ${env:TURSO_AUTH_TOKEN}
@@ -95,6 +98,10 @@ functions:
                   rate: cron(0 6 * * ? *)
                   input:
                       cli: 'words:check-dictionary --chunk=50 --retry-failed'
+            - schedule:
+                  rate: ${env:WORD_RELEASE_SCHEDULE, 'cron(0 */6 * * ? *)'}
+                  input:
+                      cli: 'words:release'
 
 package:
     patterns:

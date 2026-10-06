@@ -77,6 +77,8 @@ function titleTestWord(): Word
         'slug' => 'blorg'.$sequence,
         'syllables' => 2,
         'status' => 'available',
+        'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
+        'published_at' => now(),
     ]);
 }
 

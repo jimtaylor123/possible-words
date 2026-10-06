@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('words:generate', ['--count' => 20])->daily();
+Schedule::command('words:release')->everySixHours()->withoutOverlapping();

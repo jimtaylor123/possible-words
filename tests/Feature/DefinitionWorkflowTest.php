@@ -15,10 +15,21 @@ function createWord(): Word
         'syllables' => 1,
         'status' => 'available',
         'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
+        'published_at' => now(),
     ]);
 }
 
 describe('adding a definition', function () {
+    test('Given an unreleased word, adding a definition returns 404', function () {
+        $user = User::factory()->create();
+        $word = createWord();
+        $word->update(['published_at' => null]);
+
+        $this->actingAs($user)
+            ->post(route('words.definitions.store', $word), ['text' => 'Hidden meaning'])
+            ->assertNotFound();
+    });
+
     test('Given a logged-in user, they can add a definition and it is auto-liked', function () {
         Event::fake([DefinitionCreated::class]);
         $user = User::factory()->create();
@@ -121,6 +132,21 @@ describe('adding a definition', function () {
 });
 
 describe('liking a definition', function () {
+    test('Given an unreleased word, liking its definition returns 404 without voting', function () {
+        $author = User::factory()->create();
+        $liker = User::factory()->create();
+        $word = createWord();
+        $word->update(['published_at' => null]);
+        $definition = $word->definitions()->create(['user_id' => $author->id, 'text' => 'hidden', 'votes_count' => 0]);
+
+        $this->actingAs($liker)
+            ->post(route('definitions.vote', $definition))
+            ->assertNotFound();
+
+        expect($definition->fresh()->votes_count)->toBe(0)
+            ->and($definition->votes()->exists())->toBeFalse();
+    });
+
     test('Given a definition, a user can like it and the count increments', function () {
         $author = User::factory()->create();
         $liker = User::factory()->create();
@@ -195,6 +221,22 @@ describe('liking a definition', function () {
 });
 
 describe('favouriting', function () {
+    test('Given an unreleased word, it cannot be favourited or listed', function () {
+        $user = User::factory()->create();
+        $word = createWord();
+        $word->update(['published_at' => null]);
+
+        $this->actingAs($user)
+            ->post(route('words.favourite', $word))
+            ->assertNotFound();
+
+        \App\Models\Favourite::create(['user_id' => $user->id, 'word_id' => $word->id]);
+
+        $this->actingAs($user)
+            ->get(route('words.favourites'))
+            ->assertInertia(fn ($page) => $page->has('words.data', 0));
+    });
+
     test('Given a logged-in user, they can favourite a word and see it on the favourites page', function () {
         $user = User::factory()->create();
         $word = createWord();
@@ -257,6 +299,19 @@ describe('definition integrity', function () {
 });
 
 describe('removing a definition', function () {
+    test('Given an unreleased word, removing its definition returns 404 without removing it', function () {
+        $author = User::factory()->create();
+        $word = createWord();
+        $word->update(['published_at' => null]);
+        $definition = $word->definitions()->create(['user_id' => $author->id, 'text' => 'hidden']);
+
+        $this->actingAs($author)
+            ->post(route('definitions.remove', $definition))
+            ->assertNotFound();
+
+        expect($definition->fresh()->removed_at)->toBeNull();
+    });
+
     test('Given the author, removing their definition sets removed_at in the database', function () {
         Event::fake([DefinitionCreated::class]);
         $author = User::factory()->create();

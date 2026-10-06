@@ -19,6 +19,7 @@ function sortingWord(string $text, int $syllables = 2): Word
         'syllables' => $syllables,
         'status' => 'available',
         'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
+        'published_at' => now(),
     ]);
 }
 

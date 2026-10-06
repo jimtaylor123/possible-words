@@ -130,6 +130,8 @@ class WordController extends Controller
 
     public function show(Word $word)
     {
+        abort_unless($word->isPublishable(), 404);
+
         $word->load([
             'definitions' => function ($q) {
                 $q->orderBy('votes_count', 'desc');
@@ -172,6 +174,8 @@ class WordController extends Controller
 
     public function storeDefinition(Request $request, Word $word)
     {
+        abort_unless($word->isPublishable(), 404);
+
         $validated = $request->validate([
             'text' => 'required|string|max:1000',
             'part_of_speech' => 'nullable|in:noun,verb,other',
@@ -198,6 +202,8 @@ class WordController extends Controller
 
     public function voteDefinition(Definition $definition)
     {
+        abort_unless($definition->word->isPublishable(), 404);
+
         // A removed definition is inert: its text is redacted and it offers no
         // actions, so Show.vue already hides the vote button. That was only a UI
         // convention though — the button is gone, the endpoint is not, and this
@@ -232,6 +238,8 @@ class WordController extends Controller
 
     public function removeDefinition(Definition $definition)
     {
+        abort_unless($definition->word->isPublishable(), 404);
+
         // Inline ownership check: this app has no policies and no gates (AGENTS.md).
         // This runs before the removed-state check so a non-author cannot use the
         // response to probe whether a definition has already been removed.
@@ -254,6 +262,8 @@ class WordController extends Controller
 
     public function toggleFavourite(Word $word)
     {
+        abort_unless($word->isPublishable(), 404);
+
         $favourite = Favourite::where('user_id', Auth::id())
             ->where('word_id', $word->id)
             ->first();
@@ -283,7 +293,7 @@ class WordController extends Controller
                 $q->withoutRemoved()->orderBy('votes_count', 'desc')->limit(1);
             },
             'definitions.user',
-        ])->withCount('definitions');
+        ])->withCount('definitions')->publishable();
 
         $words = $query->paginate(20)->withQueryString();
 

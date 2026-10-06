@@ -20,6 +20,7 @@ function makeWord(array $attrs = []): Word
         'syllables' => 2,
         'status' => 'available',
         'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
+        'published_at' => now(),
     ], $attrs));
 }
 
@@ -71,6 +72,14 @@ describe('browsing the catalogue', function () {
             ->assertInertia(fn ($page) => $page
                 ->has('words.data', 0)
             );
+    });
+
+    test('Given an unreleased or future-dated word, it is hidden from the public list', function () {
+        makeWord(['text' => 'unreleased', 'slug' => 'unreleased', 'published_at' => null]);
+        makeWord(['text' => 'future', 'slug' => 'future', 'published_at' => now()->addHour()]);
+
+        $this->get(route('home'))
+            ->assertInertia(fn ($page) => $page->has('words.data', 0));
     });
 
     test('Given a withdrawn word, it is hidden from the public list and 404s', function () {
@@ -287,6 +296,14 @@ describe('pagination', function () {
 });
 
 describe('word detail', function () {
+    test('Given an unreleased or future-dated word, its show page returns 404', function () {
+        $unreleased = makeWord(['text' => 'unreleased', 'slug' => 'unreleased', 'published_at' => null]);
+        $future = makeWord(['text' => 'future', 'slug' => 'future', 'published_at' => now()->addHour()]);
+
+        $this->get(route('words.show', $unreleased))->assertNotFound();
+        $this->get(route('words.show', $future))->assertNotFound();
+    });
+
     test('Given a word with definitions, its show page orders them by votes', function () {
         $word = makeWord();
         $user = User::factory()->create();
