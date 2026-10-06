@@ -4,6 +4,8 @@ use App\Models\User;
 use App\Services\Definitions\SystemAiUser;
 use Illuminate\Support\Facades\Hash;
 
+uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
+
 test('it creates the system AI user with a hashed password', function () {
     $user = app(SystemAiUser::class)->get();
 

@@ -117,6 +117,17 @@ class GenerateWordDefinition implements ShouldQueue
 
     private function recordFailure(Word $word, \Throwable $exception): void
     {
+        // A second queued copy may finish successfully while this job is being
+        // failed by the worker. Never replace a completed state with a failure.
+        if ($word->definitions()->where('origin', Definition::ORIGIN_AI)->exists()) {
+            $word->update([
+                'ai_definition_status' => Word::AI_DEFINITION_GENERATED,
+                'ai_definition_error' => null,
+            ]);
+
+            return;
+        }
+
         $message = $exception instanceof DefinitionGenerationException
             ? $exception->getMessage()
             : 'Definition generation failed.';

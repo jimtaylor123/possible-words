@@ -51,6 +51,24 @@ test('a generation failure leaves the word and records an identifiable failure',
         ->and($word->definitions()->count())->toBe(0);
 });
 
+test('a failed duplicate job preserves a definition created by another worker', function () {
+    $word = Word::factory()->create([
+        'ai_definition_status' => Word::AI_DEFINITION_FAILED,
+        'ai_definition_error' => 'Earlier failure',
+    ]);
+    $word->definitions()->create([
+        'user_id' => \App\Models\User::factory()->create()->id,
+        'text' => 'A definition created by another worker.',
+        'origin' => Definition::ORIGIN_AI,
+        'part_of_speech' => 'noun',
+    ]);
+
+    (new GenerateWordDefinition($word->id))->failed(new DefinitionGenerationException('Gemini request failed.'));
+
+    expect($word->fresh()->ai_definition_status)->toBe(Word::AI_DEFINITION_GENERATED)
+        ->and($word->fresh()->ai_definition_error)->toBeNull();
+});
+
 test('it skips deleted words and words that already have an AI definition', function () {
     $deleted = Word::factory()->create();
     $deleted->delete();
