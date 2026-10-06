@@ -65,46 +65,46 @@ function submit() {
 </script>
 
 <template>
-    <NModal
-        :show="show"
-        preset="card"
-        title="Report content"
-        :mask-closable="false"
-        @update:show="(visible) => !visible && close()"
-    >
-        <form @submit.prevent="submit">
-            <label class="mb-2 block text-sm font-medium text-gray-700" for="report-reason">
-                Reason
-            </label>
-            <NSelect
-                id="report-reason"
-                v-model:value="reason"
-                :options="reasonOptions"
-                placeholder="Select a reason"
-            />
+  <NModal
+    :show="show"
+    preset="card"
+    title="Report content"
+    :mask-closable="false"
+    @update:show="(visible) => !visible && close()"
+  >
+    <form @submit.prevent="submit">
+      <label class="mb-2 block text-sm font-medium text-gray-700" for="report-reason">
+        Reason
+      </label>
+      <NSelect
+        id="report-reason"
+        v-model:value="reason"
+        :options="reasonOptions"
+        placeholder="Select a reason"
+      />
 
-            <label class="mb-2 mt-4 block text-sm font-medium text-gray-700" for="report-explanation">
-                Additional context (optional)
-            </label>
-            <NInput
-                id="report-explanation"
-                v-model:value="explanation"
-                type="textarea"
-                :maxlength="1000"
-                show-count
-                placeholder="Tell us more about this report"
-            />
+      <label class="mb-2 mt-4 block text-sm font-medium text-gray-700" for="report-explanation">
+        Additional context (optional)
+      </label>
+      <NInput
+        id="report-explanation"
+        v-model:value="explanation"
+        type="textarea"
+        :maxlength="1000"
+        show-count
+        placeholder="Tell us more about this report"
+      />
 
-            <p v-if="feedback" class="mt-3 text-sm text-red-600" role="alert">
-                {{ feedback }}
-            </p>
+      <p v-if="feedback" class="mt-3 text-sm text-red-600" role="alert">
+        {{ feedback }}
+      </p>
 
-            <div class="mt-6 flex justify-end gap-3">
-                <NButton type="button" @click="close">Cancel</NButton>
-                <NButton type="primary" attr-type="submit" :disabled="!reason" :loading="processing">
-                    Submit report
-                </NButton>
-            </div>
-        </form>
-    </NModal>
+      <div class="mt-6 flex justify-end gap-3">
+        <NButton type="button" @click="close">Cancel</NButton>
+        <NButton type="primary" attr-type="submit" :disabled="!reason" :loading="processing">
+          Submit report
+        </NButton>
+      </div>
+    </form>
+  </NModal>
 </template>

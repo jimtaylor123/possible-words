@@ -90,13 +90,13 @@ describe('ReportDialog', () => {
 
         const select = target.querySelector('select');
         select.value = 'word_unfresh';
-        select.dispatchEvent(new Event('change'));
+        select.dispatchEvent(new globalThis.Event('change'));
         const textarea = target.querySelector('textarea');
         textarea.value = 'This has been used before.';
-        textarea.dispatchEvent(new Event('input'));
+        textarea.dispatchEvent(new globalThis.Event('input'));
         await nextTick();
 
-        target.querySelector('form').dispatchEvent(new Event('submit'));
+        target.querySelector('form').dispatchEvent(new globalThis.Event('submit'));
 
         expect(globalThis.route).toHaveBeenCalledWith('reports.store', {
             targetType: 'word',
@@ -115,7 +115,7 @@ describe('ReportDialog', () => {
             options.onError({ report: 'You have already reported this item.' });
         });
 
-        target.querySelector('form').dispatchEvent(new Event('submit'));
+        target.querySelector('form').dispatchEvent(new globalThis.Event('submit'));
         await nextTick();
 
         expect(target.querySelector('[role="alert"]').textContent).toBe('You have already reported this item.');
