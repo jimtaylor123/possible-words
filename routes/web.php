@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\WordController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +26,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/definitions/{definition}/remove', [WordController::class, 'removeDefinition'])->name('definitions.remove');
     Route::post('/words/{word}/favourite', [WordController::class, 'toggleFavourite'])->name('words.favourite');
     Route::get('/favourites', [WordController::class, 'favourites'])->name('words.favourites');
+    Route::post('/reports/{targetType}/{target}', [ReportController::class, 'store'])->name('reports.store');
 });
 
 // Serve built assets (for serverless where no static file serving is available)
