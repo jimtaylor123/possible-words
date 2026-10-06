@@ -44,6 +44,47 @@ test('it maps HTTP failures to a safe exception', function () {
         ->toThrow('Gemini returned HTTP 500.');
 });
 
+test('it rejects a missing Gemini API key before sending anything', function () {
+    config()->set('services.definitions_ai.gemini.key', null);
+    Http::fake();
+
+    expect(fn () => app(GeminiDefinitionGenerator::class)->generate('blorg'))
+        ->toThrow(DefinitionGenerationException::class, 'Gemini API key is not configured.');
+
+    Http::assertNothingSent();
+});
+
+test('it sends the API key as a header, never in the URL', function () {
+    Http::fake([
+        '*' => Http::response([
+            'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A pleasant made-up thing.","part_of_speech":"noun"}']]]]],
+        ]),
+    ]);
+
+    app(GeminiDefinitionGenerator::class)->generate('blorg');
+
+    Http::assertSent(function ($request) {
+        return $request->hasHeader('x-goog-api-key', 'test-key')
+            && ! str_contains($request->url(), 'test-key');
+    });
+});
+
+test('it never exposes the API key in thrown exception messages', function () {
+    Http::fake(['*' => Http::response(['error' => ['message' => 'secret']], 500)]);
+
+    try {
+        app(GeminiDefinitionGenerator::class)->generate('blorg');
+        $this->fail('Expected a DefinitionGenerationException.');
+    } catch (DefinitionGenerationException $exception) {
+        $messages = '';
+        for ($e = $exception; $e !== null; $e = $e->getPrevious()) {
+            $messages .= $e->getMessage()."\n";
+        }
+
+        expect($messages)->not->toContain('test-key');
+    }
+});
+
 test('it caps the request timeout below the queue job timeout', function () {
     config()->set('services.definitions_ai.timeout', 90);
 

@@ -20,9 +20,12 @@ class GeminiDefinitionGenerator implements DefinitionGenerator
         }
 
         try {
+            // The key travels as a header, never in the URL: URLs end up in
+            // exception messages and traces, which are logged on failure.
             $response = Http::timeout($this->requestTimeout())
                 ->acceptJson()
-                ->post($this->endpoint($key), [
+                ->withHeaders(['x-goog-api-key' => $key])
+                ->post($this->endpoint(), [
                     'contents' => [[
                         'parts' => [[
                             'text' => "Invent a concise, dictionary-style meaning for the made-up word '{$word}'. Return JSON only.",
@@ -73,12 +76,12 @@ class GeminiDefinitionGenerator implements DefinitionGenerator
         return new GeneratedDefinition($text, $partOfSpeech);
     }
 
-    private function endpoint(string $key): string
+    private function endpoint(): string
     {
         $baseUrl = rtrim((string) config('services.definitions_ai.gemini.base_url'), '/');
         $model = config('services.definitions_ai.gemini.model', 'gemini-2.5-flash');
 
-        return "{$baseUrl}/v1beta/models/{$model}:generateContent?key=".urlencode($key);
+        return "{$baseUrl}/v1beta/models/{$model}:generateContent";
     }
 
     public function requestTimeout(): int
