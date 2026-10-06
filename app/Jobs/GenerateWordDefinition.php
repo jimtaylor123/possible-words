@@ -21,9 +21,14 @@ class GenerateWordDefinition implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable;
 
-    public $timeout = 30;
+    public const TIMEOUT = 30;
 
-    public $tries = 3;
+    public $timeout = self::TIMEOUT;
+
+    // Rate-limit releases increment queue attempts, so only thrown provider failures are bounded.
+    public $tries = 0;
+
+    public $maxExceptions = 3;
 
     public function __construct(public int $wordId) {}
 

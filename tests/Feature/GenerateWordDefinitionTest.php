@@ -8,7 +8,10 @@ use App\Models\Definition;
 use App\Models\Word;
 use Illuminate\Queue\Middleware\RateLimited;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
@@ -82,6 +85,38 @@ test('it defers jobs beyond the configured provider rate limit', function () {
 
     expect($handled)->toBe(2)
         ->and($jobs[2]->releasedAfter)->toBeGreaterThan(0);
+});
+
+test('it drains a backfill across more rate-limit windows than provider retries', function () {
+    config()->set('services.definitions_ai.rate_limit', 10);
+    RateLimiter::clear(md5('definitions-ai'));
+    $words = Word::factory()->count(31)->create();
+    $generator = mock(DefinitionGenerator::class);
+    $generator->shouldReceive('generate')->times(31)
+        ->andReturn(new GeneratedDefinition('A backfilled definition.', 'noun'));
+    app()->instance(DefinitionGenerator::class, $generator);
+
+    $queue = Queue::connection('database');
+    foreach ($words as $word) {
+        $queue->push(new GenerateWordDefinition($word->id));
+    }
+
+    $worker = app('queue.worker');
+    $options = new WorkerOptions(maxTries: 0);
+
+    foreach (range(1, 4) as $window) {
+        DB::table('jobs')->update(['available_at' => now()->timestamp]);
+
+        while (($job = $queue->pop()) !== null) {
+            $worker->process('database', $job, $options);
+        }
+
+        RateLimiter::clear(md5('definitions-ai'));
+    }
+
+    expect(Definition::where('origin', Definition::ORIGIN_AI)->count())->toBe(31)
+        ->and(DB::table('jobs')->count())->toBe(0)
+        ->and(DB::table('failed_jobs')->count())->toBe(0);
 });
 
 test('it defers a duplicate job while its word generation is in progress', function () {

@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\DefinitionGenerationException;
+use App\Jobs\GenerateWordDefinition;
 use App\Services\Definitions\GeminiDefinitionGenerator;
 use Illuminate\Support\Facades\Http;
 
@@ -41,4 +42,13 @@ test('it maps HTTP failures to a safe exception', function () {
 
     expect(fn () => app(GeminiDefinitionGenerator::class)->generate('blorg'))
         ->toThrow('Gemini returned HTTP 500.');
+});
+
+test('it caps the request timeout below the queue job timeout', function () {
+    config()->set('services.definitions_ai.timeout', 90);
+
+    $timeout = app(GeminiDefinitionGenerator::class)->requestTimeout();
+
+    expect($timeout)->toBe(GenerateWordDefinition::TIMEOUT - GeminiDefinitionGenerator::TIMEOUT_BUFFER)
+        ->and($timeout)->toBeLessThan(GenerateWordDefinition::TIMEOUT);
 });

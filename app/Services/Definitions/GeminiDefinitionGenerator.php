@@ -5,10 +5,13 @@ namespace App\Services\Definitions;
 use App\Contracts\DefinitionGenerator;
 use App\Data\GeneratedDefinition;
 use App\Exceptions\DefinitionGenerationException;
+use App\Jobs\GenerateWordDefinition;
 use Illuminate\Support\Facades\Http;
 
 class GeminiDefinitionGenerator implements DefinitionGenerator
 {
+    public const TIMEOUT_BUFFER = 5;
+
     public function generate(string $word): GeneratedDefinition
     {
         $key = config('services.definitions_ai.gemini.key');
@@ -17,7 +20,7 @@ class GeminiDefinitionGenerator implements DefinitionGenerator
         }
 
         try {
-            $response = Http::timeout((int) config('services.definitions_ai.timeout', 20))
+            $response = Http::timeout($this->requestTimeout())
                 ->acceptJson()
                 ->post($this->endpoint($key), [
                     'contents' => [[
@@ -76,5 +79,15 @@ class GeminiDefinitionGenerator implements DefinitionGenerator
         $model = config('services.definitions_ai.gemini.model', 'gemini-2.5-flash');
 
         return "{$baseUrl}/v1beta/models/{$model}:generateContent?key=".urlencode($key);
+    }
+
+    public function requestTimeout(): int
+    {
+        $configuredTimeout = (int) config('services.definitions_ai.timeout', 20);
+
+        return min(
+            max($configuredTimeout, 1),
+            GenerateWordDefinition::TIMEOUT - self::TIMEOUT_BUFFER,
+        );
     }
 }
