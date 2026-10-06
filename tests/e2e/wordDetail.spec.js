@@ -73,4 +73,19 @@ test.describe('Word detail page', () => {
 
         await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('You have already reported this item.');
     });
+
+    test('a signed-in user can report an offensive or obscene word', async ({ page }) => {
+        await login(page, `offensive-word-report-e2e-${Date.now()}@example.com`);
+        await openFirstWord(page);
+
+        await page.getByRole('button', { name: 'Report this word' }).click();
+        await page.locator('#report-reason').click();
+        await expect(page.getByText('This word is not fresh', { exact: true }).last()).toBeVisible();
+        await expect(page.getByText('This word is offensive or obscene', { exact: true }).last()).toBeVisible();
+        await page.getByText('This word is offensive or obscene', { exact: true }).last().click();
+        await page.locator('#report-explanation textarea').fill('This word is obscene.');
+        await page.getByRole('button', { name: 'Submit report' }).click();
+
+        await expect(page.getByRole('status')).toHaveText('Report submitted.');
+    });
 });
