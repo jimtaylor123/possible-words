@@ -52,6 +52,7 @@ describe('ReportDialog', () => {
     let app;
 
     function mount() {
+        const success = vi.fn();
         const target = globalThis.document.createElement('div');
         globalThis.document.body.appendChild(target);
         app = createApp(ReportDialog, {
@@ -59,6 +60,7 @@ describe('ReportDialog', () => {
             targetType: 'word',
             target: 'blorg',
             reasonOptions: [{ label: 'Not fresh', value: 'word_unfresh' }],
+            onSuccess: success,
         });
         app.component('NModal', modalStub);
         app.component('NSelect', selectStub);
@@ -66,7 +68,7 @@ describe('ReportDialog', () => {
         app.component('NButton', buttonStub);
         app.mount(target);
 
-        return target;
+        return { target, success };
     }
 
     afterEach(() => {
@@ -79,10 +81,10 @@ describe('ReportDialog', () => {
 
     it('renders supplied reasons and submits the selected reason and explanation', async () => {
         vi.stubGlobal('route', vi.fn(() => '/reports/word/blorg'));
-        const target = mount();
+        const { target, success } = mount();
         inertia.router.post.mockImplementation((url, data, options) => {
             options.onStart();
-            options.onSuccess();
+            options.onSuccess({ props: { flash: { success: 'Report submitted.' } } });
             options.onFinish();
         });
 
@@ -106,18 +108,22 @@ describe('ReportDialog', () => {
             reason: 'word_unfresh',
             explanation: 'This has been used before.',
         }, expect.any(Object));
+        expect(success).toHaveBeenCalledOnce();
     });
 
-    it('displays submission feedback from the server', async () => {
+    it('displays duplicate redirect feedback without emitting success', async () => {
         vi.stubGlobal('route', vi.fn(() => '/reports/word/blorg'));
-        const target = mount();
+        const { target, success } = mount();
         inertia.router.post.mockImplementation((url, data, options) => {
-            options.onError({ report: 'You have already reported this item.' });
+            options.onStart();
+            options.onSuccess({ props: { flash: { error: 'You have already reported this item.' } } });
+            options.onFinish();
         });
 
         target.querySelector('form').dispatchEvent(new globalThis.Event('submit'));
         await nextTick();
 
         expect(target.querySelector('[role="alert"]').textContent).toBe('You have already reported this item.');
+        expect(success).not.toHaveBeenCalled();
     });
 });

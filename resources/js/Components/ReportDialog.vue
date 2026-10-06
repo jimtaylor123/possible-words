@@ -54,7 +54,13 @@ function submit() {
         onError: (responseErrors) => {
             errors.value = responseErrors;
         },
-        onSuccess: () => {
+        onSuccess: (page) => {
+            if (page.props.flash?.error) {
+                errors.value = { report: page.props.flash.error };
+
+                return;
+            }
+
             emit('success');
         },
         onFinish: () => {

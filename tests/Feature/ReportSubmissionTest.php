@@ -125,6 +125,23 @@ describe('submitting reports', function () {
             ->assertNotFound();
     });
 
+    test('a definition whose word was withdrawn cannot be reported', function () {
+        $author = User::factory()->create();
+        $reporter = User::factory()->create();
+        $word = reportableWord();
+        $definition = $word->definitions()->create([
+            'user_id' => $author->id,
+            'text' => 'Definition on a withdrawn word.',
+        ]);
+        $word->delete();
+
+        $this->actingAs($reporter)
+            ->post(reportRoute('definition', $definition->id), ['reason' => Report::REASON_DEFINITION_OFFENSIVE])
+            ->assertNotFound();
+
+        expect(Report::count())->toBe(0);
+    });
+
     test('different reporters may report the same target but one reporter may not duplicate an open report', function () {
         $firstReporter = User::factory()->create();
         $secondReporter = User::factory()->create();

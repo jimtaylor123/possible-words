@@ -67,7 +67,7 @@ class ReportController extends Controller
     {
         return match ($reportable::class) {
             Word::class => $reportable->isPublishable(),
-            Definition::class => ! $reportable->isRemoved() && $reportable->word->isPublishable(),
+            Definition::class => ! $reportable->isRemoved() && ($reportable->word?->isPublishable() ?? false),
             default => false,
         };
     }
