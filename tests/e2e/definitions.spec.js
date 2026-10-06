@@ -48,7 +48,8 @@ test.describe('Adding definitions and voting', () => {
 
         await openFirstWord(page);
 
-        await page.locator('textarea[placeholder="What does this word mean?"]').fill(phrase);
+        const textarea = page.locator('textarea[placeholder="What does this word mean?"]');
+        await textarea.fill(phrase);
         await page.getByRole('button', { name: 'Submit Definition' }).click();
 
         const definition = page.locator('.border.rounded-lg.p-4').filter({ hasText: phrase });
