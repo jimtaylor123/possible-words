@@ -26,6 +26,12 @@ class Word extends Model
 
     public const DICTIONARY_EXISTS_AS_WORD = 'exists_as_word';
 
+    public const AI_DEFINITION_PENDING = 'pending';
+
+    public const AI_DEFINITION_GENERATED = 'generated';
+
+    public const AI_DEFINITION_FAILED = 'failed';
+
     /**
      * Dictionary verdicts that make a word safe to publish as an unused word.
      *
@@ -70,6 +76,9 @@ class Word extends Model
         'slug',
         'generated_at',
         'published_at',
+        'ai_definition_status',
+        'ai_definition_attempted_at',
+        'ai_definition_error',
     ];
 
     protected $casts = [
@@ -79,6 +88,7 @@ class Word extends Model
         'owned_until' => 'datetime',
         'generated_at' => 'datetime',
         'published_at' => 'datetime',
+        'ai_definition_attempted_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
 
