@@ -105,7 +105,7 @@
       </div>
 
       <div v-if="$page.props.auth.user" class="mb-8 text-center">
-        <n-button secondary @click="showReportDialog = true">
+        <n-button secondary aria-label="Report this word" @click="showReportDialog = true">
           Report this word
         </n-button>
         <ReportDialog

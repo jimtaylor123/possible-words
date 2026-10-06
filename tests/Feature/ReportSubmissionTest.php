@@ -105,6 +105,21 @@ describe('submitting reports', function () {
         expect(Report::count())->toBe(0);
     });
 
+    test('report submission is rejected without a valid CSRF token', function () {
+        $reporter = User::factory()->create();
+        $word = reportableWord();
+
+        // Feature tests normally bypass CSRF verification; force the
+        // production behaviour so the token check actually runs.
+        app()->instance('env', 'production');
+
+        $this->actingAs($reporter)
+            ->post(reportRoute('word', $word->slug), ['reason' => Report::REASON_WORD_UNFRESH])
+            ->assertStatus(419);
+
+        expect(Report::count())->toBe(0);
+    });
+
     test('guests are redirected to sign in', function () {
         $word = reportableWord();
 
