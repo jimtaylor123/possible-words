@@ -118,6 +118,21 @@ describe('submitting reports', function () {
             ->assertStatus(419);
 
         expect(Report::count())->toBe(0);
+
+        // Positive control: the same setup with a valid token must succeed,
+        // proving the 419 above comes from CSRF verification.
+        $token = 'valid-csrf-token-for-test';
+
+        $this->actingAs($reporter)
+            ->withSession(['_token' => $token])
+            ->post(reportRoute('word', $word->slug), [
+                'reason' => Report::REASON_WORD_UNFRESH,
+                '_token' => $token,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Report submitted.');
+
+        expect(Report::count())->toBe(1);
     });
 
     test('guests are redirected to sign in', function () {
