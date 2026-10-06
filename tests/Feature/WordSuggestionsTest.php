@@ -173,3 +173,32 @@ describe('suggestions endpoint', function () {
             ->assertJsonCount(8);
     });
 });
+
+describe('narrowing suggestions by .com availability', function () {
+    test('Given domain_available=1, only words with a free .com are suggested', function () {
+        makeSuggestionWord(['text' => 'blorgfree', 'slug' => 'blorgfree', 'domain_status' => Word::DOMAIN_AVAILABLE]);
+        makeSuggestionWord(['text' => 'blorgtaken', 'slug' => 'blorgtaken', 'domain_status' => Word::DOMAIN_TAKEN]);
+        makeSuggestionWord(['text' => 'blorgfailed', 'slug' => 'blorgfailed', 'domain_status' => Word::DOMAIN_CHECK_FAILED]);
+        makeSuggestionWord(['text' => 'blorgfresh', 'slug' => 'blorgfresh']);
+
+        $this->getJson(route('words.suggestions', ['q' => 'blorg', 'domain_available' => 1]))
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJson([['text' => 'blorgfree']]);
+    });
+
+    test('Given the param absent or non-activating, mixed domain statuses do not change the suggestions', function () {
+        makeSuggestionWord(['text' => 'blorgfree', 'slug' => 'blorgfree', 'domain_status' => Word::DOMAIN_AVAILABLE]);
+        makeSuggestionWord(['text' => 'blorgtaken', 'slug' => 'blorgtaken', 'domain_status' => Word::DOMAIN_TAKEN]);
+        makeSuggestionWord(['text' => 'blorgfailed', 'slug' => 'blorgfailed', 'domain_status' => Word::DOMAIN_CHECK_FAILED]);
+        makeSuggestionWord(['text' => 'blorgfresh', 'slug' => 'blorgfresh']);
+
+        $this->getJson(route('words.suggestions', ['q' => 'blorg']))
+            ->assertOk()
+            ->assertJsonCount(4);
+
+        $this->getJson(route('words.suggestions', ['q' => 'blorg', 'domain_available' => 0]))
+            ->assertOk()
+            ->assertJsonCount(4);
+    });
+});
