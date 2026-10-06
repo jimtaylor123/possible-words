@@ -98,6 +98,12 @@ functions:
                   rate: cron(0 6 * * ? *)
                   input:
                       cli: 'words:check-dictionary --chunk=50 --retry-failed'
+            # After the 05:00 generate and 06:00 dictionary check, so words
+            # released the same day get their .com verdict on the same day.
+            - schedule:
+                  rate: cron(0 7 * * ? *)
+                  input:
+                      cli: 'words:check-domains --chunk=50'
             - schedule:
                   rate: ${env:WORD_RELEASE_SCHEDULE, 'cron(0 */6 * * ? *)'}
                   input:
