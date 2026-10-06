@@ -167,6 +167,8 @@
                   <span>{{ word.definitions[0].user.name }}</span>
                   <span>&bull;</span>
                   <span>{{ word.definitions[0].votes_count }} votes</span>
+                  <span v-if="word.definitions[0].part_of_speech">&bull; {{ word.definitions[0].part_of_speech }}</span>
+                  <span v-if="word.definitions[0].origin === 'ai'">&bull; AI-generated</span>
                 </div>
                 <div class="text-xs text-gray-400 mt-1">
                   {{ word.definitions_count }} definition{{ word.definitions_count !== 1 ? 's' : '' }} total

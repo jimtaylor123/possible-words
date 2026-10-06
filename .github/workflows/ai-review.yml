@@ -15,11 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Submit Groq code review
+      - name: Submit AI code review
         uses: actions/github-script@v7
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_KEY }}
           GROQ_MODEL: openai/gpt-oss-20b
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-2.5-flash-lite
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'openai/gpt-oss-20b:free' }}
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -32,41 +36,91 @@ jobs:
             });
 
             // Keep the prompt within the model context window while retaining file names.
-            const diff = files
+            const fullDiff = files
               .map((file) => `--- ${file.filename}\n${file.patch || "Binary file or patch unavailable."}`)
-              .join("\n\n")
-              .slice(0, 60000);
-            const prompt = `Review this pull request for correctness, regressions, security, and missing tests.\n\n` +
-              `Return concise Markdown for a GitHub code review. List only actionable findings with file and line references where possible. ` +
+              .join("\n\n");
+            const promptFor = (diff) =>
+              `Review this pull request for correctness, regressions, security, and missing tests.\n\n` +
+              `Return at most five concise Markdown findings, with file and line references where possible. ` +
               `If there are no findings, say exactly: No actionable findings.\n\nDiff:\n${diff}`;
-            let body;
-            for (const maxCompletionTokens of [4096, 8192]) {
-              const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  model: process.env.GROQ_MODEL,
-                  messages: [{ role: "user", content: prompt }],
-                  include_reasoning: false,
-                  reasoning_effort: "low",
-                  max_completion_tokens: maxCompletionTokens,
-                  temperature: 0.5,
+            const providers = [
+              {
+                name: "Groq",
+                key: process.env.GROQ_API_KEY,
+                request: async (prompt) => fetch("https://api.groq.com/openai/v1/chat/completions", {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    model: process.env.GROQ_MODEL,
+                    messages: [{ role: "user", content: prompt }],
+                    include_reasoning: false,
+                    reasoning_effort: "low",
+                    max_completion_tokens: 1536,
+                    temperature: 0.5,
+                  }),
                 }),
-              });
-              if (!response.ok) {
-                core.setFailed(`Groq review failed: ${response.status} ${await response.text()}`);
-                return;
-              }
+                text: (result) => result.choices?.[0]?.message?.content,
+              },
+              {
+                name: "Gemini",
+                key: process.env.GEMINI_API_KEY,
+                request: async (prompt) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: 0.3, maxOutputTokens: 1536 },
+                  }),
+                }),
+                text: (result) => result.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join(""),
+              },
+              {
+                name: "OpenRouter",
+                key: process.env.OPENROUTER_API_KEY,
+                request: async (prompt) => fetch("https://openrouter.ai/api/v1/chat/completions", {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    model: process.env.OPENROUTER_MODEL,
+                    messages: [{ role: "user", content: prompt }],
+                    max_tokens: 1536,
+                    temperature: 0.3,
+                  }),
+                }),
+                text: (result) => result.choices?.[0]?.message?.content,
+              },
+            ];
+            let body;
+            let providerName;
+            const failures = [];
+            // Small prompts keep the free tiers useful; only shrink further on oversized requests.
+            for (const provider of providers) {
+              if (!provider.key) continue;
+              for (const diffBudget of [20000, 10000]) {
+                const response = await provider.request(promptFor(fullDiff.slice(0, diffBudget)));
+                if (!response.ok) {
+                  failures.push(`${provider.name} (${response.status})`);
+                  if (response.status === 413) continue;
+                  break;
+                }
 
-              const result = await response.json();
-              body = result.choices?.[0]?.message?.content?.trim();
+                let result;
+                try {
+                  result = await response.json();
+                } catch {
+                  failures.push(`${provider.name} (invalid JSON)`);
+                  break;
+                }
+                body = provider.text(result)?.trim();
+                if (body) {
+                  providerName = provider.name;
+                  break;
+                }
+              }
               if (body) break;
             }
             if (!body) {
-              core.setFailed("Groq returned no review content after retrying with a larger output budget.");
+              core.setFailed(`No AI review provider was available: ${failures.join(", ") || "no configured API keys"}.`);
               return;
             }
 
@@ -76,5 +130,5 @@ jobs:
               pull_number: pullNumber,
               commit_id: context.payload.pull_request.head.sha,
               event: "COMMENT",
-              body: `## Groq code review\n\n${body}`,
+              body: `## ${providerName} code review\n\n${body}`,
             });

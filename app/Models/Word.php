@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Laravel\Scout\Searchable;
@@ -25,6 +26,12 @@ class Word extends Model
     public const DICTIONARY_EXISTS_AS_NAME = 'exists_as_name';
 
     public const DICTIONARY_EXISTS_AS_WORD = 'exists_as_word';
+
+    public const AI_DEFINITION_PENDING = 'pending';
+
+    public const AI_DEFINITION_GENERATED = 'generated';
+
+    public const AI_DEFINITION_FAILED = 'failed';
 
     /**
      * Dictionary verdicts that make a word safe to publish as an unused word.
@@ -70,6 +77,9 @@ class Word extends Model
         'slug',
         'generated_at',
         'published_at',
+        'ai_definition_status',
+        'ai_definition_attempted_at',
+        'ai_definition_error',
     ];
 
     protected $casts = [
@@ -79,7 +89,15 @@ class Word extends Model
         'owned_until' => 'datetime',
         'generated_at' => 'datetime',
         'published_at' => 'datetime',
+        'ai_definition_attempted_at' => 'datetime',
         'deleted_at' => 'datetime',
+    ];
+
+    /** @var list<string> */
+    protected $hidden = [
+        'ai_definition_status',
+        'ai_definition_attempted_at',
+        'ai_definition_error',
     ];
 
     /**
@@ -132,6 +150,11 @@ class Word extends Model
     public function favourites(): HasMany
     {
         return $this->hasMany(Favourite::class);
+    }
+
+    public function reports(): MorphMany
+    {
+        return $this->morphMany(Report::class, 'reportable');
     }
 
     public function favouritedBy()

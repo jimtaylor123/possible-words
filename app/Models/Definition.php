@@ -5,9 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Definition extends Model
 {
+    public const ORIGIN_AI = 'ai';
+
     /**
      * The text shown in place of a removed definition's original text.
      */
@@ -18,6 +21,7 @@ class Definition extends Model
         'user_id',
         'text',
         'part_of_speech',
+        'origin',
         'votes_count',
     ];
 
@@ -63,6 +67,11 @@ class Definition extends Model
     public function votes(): HasMany
     {
         return $this->hasMany(Vote::class);
+    }
+
+    public function reports(): MorphMany
+    {
+        return $this->morphMany(Report::class, 'reportable');
     }
 
     public function updateVotesCount()

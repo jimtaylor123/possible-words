@@ -565,4 +565,41 @@ describe('definition categories on the word page', function () {
                 ->where('word.definitions.1.part_of_speech', null)
             );
     });
+
+    test('Given an AI definition, its provenance and system author are serialized', function () {
+        $word = createWord();
+        $word->update(['ai_definition_error' => 'Internal provider detail']);
+        $author = User::factory()->create(['name' => 'PossibleWords AI']);
+        $definition = $word->definitions()->create([
+            'user_id' => $author->id,
+            'text' => 'An invented AI meaning',
+            'part_of_speech' => 'verb',
+            'origin' => \App\Models\Definition::ORIGIN_AI,
+        ]);
+
+        $this->get(route('words.show', $word))
+            ->assertInertia(fn ($page) => $page
+                ->where('word.definitions.0.id', $definition->id)
+                ->where('word.definitions.0.origin', 'ai')
+                ->where('word.definitions.0.user.name', 'PossibleWords AI')
+                ->missing('word.ai_definition_error')
+            );
+    });
+
+    test('Given an AI definition, even its system author cannot remove it', function () {
+        $author = User::factory()->create(['name' => 'PossibleWords AI']);
+        $word = createWord();
+        $definition = $word->definitions()->create([
+            'user_id' => $author->id,
+            'text' => 'Protected AI meaning',
+            'origin' => \App\Models\Definition::ORIGIN_AI,
+            'part_of_speech' => 'other',
+        ]);
+
+        $this->actingAs($author)
+            ->post(route('definitions.remove', $definition))
+            ->assertForbidden();
+
+        expect($definition->fresh()->removed_at)->toBeNull();
+    });
 });

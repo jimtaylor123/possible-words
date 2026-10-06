@@ -18,5 +18,9 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('dictionary', function () {
             return Limit::perSecond(2);
         });
+
+        RateLimiter::for('definitions-ai', function () {
+            return Limit::perMinute((int) config('services.definitions_ai.rate_limit', 10));
+        });
     }
 }
