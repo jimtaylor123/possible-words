@@ -14,6 +14,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\RateLimited;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Log;
 
 class GenerateWordDefinition implements ShouldQueue
@@ -98,7 +99,12 @@ class GenerateWordDefinition implements ShouldQueue
 
     public function middleware(): array
     {
-        return [(new RateLimited('definitions-ai'))->dontRelease()];
+        return [
+            new RateLimited('definitions-ai'),
+            (new WithoutOverlapping("definitions-ai:{$this->wordId}"))
+                ->releaseAfter(5)
+                ->expireAfter($this->timeout * 2),
+        ];
     }
 
     private function recordFailure(Word $word, \Throwable $exception): void

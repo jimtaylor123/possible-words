@@ -6,6 +6,10 @@ use App\Exceptions\DefinitionGenerationException;
 use App\Jobs\GenerateWordDefinition;
 use App\Models\Definition;
 use App\Models\Word;
+use Illuminate\Queue\Middleware\RateLimited;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\RateLimiter;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
@@ -62,3 +66,53 @@ test('it skips deleted words and words that already have an AI definition', func
 
     expect($complete->fresh()->ai_definition_status)->toBe(Word::AI_DEFINITION_GENERATED);
 });
+
+test('it defers jobs beyond the configured provider rate limit', function () {
+    config()->set('services.definitions_ai.rate_limit', 2);
+    RateLimiter::clear(md5('definitions-ai'));
+    $middleware = new RateLimited('definitions-ai');
+    $jobs = [new ReleasableJob, new ReleasableJob, new ReleasableJob];
+    $handled = 0;
+
+    foreach ($jobs as $job) {
+        $middleware->handle($job, function () use (&$handled) {
+            $handled++;
+        });
+    }
+
+    expect($handled)->toBe(2)
+        ->and($jobs[2]->releasedAfter)->toBeGreaterThan(0);
+});
+
+test('it defers a duplicate job while its word generation is in progress', function () {
+    $word = Word::factory()->create();
+    $generator = mock(DefinitionGenerator::class);
+    $generator->shouldNotReceive('generate');
+    $job = new GenerateWordDefinition($word->id);
+    $middleware = collect($job->middleware())
+        ->first(fn ($middleware) => $middleware instanceof WithoutOverlapping);
+    $queueJob = new ReleasableJob;
+    $lock = Cache::lock($middleware->getLockKey($queueJob), $middleware->expiresAfter);
+
+    expect($lock->get())->toBeTrue();
+
+    try {
+        $middleware->handle($queueJob, function () use ($job, $generator) {
+            $job->handle($generator, app(\App\Services\Definitions\SystemAiUser::class));
+        });
+    } finally {
+        $lock->release();
+    }
+
+    expect($queueJob->releasedAfter)->toBe(5);
+});
+
+class ReleasableJob
+{
+    public ?int $releasedAfter = null;
+
+    public function release(int $delay): void
+    {
+        $this->releasedAfter = $delay;
+    }
+}
