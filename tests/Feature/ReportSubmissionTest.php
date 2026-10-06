@@ -18,14 +18,14 @@ function reportRoute(string $targetType, string|int $target): string
 }
 
 describe('submitting reports', function () {
-    test('an authenticated user can report a published word', function () {
+    test('an authenticated user can report a published word without an explanation', function () {
         $reporter = User::factory()->create();
         $word = reportableWord();
 
         $this->actingAs($reporter)
             ->post(reportRoute('word', $word->slug), [
                 'reason' => Report::REASON_WORD_UNFRESH,
-                'explanation' => 'This word has appeared elsewhere.',
+                'explanation' => '',
             ])
             ->assertRedirect()
             ->assertSessionHas('success', 'Report submitted.');
@@ -35,8 +35,28 @@ describe('submitting reports', function () {
             'reportable_type' => Word::class,
             'reportable_id' => $word->id,
             'reason' => Report::REASON_WORD_UNFRESH,
-            'explanation' => 'This word has appeared elsewhere.',
+            'explanation' => null,
             'status' => Report::STATUS_OPEN,
+        ]);
+    });
+
+    test('an authenticated user can report a published word with the explanation field omitted entirely', function () {
+        $reporter = User::factory()->create();
+        $word = reportableWord();
+
+        $this->actingAs($reporter)
+            ->post(reportRoute('word', $word->slug), [
+                'reason' => Report::REASON_WORD_UNFRESH,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Report submitted.');
+
+        $this->assertDatabaseHas('reports', [
+            'reporter_id' => $reporter->id,
+            'reportable_type' => Word::class,
+            'reportable_id' => $word->id,
+            'reason' => Report::REASON_WORD_UNFRESH,
+            'explanation' => null,
         ]);
     });
 
@@ -83,6 +103,36 @@ describe('submitting reports', function () {
             ->assertSessionHasErrors('explanation');
 
         expect(Report::count())->toBe(0);
+    });
+
+    test('report submission is rejected without a valid CSRF token', function () {
+        $reporter = User::factory()->create();
+        $word = reportableWord();
+
+        // Feature tests normally bypass CSRF verification; force the
+        // production behaviour so the token check actually runs.
+        app()->instance('env', 'production');
+
+        $this->actingAs($reporter)
+            ->post(reportRoute('word', $word->slug), ['reason' => Report::REASON_WORD_UNFRESH])
+            ->assertStatus(419);
+
+        expect(Report::count())->toBe(0);
+
+        // Positive control: the same setup with a valid token must succeed,
+        // proving the 419 above comes from CSRF verification.
+        $token = 'valid-csrf-token-for-test';
+
+        $this->actingAs($reporter)
+            ->withSession(['_token' => $token])
+            ->post(reportRoute('word', $word->slug), [
+                'reason' => Report::REASON_WORD_UNFRESH,
+                '_token' => $token,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Report submitted.');
+
+        expect(Report::count())->toBe(1);
     });
 
     test('guests are redirected to sign in', function () {
