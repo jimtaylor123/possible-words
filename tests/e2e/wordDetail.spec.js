@@ -1,5 +1,21 @@
 import { test, expect } from '@playwright/test';
 
+const login = async (page, email) => {
+    const response = await page.request.post('/testing/login', {
+        form: { email, name: 'E2E User', is_admin: '0' },
+    });
+    expect(response.ok()).toBeTruthy();
+};
+
+const openFirstWord = async (page) => {
+    await page.goto('/words');
+
+    const card = page.locator('[role="link"]').first();
+    await card.waitFor({ state: 'visible' });
+    await card.click();
+    await expect(page).toHaveURL(/\/words\/.+/);
+};
+
 test.describe('Word detail page', () => {
     test('navigating from the list opens a word detail page', async ({ page }) => {
         await page.goto('/words');
@@ -33,5 +49,28 @@ test.describe('Word detail page', () => {
 
         await expect(page.getByText('Want to add a definition or vote?')).toBeVisible();
         await expect(page.getByRole('main').getByRole('button', { name: /Continue with Google/i })).toBeVisible();
+    });
+
+    test('guests cannot report a word', async ({ page }) => {
+        await openFirstWord(page);
+
+        await expect(page.getByRole('button', { name: 'Report this word' })).toHaveCount(0);
+    });
+
+    test('a signed-in user can report an unfresh word and sees duplicate feedback', async ({ page }) => {
+        await login(page, `word-report-e2e-${Date.now()}@example.com`);
+        await openFirstWord(page);
+
+        await page.getByRole('button', { name: 'Report this word' }).click();
+        await page.locator('#report-reason').click();
+        await page.getByText('This word is not fresh', { exact: true }).last().click();
+        await page.getByRole('button', { name: 'Submit report' }).click();
+
+        await expect(page.getByRole('status')).toHaveText('Report submitted.');
+
+        await page.getByRole('button', { name: 'Report this word' }).click();
+        await page.getByRole('button', { name: 'Submit report' }).click();
+
+        await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('You have already reported this item.');
     });
 });
