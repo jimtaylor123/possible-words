@@ -82,6 +82,17 @@
               placeholder="Sort by..."
               @update:value="onSortChange"
             />
+            <label class="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                v-model="filters.domain_available"
+                type="checkbox"
+                :true-value="1"
+                :false-value="null"
+                class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                @change="onDomainFilterChange"
+              >
+              Only words with a free .com
+            </label>
           </div>
         </transition>
       </div>
@@ -339,7 +350,14 @@ const fetchSuggestions = async () => {
   suggestionsAbortController = controller
 
   try {
-    const response = await fetch(route('words.suggestions', { q: term }), {
+    // The domain param is only ever appended while the filter is on: with it
+    // off the URL is byte-identical to the one the app has always sent.
+    const suggestionParams = { q: term }
+    if (filters.value.domain_available) {
+      suggestionParams.domain_available = 1
+    }
+
+    const response = await fetch(route('words.suggestions', suggestionParams), {
       signal: controller.signal,
     })
 
@@ -479,8 +497,15 @@ const onSortChange = () => {
   search()
 }
 
+const onDomainFilterChange = () => {
+  // Re-run the browse query and re-narrow any open type-ahead immediately,
+  // so the dropdown does not keep stale (unfiltered) suggestions around.
+  search()
+  fetchSuggestions()
+}
+
 const clearFilters = () => {
-  filters.value = { search: null, syllables: null, length: null, starts_with: null }
+  filters.value = { search: null, syllables: null, length: null, starts_with: null, domain_available: null }
   router.get(route('home'), { sort: 'created_at', direction: 'desc' }, {
     preserveState: true,
     replace: true,
