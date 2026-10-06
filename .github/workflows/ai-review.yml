@@ -104,7 +104,13 @@ jobs:
                   break;
                 }
 
-                const result = await response.json();
+                let result;
+                try {
+                  result = await response.json();
+                } catch {
+                  failures.push(`${provider.name} (invalid JSON)`);
+                  break;
+                }
                 body = provider.text(result)?.trim();
                 if (body) {
                   providerName = provider.name;
