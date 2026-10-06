@@ -31,7 +31,7 @@ $updated = Word::query()
     ]);
 
 if ($updated !== count($expected)) {
-    fwrite(STDERR, "Expected to mark ".count($expected).' fixture words as available, marked '.$updated.".\n");
+    fwrite(STDERR, 'Expected to mark '.count($expected).' fixture words as available, marked '.$updated.".\n");
     fwrite(STDERR, 'Check that the fixture words still exist in .snapshots/dev-data.sqlite.'."\n");
     exit(1);
 }
