@@ -18,14 +18,14 @@ function reportRoute(string $targetType, string|int $target): string
 }
 
 describe('submitting reports', function () {
-    test('an authenticated user can report a published word', function () {
+    test('an authenticated user can report a published word without an explanation', function () {
         $reporter = User::factory()->create();
         $word = reportableWord();
 
         $this->actingAs($reporter)
             ->post(reportRoute('word', $word->slug), [
                 'reason' => Report::REASON_WORD_UNFRESH,
-                'explanation' => 'This word has appeared elsewhere.',
+                'explanation' => '',
             ])
             ->assertRedirect()
             ->assertSessionHas('success', 'Report submitted.');
@@ -35,7 +35,7 @@ describe('submitting reports', function () {
             'reportable_type' => Word::class,
             'reportable_id' => $word->id,
             'reason' => Report::REASON_WORD_UNFRESH,
-            'explanation' => 'This word has appeared elsewhere.',
+            'explanation' => null,
             'status' => Report::STATUS_OPEN,
         ]);
     });
