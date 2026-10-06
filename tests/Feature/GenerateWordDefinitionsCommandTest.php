@@ -17,7 +17,7 @@ test('it requires a positive limit no greater than twenty', function (string $li
         ->assertExitCode(1);
 
     Queue::assertNothingPushed();
-})->with(['zero' => '0', 'over the cap' => '21', 'non-numeric' => 'two']);
+})->with(['negative' => '-1', 'zero' => '0', 'over the cap' => '21', 'non-numeric' => 'two']);
 
 test('it requires the limit option', function () {
     Queue::fake();
