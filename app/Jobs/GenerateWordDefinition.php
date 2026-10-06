@@ -29,7 +29,16 @@ class GenerateWordDefinition implements ShouldQueue
     public function handle(DefinitionGenerator $generator, SystemAiUser $systemAiUser): void
     {
         $word = Word::withTrashed()->find($this->wordId);
-        if ($word === null || $word->trashed() || $word->definitions()->where('origin', Definition::ORIGIN_AI)->exists()) {
+        if ($word === null || $word->trashed()) {
+            return;
+        }
+
+        if ($word->definitions()->where('origin', Definition::ORIGIN_AI)->exists()) {
+            $word->update([
+                'ai_definition_status' => Word::AI_DEFINITION_GENERATED,
+                'ai_definition_error' => null,
+            ]);
+
             return;
         }
 

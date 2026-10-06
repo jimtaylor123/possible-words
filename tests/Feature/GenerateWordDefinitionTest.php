@@ -59,4 +59,6 @@ test('it skips deleted words and words that already have an AI definition', func
 
     app(GenerateWordDefinition::class, ['wordId' => $deleted->id])->handle($generator, app(\App\Services\Definitions\SystemAiUser::class));
     app(GenerateWordDefinition::class, ['wordId' => $complete->id])->handle($generator, app(\App\Services\Definitions\SystemAiUser::class));
+
+    expect($complete->fresh()->ai_definition_status)->toBe(Word::AI_DEFINITION_GENERATED);
 });
