@@ -92,6 +92,13 @@ class Word extends Model
         'deleted_at' => 'datetime',
     ];
 
+    /** @var list<string> */
+    protected $hidden = [
+        'ai_definition_status',
+        'ai_definition_attempted_at',
+        'ai_definition_error',
+    ];
+
     /**
      * Words safe to show on the public site: available, released, not withdrawn,
      * and carrying a dictionary verdict that says nothing was found.

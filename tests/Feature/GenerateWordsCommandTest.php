@@ -73,4 +73,11 @@ describe('generating words via artisan', function () {
 
         Queue::assertNotPushed(\App\Jobs\CheckWordDictionary::class);
     });
+
+    test('Given either generation mode, it queues an AI definition per word', function () {
+        $this->artisan('words:generate --count=3 --fast')->assertExitCode(0);
+
+        Queue::assertPushed(\App\Jobs\GenerateWordDefinition::class, 3);
+        expect(Word::where('ai_definition_status', Word::AI_DEFINITION_PENDING)->count())->toBe(3);
+    });
 });

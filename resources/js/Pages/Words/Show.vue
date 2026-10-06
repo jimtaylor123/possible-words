@@ -123,6 +123,12 @@
                 >
                   {{ definition.part_of_speech.charAt(0).toUpperCase() + definition.part_of_speech.slice(1) }}
                 </span>
+                <span
+                  v-if="definition.origin === 'ai'"
+                  class="inline-block mt-1 ml-2 text-xs font-medium text-violet-600"
+                >
+                  AI-generated
+                </span>
               </div>
               <div class="flex items-center gap-1 ml-2 shrink-0">
                 <button
