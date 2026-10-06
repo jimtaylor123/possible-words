@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Jobs\CheckWordDictionary;
+use App\Jobs\GenerateWordDefinition;
 use App\Models\Word;
 use Illuminate\Support\Str;
 
@@ -121,12 +122,15 @@ class WordGenerator
                 'syllables' => $this->countSyllables($word['text']),
                 'status' => 'available',
                 'dictionary_status' => Word::DICTIONARY_UNCHECKED,
+                'ai_definition_status' => Word::AI_DEFINITION_PENDING,
                 'slug' => Str::slug($word['text']),
             ]);
 
             if ($dispatchCheckJob) {
                 CheckWordDictionary::dispatch($model);
             }
+
+            GenerateWordDefinition::dispatch($model->id);
 
             $created[] = $model;
         }

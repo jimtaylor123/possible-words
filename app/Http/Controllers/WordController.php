@@ -240,6 +240,10 @@ class WordController extends Controller
     {
         abort_unless($definition->word->isPublishable(), 404);
 
+        if ($definition->origin === Definition::ORIGIN_AI) {
+            abort(403, 'AI-generated definitions cannot be removed.');
+        }
+
         // Inline ownership check: this app has no policies and no gates (AGENTS.md).
         // This runs before the removed-state check so a non-author cannot use the
         // response to probe whether a definition has already been removed.

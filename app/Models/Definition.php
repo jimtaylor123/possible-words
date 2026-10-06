@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Definition extends Model
 {
+    public const ORIGIN_AI = 'ai';
+
     /**
      * The text shown in place of a removed definition's original text.
      */
@@ -18,6 +20,7 @@ class Definition extends Model
         'user_id',
         'text',
         'part_of_speech',
+        'origin',
         'votes_count',
     ];
 

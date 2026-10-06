@@ -61,4 +61,14 @@ return [
         ],
     ],
 
+    'definitions_ai' => [
+        'timeout' => env('DEFINITIONS_AI_TIMEOUT', 20),
+        'rate_limit' => env('DEFINITIONS_AI_RATE_LIMIT', 10),
+        'gemini' => [
+            'key' => env('GEMINI_API_KEY'),
+            'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+            'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com'),
+        ],
+    ],
+
 ];
