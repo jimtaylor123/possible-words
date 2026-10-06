@@ -104,6 +104,9 @@ class GenerateWordDefinition implements ShouldQueue
 
     public function middleware(): array
     {
+        // The limiter name must match the RateLimiter::for('definitions-ai', …)
+        // definition in AppServiceProvider — an unknown name silently disables
+        // rate limiting (RateLimited passes through when no limiter is registered).
         return [
             new RateLimited('definitions-ai'),
             (new WithoutOverlapping("definitions-ai:{$this->wordId}"))

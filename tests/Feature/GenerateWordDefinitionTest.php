@@ -70,6 +70,20 @@ test('it skips deleted words and words that already have an AI definition', func
     expect($complete->fresh()->ai_definition_status)->toBe(Word::AI_DEFINITION_GENERATED);
 });
 
+test('it rate-limits with the registered definitions-ai limiter', function () {
+    $rateLimited = collect((new GenerateWordDefinition(1))->middleware())
+        ->first(fn ($middleware) => $middleware instanceof RateLimited);
+
+    expect($rateLimited)->not->toBeNull();
+
+    // RateLimited passes through untouched when its limiter name is unknown,
+    // so the job's key must resolve to the definition AppServiceProvider registers.
+    $limiterName = (new ReflectionProperty(RateLimited::class, 'limiterName'))->getValue($rateLimited);
+
+    expect($limiterName)->toBe('definitions-ai')
+        ->and(RateLimiter::limiter($limiterName))->not->toBeNull();
+});
+
 test('it defers jobs beyond the configured provider rate limit', function () {
     config()->set('services.definitions_ai.rate_limit', 2);
     RateLimiter::clear(md5('definitions-ai'));
