@@ -40,6 +40,26 @@ describe('submitting reports', function () {
         ]);
     });
 
+    test('an authenticated user can report a published word with the explanation field omitted entirely', function () {
+        $reporter = User::factory()->create();
+        $word = reportableWord();
+
+        $this->actingAs($reporter)
+            ->post(reportRoute('word', $word->slug), [
+                'reason' => Report::REASON_WORD_UNFRESH,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Report submitted.');
+
+        $this->assertDatabaseHas('reports', [
+            'reporter_id' => $reporter->id,
+            'reportable_type' => Word::class,
+            'reportable_id' => $word->id,
+            'reason' => Report::REASON_WORD_UNFRESH,
+            'explanation' => null,
+        ]);
+    });
+
     test('an authenticated user can report a live definition', function () {
         $author = User::factory()->create();
         $reporter = User::factory()->create();
