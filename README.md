@@ -92,7 +92,7 @@ ensure the production repository's `GEMINI_API_KEY` GitHub Actions secret is set
 configuration so it is passed to the Artisan Lambda.
 
 Run one bounded batch at a time. `--limit` is required, must be a positive integer, and is capped
-at 20. Eligible words are selected in ascending ID order from pending generation attempts and
+at 10. Eligible words are selected in ascending ID order from pending generation attempts and
 never include words that already have an AI definition.
 
 ```bash
@@ -101,7 +101,7 @@ aws lambda invoke \
   --function-name possiblewords-prod-artisan \
   --cli-binary-format raw-in-base64-out \
   --cli-read-timeout 0 \
-  --payload '{"cli":"words:generate-definitions --limit=20"}' \
+  --payload '{"cli":"words:generate-definitions --limit=10"}' \
   /tmp/possiblewords-definition-backfill.json
 cat /tmp/possiblewords-definition-backfill.json
 ```
@@ -119,12 +119,12 @@ aws lambda invoke \
   --function-name possiblewords-prod-artisan \
   --cli-binary-format raw-in-base64-out \
   --cli-read-timeout 0 \
-  --payload '{"cli":"words:generate-definitions --limit=20 --retry-failed"}' \
+  --payload '{"cli":"words:generate-definitions --limit=10 --retry-failed"}' \
   /tmp/possiblewords-definition-retry.json
 cat /tmp/possiblewords-definition-retry.json
 ```
 
-Repeat only after checking failures; `--retry-failed` does not bypass the 20-word cap and still
+Repeat only after checking failures; `--retry-failed` does not bypass the 10-word cap and still
 excludes words that already received an AI definition.
 
 ## Future Features
