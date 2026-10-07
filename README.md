@@ -127,6 +127,42 @@ cat /tmp/possiblewords-definition-retry.json
 Repeat only after checking failures; `--retry-failed` does not bypass the 10-word cap and still
 excludes words that already received an AI definition.
 
+## .com domain availability checks
+
+Every word's `.com` availability is looked up against Verisign's free public RDAP endpoint — there
+is no API key anywhere in this feature. `words:check-domains` checks words whose verdict is
+missing or more than a day old, and the results drive the "free .com" filter on browse, the
+suggestions endpoint and the word detail page.
+
+The command is scheduled every eleven minutes (locally by the Laravel scheduler; in production by
+the EventBridge event in `serverless.yml`). A database lease means only one invocation runs at a
+time, and the command always exits successfully so a flaky third-party API never fails the
+scheduled event — a failed lookup is recorded as `check_failed` and the word shows no link.
+
+All settings live in `config/domain.php` and read these environment variables, with these
+defaults:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `DOMAIN_CHECK_ENABLED` | `true` | Kill switch; `false` skips the run entirely |
+| `DOMAIN_RDAP_URL` | `https://rdap.verisign.com/com/v1/domain` | Base URL for .com lookups |
+| `DOMAIN_TIMEOUT` | `10` | Seconds to wait for each RDAP response |
+| `DOMAIN_ATTEMPTS` | `3` | Attempts per lookup before recording `check_failed` |
+| `DOMAIN_RETRY_SLEEP_MS` | `400` | Linear backoff between attempts |
+| `DOMAIN_THROTTLE` | `4` | Max RDAP requests per second during a run |
+| `DOMAIN_RUN_LOCK_TTL_SECONDS` | `720` | Lease lifetime; must cover a full Lambda run |
+
+`.env.example` sets the basics (`DOMAIN_CHECK_ENABLED`, `DOMAIN_THROTTLE`); `serverless.yml` pins
+the resilience and rate values for production, and the schedule's `--chunk=8 --limit=8` bounds
+each invocation so the worst case fits the Lambda timeout. Run a bounded batch by hand:
+
+```bash
+php artisan words:check-domains --chunk=8 --limit=8
+```
+
+`--force` re-checks recently checked words, `--limit` caps how many words one run touches, and
+`--throttle` overrides `DOMAIN_THROTTLE` for that run.
+
 ## Future Features
 
 - Word ownership system (like domain names)

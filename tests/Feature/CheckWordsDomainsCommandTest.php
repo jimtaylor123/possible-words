@@ -171,6 +171,23 @@ describe('chunking and time-boxing the run', function () {
             ->and($second->fresh()->domain_checked_at)->toBeNull();
     });
 
+    test('Given --throttle, the option paces the run even when config disables throttling', function () {
+        domainCheckableWord('pacedfirst');
+        domainCheckableWord('pacedsecond');
+
+        Http::fake(['*' => Http::response(null, 404)]);
+
+        // beforeEach sets domain.throttle_per_second to 0, so any pacing here
+        // can only come from the option: two words at one request per second
+        // sleep twice, one second after each word.
+        $startedAt = microtime(true);
+        $this->artisan('words:check-domains --throttle=1')->assertExitCode(0);
+        $elapsedSeconds = microtime(true) - $startedAt;
+
+        expect($elapsedSeconds)->toBeGreaterThan(1.5);
+        Http::assertSentCount(2);
+    });
+
     test('Given persistence writes fail, --limit still caps RDAP attempts', function () {
         foreach (range(1, 10) as $number) {
             domainCheckableWord("failedwrite{$number}");
@@ -230,6 +247,26 @@ describe('the durable production run lease', function () {
         expect($word->fresh()->domain_status)->toBe(Word::DOMAIN_AVAILABLE)
             ->and($word->fresh()->domain_checked_at)->not->toBeNull();
         Http::assertSentCount(1);
+    });
+
+    test('Given a completed run, it releases the lease so the next invocation can acquire it', function () {
+        domainCheckableWord('firstleasedword');
+
+        Http::fake(['*' => Http::response(null, 404)]);
+
+        $this->artisan('words:check-domains')->assertExitCode(0);
+
+        expect(DB::table('domain_check_run_locks')->count())->toBe(0);
+
+        $second = domainCheckableWord('secondleasedword');
+
+        // Without a released lease this run would skip with "database lease"
+        // and never reach the second word.
+        $this->artisan('words:check-domains')
+            ->expectsOutputToContain('Checked 1 of 1 attempted words')
+            ->assertExitCode(0);
+
+        expect($second->fresh()->domain_status)->toBe(Word::DOMAIN_AVAILABLE);
     });
 });
 
