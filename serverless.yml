@@ -39,6 +39,13 @@ provider:
         MERRIAM_WEBSTER_ENABLED: 'true'
         MERRIAM_WEBSTER_API_KEY: ${env:MERRIAM_WEBSTER_API_KEY}
 
+        # Keep the scheduled RDAP batch's per-word worst case fixed: three
+        # ten-second attempts, 1.2 seconds of retry backoff, and a 4/s throttle.
+        DOMAIN_TIMEOUT: '10'
+        DOMAIN_ATTEMPTS: '3'
+        DOMAIN_RETRY_SLEEP_MS: '400'
+        DOMAIN_THROTTLE: '4'
+
         WORD_RELEASE_BATCH_SIZE: ${env:WORD_RELEASE_BATCH_SIZE, '10'}
         WORD_RELEASE_SCHEDULE: ${env:WORD_RELEASE_SCHEDULE, 'cron(0 */6 * * ? *)'}
 
@@ -98,12 +105,15 @@ functions:
                   rate: cron(0 6 * * ? *)
                   input:
                       cli: 'words:check-dictionary --chunk=50 --retry-failed'
-            # After the 05:00 generate and 06:00 dictionary check, so words
-            # released the same day get their .com verdict on the same day.
+            # Each invocation is capped at 20 lookups. At the configured
+            # worst case that is about 629 seconds (20 * (3 * 10 + 1.2 +
+            # 0.25)), leaving headroom under the 720-second Lambda limit.
+            # Completed rows get a timestamp and leave the due set, so these
+            # quarter-hourly invocations resume safely after RDAP failures.
             - schedule:
-                  rate: cron(0 7 * * ? *)
+                  rate: rate(15 minutes)
                   input:
-                      cli: 'words:check-domains --chunk=50'
+                      cli: 'words:check-domains --chunk=20 --limit=20'
             - schedule:
                   rate: ${env:WORD_RELEASE_SCHEDULE, 'cron(0 */6 * * ? *)'}
                   input:

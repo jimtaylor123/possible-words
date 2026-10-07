@@ -10,4 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('words:generate', ['--count' => 20])->daily();
 Schedule::command('words:release')->everySixHours()->withoutOverlapping();
-Schedule::command('words:check-domains')->daily()->withoutOverlapping();
+Schedule::command('words:check-domains --chunk=20 --limit=20')->everyFifteenMinutes()->withoutOverlapping();
