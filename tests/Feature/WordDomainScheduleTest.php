@@ -35,8 +35,9 @@ describe('domain check scheduling', function () {
             + $throttleSeconds
             + $tursoRequestSeconds;
         // An expired lease first tries insert-or-ignore, then conditionally
-        // replaces the row, before count, select, and token-guarded release.
-        $databaseControlSeconds = 5 * 15;
+        // replaces the row, before count, the full-page select, its terminating
+        // empty-or-ninth-row chunkById select, and token-guarded release.
+        $databaseControlSeconds = 6 * 15;
         $startupAndLoggingSeconds = 15;
         $safetyMarginSeconds = 120;
         $worstCaseSeconds = ($batchSize * $perWordSeconds)
@@ -56,7 +57,7 @@ describe('domain check scheduling', function () {
             ->toContain('rate: rate(11 minutes)')
             ->toContain("cli: 'words:check-domains --chunk=8 --limit=8'");
 
-        expect($worstCaseSeconds)->toBe(581.6)
+        expect($worstCaseSeconds)->toBe(596.6)
             ->and($worstCaseSeconds)->toBeLessThan($cadenceSeconds)
             ->and($worstCaseSeconds)->toBeLessThan($lambdaTimeoutSeconds)
             // 1,000 current words plus 20 new words per day must be checked
