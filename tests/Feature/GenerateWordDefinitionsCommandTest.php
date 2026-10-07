@@ -8,23 +8,23 @@ use Illuminate\Support\Facades\Queue;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
-test('it requires a positive limit no greater than twenty', function (string $limit) {
+test('it requires a positive limit no greater than ten', function (string $limit) {
     Queue::fake();
     Word::factory()->create(['ai_definition_status' => Word::AI_DEFINITION_PENDING]);
 
     $this->artisan('words:generate-definitions', ['--limit' => $limit])
-        ->expectsOutput('--limit must be a positive integer no greater than 20.')
+        ->expectsOutput('--limit must be a positive integer no greater than 10.')
         ->assertExitCode(1);
 
     Queue::assertNothingPushed();
-})->with(['negative' => '-1', 'zero' => '0', 'over the cap' => '21', 'non-numeric' => 'two']);
+})->with(['negative' => '-1', 'zero' => '0', 'over the cap' => '11', 'non-numeric' => 'two']);
 
 test('it requires the limit option', function () {
     Queue::fake();
     Word::factory()->create(['ai_definition_status' => Word::AI_DEFINITION_PENDING]);
 
     $this->artisan('words:generate-definitions')
-        ->expectsOutput('--limit must be a positive integer no greater than 20.')
+        ->expectsOutput('--limit must be a positive integer no greater than 10.')
         ->assertExitCode(1);
 
     Queue::assertNothingPushed();

@@ -9,10 +9,10 @@ use Illuminate\Console\Command;
 
 class GenerateWordDefinitions extends Command
 {
-    private const MAX_LIMIT = 20;
+    private const MAX_LIMIT = 10;
 
     protected $signature = 'words:generate-definitions
-                            {--limit= : Number of eligible words to generate (1-20)}
+                             {--limit= : Number of eligible words to generate (1-10)}
                             {--retry-failed : Include previously failed generation attempts}';
 
     protected $description = 'Queue missing AI definitions for generated words';

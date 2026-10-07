@@ -95,6 +95,12 @@ test('it never exposes the API key in thrown exception messages', function () {
     }
 });
 
+test('it allows Gemini enough time to respond by default', function () {
+    expect(app(GeminiDefinitionGenerator::class)->requestTimeout())
+        ->toBe(45)
+        ->and(GenerateWordDefinition::TIMEOUT)->toBe(50);
+});
+
 test('it caps the request timeout below the queue job timeout', function () {
     config()->set('services.definitions_ai.timeout', 90);
 

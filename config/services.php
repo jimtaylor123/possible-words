@@ -62,7 +62,7 @@ return [
     ],
 
     'definitions_ai' => [
-        'timeout' => env('DEFINITIONS_AI_TIMEOUT', 20),
+        'timeout' => env('DEFINITIONS_AI_TIMEOUT', 45),
         'rate_limit' => env('DEFINITIONS_AI_RATE_LIMIT', 10),
         'gemini' => [
             'key' => env('GEMINI_API_KEY'),
