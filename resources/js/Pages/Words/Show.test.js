@@ -68,9 +68,9 @@ function mountShow(word, user = null) {
   globalThis.document.body.appendChild(target)
   mountedApp = createApp(Show, { word })
   mountedApp.config.globalProperties.$page = inertia.page
-  const naiveUiComponents = ['n-avatar', 'n-button', 'n-input', 'n-popconfirm', 'n-select', 'n-tooltip']
+  const naiveUiComponents = ['NAvatar', 'NButton', 'NInput', 'NPopconfirm', 'NSelect', 'NTooltip']
   naiveUiComponents.forEach((component) => {
-    mountedApp.component(component, component === 'n-button' ? buttonStub : naiveUiStub)
+    mountedApp.component(component, component === 'NButton' ? buttonStub : naiveUiStub)
   })
   mountedApp.mount(target)
 
@@ -158,8 +158,7 @@ describe('definition reporting', () => {
   it('shows one action for each live definition and targets the clicked definition', async () => {
     const target = mountShow(word, { id: 1, name: 'Reporter' })
 
-    const reportButtons = [...target.querySelectorAll('button')]
-      .filter((button) => button.textContent === 'Report this definition')
+    const reportButtons = target.querySelectorAll('[aria-label="Report this definition"]')
     expect(reportButtons).toHaveLength(1)
     expect(reportButtons[0].getAttribute('aria-label')).toBe('Report this definition')
 
@@ -175,7 +174,6 @@ describe('definition reporting', () => {
   it('does not show definition report actions to guests', () => {
     const target = mountShow(word)
 
-    expect([...target.querySelectorAll('button')]
-      .filter((button) => button.textContent === 'Report this definition')).toHaveLength(0)
+    expect(target.querySelectorAll('[aria-label="Report this definition"]')).toHaveLength(0)
   })
 })
