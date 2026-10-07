@@ -45,6 +45,9 @@ provider:
         DOMAIN_ATTEMPTS: '3'
         DOMAIN_RETRY_SLEEP_MS: '400'
         DOMAIN_THROTTLE: '4'
+        # Database-backed lease shared by all Lambda invocations. It matches
+        # the Lambda ceiling so a timed-out invocation cannot overlap a retry.
+        DOMAIN_RUN_LOCK_TTL_SECONDS: '720'
 
         WORD_RELEASE_BATCH_SIZE: ${env:WORD_RELEASE_BATCH_SIZE, '10'}
         WORD_RELEASE_SCHEDULE: ${env:WORD_RELEASE_SCHEDULE, 'cron(0 */6 * * ? *)'}
@@ -105,15 +108,17 @@ functions:
                   rate: cron(0 6 * * ? *)
                   input:
                       cli: 'words:check-dictionary --chunk=50 --retry-failed'
-            # Each invocation is capped at 20 lookups. At the configured
-            # worst case that is about 629 seconds (20 * (3 * 10 + 1.2 +
-            # 0.25)), leaving headroom under the 720-second Lambda limit.
-            # Completed rows get a timestamp and leave the due set, so these
-            # quarter-hourly invocations resume safely after RDAP failures.
+            # Each invocation is capped at 8 lookups. Worst case is 566.6 s:
+            # 8 * (3 * 10 + 1.2 retry sleeps + 0.25 throttle + 15 Turso
+            # write) = 371.6 s, plus 60 s for lease/count/select/release DB
+            # requests, 15 s startup/logging, and 120 s margin. It is below
+            # both the 600-second cadence and the 720-second Lambda timeout.
+            # The database lease prevents overlapping retries from duplicating
+            # a word or collectively exceeding the 4 r/s RDAP throttle.
             - schedule:
-                  rate: rate(15 minutes)
+                  rate: rate(10 minutes)
                   input:
-                      cli: 'words:check-domains --chunk=20 --limit=20'
+                      cli: 'words:check-domains --chunk=8 --limit=8'
             - schedule:
                   rate: ${env:WORD_RELEASE_SCHEDULE, 'cron(0 */6 * * ? *)'}
                   input:

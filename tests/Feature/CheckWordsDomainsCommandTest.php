@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Word;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -168,6 +169,47 @@ describe('chunking and time-boxing the run', function () {
         expect($first->fresh()->domain_status)->toBe(Word::DOMAIN_AVAILABLE)
             ->and($second->fresh()->domain_status)->toBe(Word::DOMAIN_UNCHECKED)
             ->and($second->fresh()->domain_checked_at)->toBeNull();
+    });
+});
+
+describe('the durable production run lease', function () {
+    test('Given a concurrent invocation holds the database lease, it makes no RDAP request', function () {
+        $word = domainCheckableWord('leasedword');
+
+        DB::table('domain_check_run_locks')->insert([
+            'name' => 'words:check-domains',
+            'token' => 'concurrent-invocation',
+            'expires_at' => now()->addSeconds(720),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        Http::fake(['*' => Http::response(null, 404)]);
+
+        $this->artisan('words:check-domains')
+            ->expectsOutputToContain('database lease')
+            ->assertExitCode(0);
+
+        expect($word->fresh()->domain_status)->toBe(Word::DOMAIN_UNCHECKED);
+        Http::assertNothingSent();
+    });
+
+    test('Given a timed-out invocation left an expired lease, the next invocation resumes the due word', function () {
+        $word = domainCheckableWord('resumeword');
+
+        DB::table('domain_check_run_locks')->insert([
+            'name' => 'words:check-domains',
+            'token' => 'timed-out-invocation',
+            'expires_at' => now()->subSecond(),
+            'created_at' => now()->subMinutes(13),
+            'updated_at' => now()->subMinutes(13),
+        ]);
+        Http::fake(['*' => Http::response(null, 404)]);
+
+        $this->artisan('words:check-domains')->assertExitCode(0);
+
+        expect($word->fresh()->domain_status)->toBe(Word::DOMAIN_AVAILABLE)
+            ->and($word->fresh()->domain_checked_at)->not->toBeNull();
+        Http::assertSentCount(1);
     });
 });
 

@@ -12,14 +12,36 @@ describe('domain check scheduling', function () {
             ->assertExitCode(0);
 
         expect(file_get_contents(base_path('routes/console.php')))
-            ->toContain("Schedule::command('words:check-domains --chunk=20 --limit=20')->everyFifteenMinutes()");
+            ->toContain("Schedule::command('words:check-domains --chunk=8 --limit=8')->everyTenMinutes()")
+            ->not->toContain("Schedule::command('words:check-domains --chunk=8 --limit=8')->everyTenMinutes()->withoutOverlapping()");
     });
 
-    test('Given the production schedule, each RDAP batch is bounded below the Lambda timeout and resumes every fifteen minutes', function () {
+    test('Given the production schedule, its complete worst case fits the timeout and cadence while providing daily capacity', function () {
         $serverless = file_get_contents(base_path('serverless.yml'));
-        $worstCaseSecondsPerWord = (config('domain.attempts') * config('domain.timeout'))
-            + ((config('domain.retry_sleep_ms') / 1000) * (config('domain.attempts') - 1) * config('domain.attempts') / 2)
-            + (1 / config('domain.throttle_per_second'));
+
+        // These are the values pinned in serverless.yml, rather than test-env
+        // defaults. A full lookup includes all three timed-out RDAP attempts,
+        // linear retry sleeps, post-word throttle, and its Turso UPDATE.
+        $batchSize = 8;
+        $cadenceSeconds = 10 * 60;
+        $lambdaTimeoutSeconds = 720;
+        $attempts = 3;
+        $rdapTimeoutSeconds = 10;
+        $retrySleepSeconds = 0.4 + 0.8;
+        $throttleSeconds = 1 / 4;
+        $tursoRequestSeconds = 15;
+        $perWordSeconds = ($attempts * $rdapTimeoutSeconds)
+            + $retrySleepSeconds
+            + $throttleSeconds
+            + $tursoRequestSeconds;
+        $databaseControlSeconds = 4 * 15; // lease acquire/release, count, select
+        $startupAndLoggingSeconds = 15;
+        $safetyMarginSeconds = 120;
+        $worstCaseSeconds = ($batchSize * $perWordSeconds)
+            + $databaseControlSeconds
+            + $startupAndLoggingSeconds
+            + $safetyMarginSeconds;
+        $dailyCapacity = $batchSize * (24 * 60 / 10);
 
         expect($serverless)
             ->toContain('timeout: 720')
@@ -27,9 +49,16 @@ describe('domain check scheduling', function () {
             ->toContain("DOMAIN_ATTEMPTS: '3'")
             ->toContain("DOMAIN_RETRY_SLEEP_MS: '400'")
             ->toContain("DOMAIN_THROTTLE: '4'")
-            ->toContain('rate: rate(15 minutes)')
-            ->toContain("cli: 'words:check-domains --chunk=20 --limit=20'");
+            ->toContain("DOMAIN_RUN_LOCK_TTL_SECONDS: '720'")
+            ->toContain("TURSO_REQUEST_TIMEOUT: \${env:TURSO_REQUEST_TIMEOUT, '15'}")
+            ->toContain('rate: rate(10 minutes)')
+            ->toContain("cli: 'words:check-domains --chunk=8 --limit=8'");
 
-        expect(20 * $worstCaseSecondsPerWord)->toBeLessThan(720);
+        expect($worstCaseSeconds)->toBe(566.6)
+            ->and($worstCaseSeconds)->toBeLessThan($cadenceSeconds)
+            ->and($worstCaseSeconds)->toBeLessThan($lambdaTimeoutSeconds)
+            // 1,000 current words plus 20 new words per day must be checked
+            // within a day; 8 checks every ten minutes gives 1,152/day.
+            ->and($dailyCapacity)->toBeGreaterThanOrEqual(1000 + 20);
     });
 });

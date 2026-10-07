@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Word;
 use App\Services\DomainAvailabilityService;
+use App\Services\DomainCheckRunLock;
 use Illuminate\Console\Command;
 use Throwable;
 
@@ -29,7 +30,7 @@ class CheckWordsDomains extends Command
 
     protected $description = 'Check .com availability for words via the free Verisign RDAP endpoint';
 
-    public function handle(DomainAvailabilityService $service): int
+    public function handle(DomainAvailabilityService $service, DomainCheckRunLock $runLock): int
     {
         if (config('domain.enabled') === false) {
             $this->info('Domain checks are disabled — skipping (DOMAIN_CHECK_ENABLED=false).');
@@ -37,6 +38,23 @@ class CheckWordsDomains extends Command
             return self::SUCCESS;
         }
 
+        $lockToken = $runLock->acquire();
+
+        if ($lockToken === null) {
+            $this->info('Another domain-check invocation holds the database lease — skipping.');
+
+            return self::SUCCESS;
+        }
+
+        try {
+            return $this->checkWords($service);
+        } finally {
+            $runLock->release($lockToken);
+        }
+    }
+
+    private function checkWords(DomainAvailabilityService $service): int
+    {
         $query = Word::query();
 
         if ($this->option('force')) {

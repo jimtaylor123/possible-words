@@ -40,4 +40,9 @@ return [
     |
     */
     'throttle_per_second' => (int) env('DOMAIN_THROTTLE', 4),
+
+    // Must cover the Lambda's complete 720-second maximum lifetime. A lease
+    // that survives a timed-out invocation prevents a retry from overlapping
+    // its RDAP traffic; it then expires so a later event can resume the work.
+    'run_lock_ttl_seconds' => (int) env('DOMAIN_RUN_LOCK_TTL_SECONDS', 720),
 ];
