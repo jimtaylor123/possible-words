@@ -12,8 +12,8 @@ describe('domain check scheduling', function () {
             ->assertExitCode(0);
 
         expect(file_get_contents(base_path('routes/console.php')))
-            ->toContain("Schedule::command('words:check-domains --chunk=8 --limit=8')->everyTenMinutes()")
-            ->not->toContain("Schedule::command('words:check-domains --chunk=8 --limit=8')->everyTenMinutes()->withoutOverlapping()");
+            ->toContain("Schedule::command('words:check-domains --chunk=8 --limit=8')->cron('*/11 * * * *')")
+            ->not->toContain("Schedule::command('words:check-domains --chunk=8 --limit=8')->cron('*/11 * * * *')->withoutOverlapping()");
     });
 
     test('Given the production schedule, its complete worst case fits the timeout and cadence while providing daily capacity', function () {
@@ -23,7 +23,7 @@ describe('domain check scheduling', function () {
         // defaults. A full lookup includes all three timed-out RDAP attempts,
         // linear retry sleeps, post-word throttle, and its Turso UPDATE.
         $batchSize = 8;
-        $cadenceSeconds = 10 * 60;
+        $cadenceSeconds = 11 * 60;
         $lambdaTimeoutSeconds = 720;
         $attempts = 3;
         $rdapTimeoutSeconds = 10;
@@ -41,7 +41,7 @@ describe('domain check scheduling', function () {
             + $databaseControlSeconds
             + $startupAndLoggingSeconds
             + $safetyMarginSeconds;
-        $dailyCapacity = $batchSize * (24 * 60 / 10);
+        $dailyCapacity = $batchSize * (24 * 60 / 11);
 
         expect($serverless)
             ->toContain('timeout: 720')
@@ -51,14 +51,14 @@ describe('domain check scheduling', function () {
             ->toContain("DOMAIN_THROTTLE: '4'")
             ->toContain("DOMAIN_RUN_LOCK_TTL_SECONDS: '720'")
             ->toContain("TURSO_REQUEST_TIMEOUT: \${env:TURSO_REQUEST_TIMEOUT, '15'}")
-            ->toContain('rate: rate(10 minutes)')
+            ->toContain('rate: rate(11 minutes)')
             ->toContain("cli: 'words:check-domains --chunk=8 --limit=8'");
 
         expect($worstCaseSeconds)->toBe(566.6)
             ->and($worstCaseSeconds)->toBeLessThan($cadenceSeconds)
             ->and($worstCaseSeconds)->toBeLessThan($lambdaTimeoutSeconds)
             // 1,000 current words plus 20 new words per day must be checked
-            // within a day; 8 checks every ten minutes gives 1,152/day.
+            // within a day; 8 checks every eleven minutes gives 1,047/day.
             ->and($dailyCapacity)->toBeGreaterThanOrEqual(1000 + 20);
     });
 });

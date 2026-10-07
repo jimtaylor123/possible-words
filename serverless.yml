@@ -112,11 +112,11 @@ functions:
             # 8 * (3 * 10 + 1.2 retry sleeps + 0.25 throttle + 15 Turso
             # write) = 371.6 s, plus 60 s for lease/count/select/release DB
             # requests, 15 s startup/logging, and 120 s margin. It is below
-            # both the 600-second cadence and the 720-second Lambda timeout.
+            # both the 660-second cadence and the 720-second Lambda timeout.
             # The database lease prevents overlapping retries from duplicating
             # a word or collectively exceeding the 4 r/s RDAP throttle.
             - schedule:
-                  rate: rate(10 minutes)
+                  rate: rate(11 minutes)
                   input:
                       cli: 'words:check-domains --chunk=8 --limit=8'
             - schedule:
