@@ -28,9 +28,35 @@ vi.mock('@/Components/Layout.vue', async () => {
   }
 })
 
+vi.mock('@/Components/ReportDialog.vue', async () => {
+  const { h } = await import('vue')
+
+  return {
+    default: {
+      props: ['show', 'targetType', 'target', 'reasonOptions'],
+      emits: ['close', 'success'],
+      render() {
+        if (!this.show) return null
+
+        return h('div', {
+          'data-testid': 'definition-report-dialog',
+          'data-target-type': this.targetType,
+          'data-target': this.target,
+        }, this.reasonOptions.map((option) => option.value).join(','))
+      },
+    },
+  }
+})
+
 const naiveUiStub = {
   render() {
     return h('div', Object.values(this.$slots).flatMap((slot) => slot?.() ?? []))
+  },
+}
+
+const buttonStub = {
+  render() {
+    return h('button', this.$attrs, this.$slots.default?.())
   },
 }
 
@@ -38,14 +64,15 @@ const naiveUiComponents = ['n-avatar', 'n-button', 'n-input', 'n-popconfirm', 'n
 
 // The file mounts Show through a single helper so the component is defined
 // only once (vue/one-component-per-file).
-function mountShow(word) {
+function mountShow(word, user = null) {
+  inertia.page.props.auth = { user, favourite_ids: [] }
   const target = globalThis.document.createElement('div')
   globalThis.document.body.appendChild(target)
 
   const app = createApp(Show, { word })
   app.config.globalProperties.$page = inertia.page
   naiveUiComponents.forEach((component) => {
-    app.component(component, naiveUiStub)
+    app.component(component, component === 'n-button' ? buttonStub : naiveUiStub)
   })
   app.mount(target)
 
@@ -171,5 +198,59 @@ describe('register link for a free .com', () => {
     mountWithDomain('available')
 
     expect(openSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('definition reporting', () => {
+  const word = {
+    id: 42,
+    text: 'blorg',
+    slug: 'blorg',
+    syllables: 1,
+    definitions: [
+      { id: 7, text: 'A live definition', votes_count: 0, votes: [], user: { id: 2, name: 'Author', avatar: null } },
+      { id: 8, text: '[deleted]', removed_at: '2026-10-07T00:00:00.000000Z', votes_count: 0, votes: [], user: { id: 3, name: 'Other', avatar: null } },
+    ],
+  }
+
+  let app
+
+  beforeEach(() => {
+    window.Echo = {
+      channel: vi.fn(() => ({ listen: vi.fn(), name: 'test' })),
+      leaveChannel: vi.fn(),
+    }
+  })
+
+  afterEach(() => {
+    app?.unmount()
+    globalThis.document.body.innerHTML = ''
+    delete window.Echo
+  })
+
+  it('shows one action for each live definition and targets the clicked definition', async () => {
+    const mounted = mountShow(word, { id: 1, name: 'Reporter' })
+    app = mounted.app
+    const { target } = mounted
+
+    const reportButtons = target.querySelectorAll('[aria-label="Report this definition"]')
+    expect(reportButtons).toHaveLength(1)
+    expect(reportButtons[0].getAttribute('aria-label')).toBe('Report this definition')
+
+    reportButtons[0].click()
+    await nextTick()
+
+    const dialog = target.querySelector('[data-testid="definition-report-dialog"]')
+    expect(dialog.dataset.targetType).toBe('definition')
+    expect(dialog.dataset.target).toBe('7')
+    expect(dialog.textContent).toBe('definition_offensive')
+  })
+
+  it('does not show definition report actions to guests', () => {
+    const mounted = mountShow(word)
+    app = mounted.app
+    const { target } = mounted
+
+    expect(target.querySelectorAll('[aria-label="Report this definition"]')).toHaveLength(0)
   })
 })
