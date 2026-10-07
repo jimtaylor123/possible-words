@@ -28,6 +28,18 @@
           <span>{{ word.syllables }} syllable{{ word.syllables !== 1 ? 's' : '' }}</span>
           <span>{{ word.text.length }} letters</span>
         </div>
+        <!-- Plain external link: no popup, no interstitial, no redirect on this
+             page. Rendered only for a definitive "available" verdict, so an
+             unchecked or failed check never reads as a free domain. -->
+        <a
+          v-if="word.domain_status === 'available'"
+          :href="domainRegisterUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-block mt-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+        >
+          Register {{ word.text }}.com
+        </a>
         <div v-if="word.ipa" class="flex items-center justify-center gap-3 mt-3">
           <span class="text-lg text-neutral-500 font-mono">{{ word.ipa }}</span>
           <n-tooltip v-if="word.audio_url" trigger="hover">
@@ -314,6 +326,12 @@ const playAudio = () => {
 
 const shareUrl = computed(() => window.location.href)
 const shareText = computed(() => `Check out this possible word: ${props.word.text}`)
+
+// Registrar search URL (Namecheap, no affiliate parameters). Swapping the
+// registrar is a one-line change here.
+const domainRegisterUrl = computed(() =>
+  `https://www.namecheap.com/domains/registration/results/?domain=${encodeURIComponent(props.word.text.toLowerCase() + '.com')}`,
+)
 
 const shareWhatsApp = () => {
   window.open(`https://wa.me/?text=${encodeURIComponent(shareText.value + '\n' + shareUrl.value)}`, '_blank', 'noopener,noreferrer')

@@ -2,8 +2,6 @@ import { createApp, h, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Show from './Show.vue'
 
-let mountedApp
-
 const inertia = vi.hoisted(() => ({
   page: {
     props: {
@@ -62,22 +60,27 @@ const buttonStub = {
   },
 }
 
+const naiveUiComponents = ['n-avatar', 'n-button', 'n-input', 'n-popconfirm', 'n-select', 'n-tooltip']
+
+// The file mounts Show through a single helper so the component is defined
+// only once (vue/one-component-per-file).
 function mountShow(word, user = null) {
   inertia.page.props.auth = { user, favourite_ids: [] }
   const target = globalThis.document.createElement('div')
   globalThis.document.body.appendChild(target)
-  mountedApp = createApp(Show, { word })
-  mountedApp.config.globalProperties.$page = inertia.page
-  const naiveUiComponents = ['NAvatar', 'NButton', 'NInput', 'NPopconfirm', 'NSelect', 'NTooltip']
-  naiveUiComponents.forEach((component) => {
-    mountedApp.component(component, component === 'NButton' ? buttonStub : naiveUiStub)
-  })
-  mountedApp.mount(target)
 
-  return target
+  const app = createApp(Show, { word })
+  app.config.globalProperties.$page = inertia.page
+  naiveUiComponents.forEach((component) => {
+    app.component(component, component === 'n-button' ? buttonStub : naiveUiStub)
+  })
+  app.mount(target)
+
+  return { app, target }
 }
 
 describe('word definition realtime updates', () => {
+  let app
   let listeners
 
   beforeEach(() => {
@@ -100,19 +103,20 @@ describe('word definition realtime updates', () => {
   })
 
   afterEach(() => {
-    mountedApp?.unmount()
+    app?.unmount()
     globalThis.document.body.innerHTML = ''
     delete window.Echo
   })
 
   it('renders the category from a received definition.created payload', async () => {
-    const target = mountShow({
-        id: 42,
-        text: 'blorg',
-        slug: 'blorg',
-        syllables: 1,
-        definitions: [],
-      })
+    const mounted = mountShow({
+      id: 42,
+      text: 'blorg',
+      slug: 'blorg',
+      syllables: 1,
+      definitions: [],
+    })
+    app = mounted.app
 
     listeners['word.42.definitions:.definition.created']({
       definition: {
@@ -125,8 +129,75 @@ describe('word definition realtime updates', () => {
     })
     await nextTick()
 
-    expect(target.textContent).toContain('To move with purpose')
-    expect(target.textContent).toContain('Verb')
+    expect(mounted.target.textContent).toContain('To move with purpose')
+    expect(mounted.target.textContent).toContain('Verb')
+  })
+})
+
+describe('register link for a free .com', () => {
+  let app
+  let openSpy
+
+  const mountWithDomain = (domainStatus) => {
+    const mounted = mountShow({
+      id: 42,
+      text: 'blorg',
+      slug: 'blorg',
+      syllables: 1,
+      definitions: [],
+      domain_status: domainStatus,
+    })
+    app = mounted.app
+
+    return mounted.target
+  }
+
+  const registerLink = (target) => target.querySelector('a[href*="namecheap.com"]')
+
+  beforeEach(() => {
+    openSpy = vi.fn()
+    window.open = openSpy
+    window.Echo = {
+      channel: vi.fn(() => ({ name: 'stub', listen: vi.fn(() => ({ name: 'stub' })) })),
+      leaveChannel: vi.fn(),
+    }
+  })
+
+  afterEach(() => {
+    app?.unmount()
+    globalThis.document.body.innerHTML = ''
+    delete window.Echo
+    delete window.open
+  })
+
+  it('renders a static Namecheap anchor when the .com is available', () => {
+    const target = mountWithDomain('available')
+
+    const link = registerLink(target)
+    expect(link).not.toBeNull()
+    expect(link.getAttribute('href')).toBe(
+      'https://www.namecheap.com/domains/registration/results/?domain=blorg.com',
+    )
+    expect(link.getAttribute('target')).toBe('_blank')
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer')
+    expect(link.textContent.trim()).toBe('Register blorg.com')
+  })
+
+  it.each([
+    ['taken', 'taken'],
+    ['unchecked', 'unchecked'],
+    ['check failed', 'check_failed'],
+    ['absent verdict', undefined],
+  ])('renders no register link when the domain is %s', (_label, domainStatus) => {
+    const target = mountWithDomain(domainStatus)
+
+    expect(registerLink(target)).toBeNull()
+  })
+
+  it('never opens a popup when the page mounts', () => {
+    mountWithDomain('available')
+
+    expect(openSpy).not.toHaveBeenCalled()
   })
 })
 
@@ -142,6 +213,8 @@ describe('definition reporting', () => {
     ],
   }
 
+  let app
+
   beforeEach(() => {
     window.Echo = {
       channel: vi.fn(() => ({ listen: vi.fn(), name: 'test' })),
@@ -150,13 +223,15 @@ describe('definition reporting', () => {
   })
 
   afterEach(() => {
-    mountedApp?.unmount()
+    app?.unmount()
     globalThis.document.body.innerHTML = ''
     delete window.Echo
   })
 
   it('shows one action for each live definition and targets the clicked definition', async () => {
-    const target = mountShow(word, { id: 1, name: 'Reporter' })
+    const mounted = mountShow(word, { id: 1, name: 'Reporter' })
+    app = mounted.app
+    const { target } = mounted
 
     const reportButtons = target.querySelectorAll('[aria-label="Report this definition"]')
     expect(reportButtons).toHaveLength(1)
@@ -172,7 +247,9 @@ describe('definition reporting', () => {
   })
 
   it('does not show definition report actions to guests', () => {
-    const target = mountShow(word)
+    const mounted = mountShow(word)
+    app = mounted.app
+    const { target } = mounted
 
     expect(target.querySelectorAll('[aria-label="Report this definition"]')).toHaveLength(0)
   })

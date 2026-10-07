@@ -27,6 +27,14 @@ class Word extends Model
 
     public const DICTIONARY_EXISTS_AS_WORD = 'exists_as_word';
 
+    public const DOMAIN_UNCHECKED = 'unchecked';
+
+    public const DOMAIN_AVAILABLE = 'available';
+
+    public const DOMAIN_TAKEN = 'taken';
+
+    public const DOMAIN_CHECK_FAILED = 'check_failed';
+
     public const AI_DEFINITION_PENDING = 'pending';
 
     public const AI_DEFINITION_GENERATED = 'generated';
@@ -70,6 +78,8 @@ class Word extends Model
         'dictionary_status',
         'dictionary_checked_at',
         'dictionary_data',
+        'domain_status',
+        'domain_checked_at',
         'ipa',
         'audio_url',
         'owner_user_id',
@@ -85,6 +95,7 @@ class Word extends Model
     protected $casts = [
         'phonemes' => 'array',
         'dictionary_checked_at' => 'datetime',
+        'domain_checked_at' => 'datetime',
         'dictionary_data' => 'array',
         'owned_until' => 'datetime',
         'generated_at' => 'datetime',
@@ -93,11 +104,21 @@ class Word extends Model
         'deleted_at' => 'datetime',
     ];
 
-    /** @var list<string> */
+    /**
+     * Internal bookkeeping that must never leak into a payload: the AI
+     * definition fields and the .com verdicts. Hiding the domain fields is
+     * what keeps filter-off responses byte-for-byte identical to the
+     * pre-feature payloads — WordController::show() re-adds domain_status
+     * explicitly.
+     *
+     * @var list<string>
+     */
     protected $hidden = [
         'ai_definition_status',
         'ai_definition_attempted_at',
         'ai_definition_error',
+        'domain_status',
+        'domain_checked_at',
     ];
 
     /**

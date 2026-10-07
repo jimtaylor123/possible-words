@@ -173,3 +173,51 @@ describe('suggestions endpoint', function () {
             ->assertJsonCount(8);
     });
 });
+
+describe('narrowing suggestions by .com availability', function () {
+    test('Given domain_available=1, only words with a free .com are suggested', function () {
+        makeSuggestionWord(['text' => 'blorgfree', 'slug' => 'blorgfree', 'domain_status' => Word::DOMAIN_AVAILABLE]);
+        makeSuggestionWord(['text' => 'blorgtaken', 'slug' => 'blorgtaken', 'domain_status' => Word::DOMAIN_TAKEN]);
+        makeSuggestionWord(['text' => 'blorgfailed', 'slug' => 'blorgfailed', 'domain_status' => Word::DOMAIN_CHECK_FAILED]);
+        makeSuggestionWord(['text' => 'blorgfresh', 'slug' => 'blorgfresh']);
+
+        $this->getJson(route('words.suggestions', ['q' => 'blorg', 'domain_available' => 1]))
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJson([['text' => 'blorgfree']]);
+    });
+
+    test('Given free matches beyond non-free search candidates, all free matches are returned up to the limit', function () {
+        makeSuggestionWord(['text' => 'bloarp', 'slug' => 'bloarp', 'domain_status' => Word::DOMAIN_AVAILABLE]);
+        makeSuggestionWord(['text' => 'bloblarp', 'slug' => 'bloblarp', 'domain_status' => Word::DOMAIN_AVAILABLE]);
+
+        foreach (range(1, 8) as $number) {
+            makeSuggestionWord([
+                'text' => "blonotfree{$number}",
+                'slug' => "blonotfree{$number}",
+                'domain_status' => Word::DOMAIN_TAKEN,
+            ]);
+        }
+
+        $this->getJson(route('words.suggestions', ['q' => 'blo', 'domain_available' => 1]))
+            ->assertOk()
+            ->assertJsonCount(2)
+            ->assertJsonPath('0.text', 'bloblarp')
+            ->assertJsonPath('1.text', 'bloarp');
+    });
+
+    test('Given the param absent or non-activating, mixed domain statuses do not change the suggestions', function () {
+        makeSuggestionWord(['text' => 'blorgfree', 'slug' => 'blorgfree', 'domain_status' => Word::DOMAIN_AVAILABLE]);
+        makeSuggestionWord(['text' => 'blorgtaken', 'slug' => 'blorgtaken', 'domain_status' => Word::DOMAIN_TAKEN]);
+        makeSuggestionWord(['text' => 'blorgfailed', 'slug' => 'blorgfailed', 'domain_status' => Word::DOMAIN_CHECK_FAILED]);
+        makeSuggestionWord(['text' => 'blorgfresh', 'slug' => 'blorgfresh']);
+
+        $this->getJson(route('words.suggestions', ['q' => 'blorg']))
+            ->assertOk()
+            ->assertJsonCount(4);
+
+        $this->getJson(route('words.suggestions', ['q' => 'blorg', 'domain_available' => 0]))
+            ->assertOk()
+            ->assertJsonCount(4);
+    });
+});
