@@ -56,6 +56,16 @@ class WordController extends Controller
             $query->whereRaw("text LIKE ? ESCAPE '\\'", [$this->escapeLike($startsWith).'%']);
         }
 
+        // Opt-in .com filter. Only the literal "1" activates it (same
+        // whitelist style as sort/direction); when the param is absent no
+        // where clause is added, and $filters below gains no key, so a
+        // filter-off response stays byte-for-byte identical to the
+        // pre-feature payload.
+        $domainAvailable = $this->queryString($request, 'domain_available') === '1';
+        if ($domainAvailable) {
+            $query->where('domain_status', Word::DOMAIN_AVAILABLE);
+        }
+
         $query->publishable();
 
         // Apply sorting
@@ -100,6 +110,15 @@ class WordController extends Controller
             'direction' => $direction,
         ];
 
+        // The domain key exists only while the filter is on — deliberately
+        // unlike the keys above, so that switching the filter off emits no
+        // query parameter and no payload key at all. The value is integer 1,
+        // not true: it round-trips props → buildParams() → query string →
+        // queryString(), and only 1 survives as the whitelisted literal.
+        if ($domainAvailable) {
+            $filters['domain_available'] = 1;
+        }
+
         return Inertia::render('Home', [
             'words' => $words,
             'filters' => $filters,
@@ -143,7 +162,12 @@ class WordController extends Controller
         ]);
 
         return Inertia::render('Words/Show', [
-            'word' => $word,
+            // domain_status is $hidden on the model, so the browse payload
+            // never carries it; the detail page is the one place the UI needs
+            // it (to gate the register link), so it is added explicitly.
+            'word' => array_merge($word->toArray(), [
+                'domain_status' => $word->domain_status,
+            ]),
         ]);
     }
 
@@ -155,11 +179,19 @@ class WordController extends Controller
             return response()->json([]);
         }
 
-        // Scout builds its own Eloquent query, so the publishable scope has to be
-        // applied through the query callback. Soft deletes are already excluded:
-        // Scout starts from newQuery() and config/scout.php leaves soft_delete off.
-        $words = Word::search($term)
-            ->query(fn ($query) => $query->publishable())
+        // Do not use Scout here. Some Scout engines apply their result limit before
+        // the query callback can hydrate and filter the matching models. That made
+        // a free domain disappear when enough non-free matches preceded it. This
+        // small type-ahead query has the same substring semantics as Scout's
+        // database engine, but applies every visibility constraint before its
+        // eight-result limit.
+        $domainAvailable = $this->queryString($request, 'domain_available') === '1';
+
+        $words = Word::query()
+            ->publishable()
+            ->whereRaw("text LIKE ? ESCAPE '\\'", ['%'.$this->escapeLike($term).'%'])
+            ->when($domainAvailable, fn ($query) => $query->where('domain_status', Word::DOMAIN_AVAILABLE))
+            ->orderByDesc('id')
             ->take(8)
             ->get()
             ->map(fn (Word $word) => [
