@@ -79,7 +79,7 @@ class GeminiDefinitionGenerator implements DefinitionGenerator
     private function endpoint(): string
     {
         $baseUrl = rtrim((string) config('services.definitions_ai.gemini.base_url'), '/');
-        $model = config('services.definitions_ai.gemini.model', 'gemini-3.8-flash');
+        $model = config('services.definitions_ai.gemini.model', 'gemini-flash-lite-latest');
 
         return "{$baseUrl}/v1beta/models/{$model}:generateContent";
     }
