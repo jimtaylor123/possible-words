@@ -40,6 +40,28 @@ describe('submitting reports', function () {
         ]);
     });
 
+    test('an authenticated user can report an offensive word with an explanation', function () {
+        $reporter = User::factory()->create();
+        $word = reportableWord();
+
+        $this->actingAs($reporter)
+            ->post(reportRoute('word', $word->slug), [
+                'reason' => Report::REASON_WORD_OFFENSIVE,
+                'explanation' => 'This word is obscene.',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Report submitted.');
+
+        $this->assertDatabaseHas('reports', [
+            'reporter_id' => $reporter->id,
+            'reportable_type' => Word::class,
+            'reportable_id' => $word->id,
+            'reason' => Report::REASON_WORD_OFFENSIVE,
+            'explanation' => 'This word is obscene.',
+            'status' => Report::STATUS_OPEN,
+        ]);
+    });
+
     test('an authenticated user can report a published word with the explanation field omitted entirely', function () {
         $reporter = User::factory()->create();
         $word = reportableWord();

@@ -259,7 +259,10 @@ const page = usePage()
 const playing = ref(false)
 const audioPlayer = ref(null)
 const showReportDialog = ref(false)
-const reportReasonOptions = [{ label: 'This word is not fresh', value: 'word_unfresh' }]
+const reportReasonOptions = [
+  { label: 'This word is not fresh', value: 'word_unfresh' },
+  { label: 'This word is offensive or obscene', value: 'word_offensive' },
+]
 
 const favouriteIds = computed(() => page.props.auth?.favourite_ids ?? [])
 
