@@ -179,22 +179,19 @@ class WordController extends Controller
             return response()->json([]);
         }
 
-        // Scout builds its own Eloquent query, so the publishable scope has to be
-        // applied through the query callback. Soft deletes are already excluded:
-        // Scout starts from newQuery() and config/scout.php leaves soft_delete off.
-        // The .com filter is a plain where inside the same callback, so it
-        // narrows the candidate set before the 8 suggestions are taken. With
-        // the param absent the generated URL and the query are unchanged.
+        // Do not use Scout here. Some Scout engines apply their result limit before
+        // the query callback can hydrate and filter the matching models. That made
+        // a free domain disappear when enough non-free matches preceded it. This
+        // small type-ahead query has the same substring semantics as Scout's
+        // database engine, but applies every visibility constraint before its
+        // eight-result limit.
         $domainAvailable = $this->queryString($request, 'domain_available') === '1';
 
-        $words = Word::search($term)
-            ->query(function ($query) use ($domainAvailable) {
-                $query->publishable();
-
-                if ($domainAvailable) {
-                    $query->where('domain_status', Word::DOMAIN_AVAILABLE);
-                }
-            })
+        $words = Word::query()
+            ->publishable()
+            ->whereRaw("text LIKE ? ESCAPE '\\'", ['%'.$this->escapeLike($term).'%'])
+            ->when($domainAvailable, fn ($query) => $query->where('domain_status', Word::DOMAIN_AVAILABLE))
+            ->orderByDesc('id')
             ->take(8)
             ->get()
             ->map(fn (Word $word) => [

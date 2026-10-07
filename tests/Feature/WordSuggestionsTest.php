@@ -187,6 +187,25 @@ describe('narrowing suggestions by .com availability', function () {
             ->assertJson([['text' => 'blorgfree']]);
     });
 
+    test('Given free matches beyond non-free search candidates, all free matches are returned up to the limit', function () {
+        makeSuggestionWord(['text' => 'bloarp', 'slug' => 'bloarp', 'domain_status' => Word::DOMAIN_AVAILABLE]);
+        makeSuggestionWord(['text' => 'bloblarp', 'slug' => 'bloblarp', 'domain_status' => Word::DOMAIN_AVAILABLE]);
+
+        foreach (range(1, 8) as $number) {
+            makeSuggestionWord([
+                'text' => "blonotfree{$number}",
+                'slug' => "blonotfree{$number}",
+                'domain_status' => Word::DOMAIN_TAKEN,
+            ]);
+        }
+
+        $this->getJson(route('words.suggestions', ['q' => 'blo', 'domain_available' => 1]))
+            ->assertOk()
+            ->assertJsonCount(2)
+            ->assertJsonPath('0.text', 'bloblarp')
+            ->assertJsonPath('1.text', 'bloarp');
+    });
+
     test('Given the param absent or non-activating, mixed domain statuses do not change the suggestions', function () {
         makeSuggestionWord(['text' => 'blorgfree', 'slug' => 'blorgfree', 'domain_status' => Word::DOMAIN_AVAILABLE]);
         makeSuggestionWord(['text' => 'blorgtaken', 'slug' => 'blorgtaken', 'domain_status' => Word::DOMAIN_TAKEN]);
