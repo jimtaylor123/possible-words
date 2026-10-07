@@ -176,6 +176,15 @@
                   </template>
                   Remove this definition? Its likes are kept, but its text stops being shown.
                 </n-popconfirm>
+                <n-button
+                  v-if="$page.props.auth.user && !definition.removed_at"
+                  size="tiny"
+                  quaternary
+                  aria-label="Report this definition"
+                  @click="selectedDefinitionId = definition.id"
+                >
+                  Report this definition
+                </n-button>
               </div>
             </div>
             <div class="text-sm text-gray-500 flex items-center gap-1.5">
@@ -199,6 +208,16 @@
           No definitions yet. Be the first to define this word!
         </div>
       </div>
+
+      <ReportDialog
+        v-if="selectedDefinitionId !== null"
+        :show="true"
+        target-type="definition"
+        :target="selectedDefinitionId"
+        :reason-options="definitionReportReasonOptions"
+        @close="selectedDefinitionId = null"
+        @success="selectedDefinitionId = null"
+      />
 
       <!-- Add Definition Form -->
       <div v-if="$page.props.auth.user" class="bg-white rounded-lg shadow-sm border p-6">
@@ -262,6 +281,10 @@ const showReportDialog = ref(false)
 const reportReasonOptions = [
   { label: 'This word is not fresh', value: 'word_unfresh' },
   { label: 'This word is offensive or obscene', value: 'word_offensive' },
+]
+const selectedDefinitionId = ref(null)
+const definitionReportReasonOptions = [
+  { label: 'This definition is offensive or obscene', value: 'definition_offensive' },
 ]
 
 const favouriteIds = computed(() => page.props.auth?.favourite_ids ?? [])

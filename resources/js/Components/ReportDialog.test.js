@@ -51,18 +51,22 @@ const buttonStub = {
 describe('ReportDialog', () => {
     let app;
 
-    function mount() {
+    function mount({
+        targetType = 'word',
+        targetValue = 'blorg',
+        reasonOptions = [
+            { label: 'This word is not fresh', value: 'word_unfresh' },
+            { label: 'This word is offensive or obscene', value: 'word_offensive' },
+        ],
+    } = {}) {
         const success = vi.fn();
         const target = globalThis.document.createElement('div');
         globalThis.document.body.appendChild(target);
         app = createApp(ReportDialog, {
             show: true,
-            targetType: 'word',
-            target: 'blorg',
-            reasonOptions: [
-                { label: 'This word is not fresh', value: 'word_unfresh' },
-                { label: 'This word is offensive or obscene', value: 'word_offensive' },
-            ],
+            targetType,
+            target: targetValue,
+            reasonOptions,
             onSuccess: success,
         });
         app.component('NModal', modalStub);
@@ -129,5 +133,40 @@ describe('ReportDialog', () => {
 
         expect(target.querySelector('[role="alert"]').textContent).toBe('You have already reported this item.');
         expect(success).not.toHaveBeenCalled();
+    });
+
+    it('submits a definition report with the sole reason and a blank explanation', async () => {
+        vi.stubGlobal('route', vi.fn(() => '/reports/definition/42'));
+        const { target, success } = mount({
+            targetType: 'definition',
+            targetValue: 42,
+            reasonOptions: [
+                { label: 'This definition is offensive or obscene', value: 'definition_offensive' },
+            ],
+        });
+        inertia.router.post.mockImplementation((url, data, options) => {
+            options.onStart();
+            options.onSuccess({ props: { flash: { success: 'Report submitted.' } } });
+            options.onFinish();
+        });
+
+        expect(target.textContent).toContain('This definition is offensive or obscene');
+        expect(target.textContent).not.toContain('This word is not fresh');
+
+        const select = target.querySelector('select');
+        select.value = 'definition_offensive';
+        select.dispatchEvent(new globalThis.Event('change'));
+        await nextTick();
+        target.querySelector('form').dispatchEvent(new globalThis.Event('submit'));
+
+        expect(globalThis.route).toHaveBeenCalledWith('reports.store', {
+            targetType: 'definition',
+            target: 42,
+        });
+        expect(inertia.router.post).toHaveBeenCalledWith('/reports/definition/42', {
+            reason: 'definition_offensive',
+            explanation: '',
+        }, expect.any(Object));
+        expect(success).toHaveBeenCalledOnce();
     });
 });
