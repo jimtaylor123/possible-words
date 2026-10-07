@@ -51,10 +51,11 @@ test.describe('Word detail page', () => {
         await expect(page.getByRole('main').getByRole('button', { name: /Continue with Google/i })).toBeVisible();
     });
 
-    test('guests cannot report a word', async ({ page }) => {
+    test('guests cannot report words or definitions', async ({ page }) => {
         await openFirstWord(page);
 
         await expect(page.getByRole('button', { name: 'Report this word' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Report this definition' })).toHaveCount(0);
     });
 
     test('a signed-in user can report an unfresh word and sees duplicate feedback', async ({ page }) => {
@@ -87,5 +88,32 @@ test.describe('Word detail page', () => {
         await page.getByRole('button', { name: 'Submit report' }).click();
 
         await expect(page.getByRole('status')).toHaveText('Report submitted.');
+    });
+
+    test('a signed-in user can report a definition and sees duplicate feedback', async ({ page }) => {
+        const definitionText = `Offensive definition report ${Date.now()}`;
+        await login(page, `definition-report-e2e-${Date.now()}@example.com`);
+        await openFirstWord(page);
+
+        await page.locator('textarea[placeholder="What does this word mean?"]').fill(definitionText);
+        await page.getByRole('button', { name: 'Submit Definition' }).click();
+
+        const definition = page.locator('.border.rounded-lg.p-4').filter({ hasText: definitionText });
+        await expect(definition).toBeVisible();
+        await definition.getByRole('button', { name: 'Report this definition' }).click();
+        await page.locator('#report-reason').click();
+        await expect(page.getByText('This definition is offensive or obscene', { exact: true }).last()).toBeVisible();
+        await page.getByText('This definition is offensive or obscene', { exact: true }).last().click();
+        await page.locator('#report-explanation textarea').fill('This definition is obscene.');
+        await page.getByRole('button', { name: 'Submit report' }).click();
+
+        await expect(page.getByRole('status')).toHaveText('Report submitted.');
+
+        await definition.getByRole('button', { name: 'Report this definition' }).click();
+        await page.locator('#report-reason').click();
+        await page.getByText('This definition is offensive or obscene', { exact: true }).last().click();
+        await page.getByRole('button', { name: 'Submit report' }).click();
+
+        await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('You have already reported this item.');
     });
 });
