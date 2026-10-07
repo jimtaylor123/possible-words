@@ -76,7 +76,7 @@ test('it uses the supported Gemini definition model by default', function () {
 
     app(GeminiDefinitionGenerator::class)->generate('blorg');
 
-    Http::assertSent(fn ($request) => $request->url() === 'https://example.test/v1beta/models/gemini-3.8-flash:generateContent');
+    Http::assertSent(fn ($request) => $request->url() === 'https://example.test/v1beta/models/gemini-flash-lite-latest:generateContent');
 });
 
 test('it never exposes the API key in thrown exception messages', function () {
