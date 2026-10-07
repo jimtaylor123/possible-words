@@ -116,6 +116,20 @@
         </n-tooltip>
       </div>
 
+      <div v-if="$page.props.auth.user" class="mb-8 text-center">
+        <n-button secondary aria-label="Report this word" @click="showReportDialog = true">
+          Report this word
+        </n-button>
+        <ReportDialog
+          :show="showReportDialog"
+          target-type="word"
+          :target="word.slug"
+          :reason-options="reportReasonOptions"
+          @close="showReportDialog = false"
+          @success="showReportDialog = false"
+        />
+      </div>
+
       <!-- Definitions Section -->
       <div class="bg-white rounded-lg shadow-sm border p-6 mb-8">
         <h2 class="text-2xl font-bold text-gray-900 mb-6">Definitions</h2>
@@ -247,6 +261,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { mdiPlay, mdiStar, mdiThumbUp, mdiWhatsapp, mdiFacebook, mdiLinkedin } from '@mdi/js'
 import Layout from '@/Components/Layout.vue'
 import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
+import ReportDialog from '@/Components/ReportDialog.vue'
 
 const props = defineProps({
   word: { type: Object, required: true },
@@ -255,6 +270,11 @@ const props = defineProps({
 const page = usePage()
 const playing = ref(false)
 const audioPlayer = ref(null)
+const showReportDialog = ref(false)
+const reportReasonOptions = [
+  { label: 'This word is not fresh', value: 'word_unfresh' },
+  { label: 'This word is offensive or obscene', value: 'word_offensive' },
+]
 
 const favouriteIds = computed(() => page.props.auth?.favourite_ids ?? [])
 

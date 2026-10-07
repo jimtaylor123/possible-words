@@ -38,6 +38,7 @@ provider:
         FREE_DICTIONARY_ENABLED: 'false'
         MERRIAM_WEBSTER_ENABLED: 'true'
         MERRIAM_WEBSTER_API_KEY: ${env:MERRIAM_WEBSTER_API_KEY}
+        GEMINI_API_KEY: ${env:GEMINI_API_KEY}
 
         # Keep the scheduled RDAP batch's per-word worst case fixed: three
         # ten-second attempts, 1.2 seconds of retry backoff, and a 4/s throttle.

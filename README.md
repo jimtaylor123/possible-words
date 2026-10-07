@@ -85,6 +85,48 @@ The app uses a simple phonotactic generator that creates pronounceable words by 
 
 Words are filtered to exclude common English words and ensure they feel natural to pronounce.
 
+## Production AI definition backfill
+
+Definition generation is intentionally manual; there is no scheduled backfill. Before using it,
+ensure the production repository's `GEMINI_API_KEY` GitHub Actions secret is set and deploy the
+configuration so it is passed to the Artisan Lambda.
+
+Run one bounded batch at a time. `--limit` is required, must be a positive integer, and is capped
+at 10. Eligible words are selected in ascending ID order from pending generation attempts and
+never include words that already have an AI definition.
+
+```bash
+aws lambda invoke \
+  --region eu-west-1 \
+  --function-name possiblewords-prod-artisan \
+  --cli-binary-format raw-in-base64-out \
+  --cli-read-timeout 0 \
+  --payload '{"cli":"words:generate-definitions --limit=10"}' \
+  /tmp/possiblewords-definition-backfill.json
+cat /tmp/possiblewords-definition-backfill.json
+```
+
+The command reports how many definitions were selected. Production uses the synchronous queue,
+so each selected generation runs within that Lambda invocation; inspect the response and CloudWatch
+logs for failures before starting another batch. Do not run concurrent batches or increase the cap.
+
+Failed attempts are excluded by default. After investigating a failure, retry a bounded combined
+set of pending and failed attempts (also in ascending ID order) with:
+
+```bash
+aws lambda invoke \
+  --region eu-west-1 \
+  --function-name possiblewords-prod-artisan \
+  --cli-binary-format raw-in-base64-out \
+  --cli-read-timeout 0 \
+  --payload '{"cli":"words:generate-definitions --limit=10 --retry-failed"}' \
+  /tmp/possiblewords-definition-retry.json
+cat /tmp/possiblewords-definition-retry.json
+```
+
+Repeat only after checking failures; `--retry-failed` does not bypass the 10-word cap and still
+excludes words that already received an AI definition.
+
 ## Future Features
 
 - Word ownership system (like domain names)
