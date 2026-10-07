@@ -124,7 +124,7 @@ aws lambda invoke \
 cat /tmp/possiblewords-definition-retry.json
 ```
 
-Repeat only after checking failures; `--retry-failed` does not bypass the 20-word cap and still
+Repeat only after checking failures; `--retry-failed` does not bypass the 10-word cap and still
 excludes words that already received an AI definition.
 
 ## Future Features
