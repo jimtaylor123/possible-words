@@ -108,10 +108,11 @@ functions:
                   rate: cron(0 6 * * ? *)
                   input:
                       cli: 'words:check-dictionary --chunk=50 --retry-failed'
-            # Each invocation is capped at 8 lookups. Worst case is 566.6 s:
+            # Each invocation is capped at 8 RDAP attempts. Worst case is 581.6 s:
             # 8 * (3 * 10 + 1.2 retry sleeps + 0.25 throttle + 15 Turso
-            # write) = 371.6 s, plus 60 s for lease/count/select/release DB
-            # requests, 15 s startup/logging, and 120 s margin. It is below
+            # write) = 371.6 s, plus 75 s for insert-or-ignore + conditional
+            # expired-lease replacement + count/select/release DB requests,
+            # 15 s startup/logging, and 120 s margin. It is below
             # both the 660-second cadence and the 720-second Lambda timeout.
             # The database lease prevents overlapping retries from duplicating
             # a word or collectively exceeding the 4 r/s RDAP throttle.

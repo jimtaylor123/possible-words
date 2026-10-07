@@ -170,6 +170,26 @@ describe('chunking and time-boxing the run', function () {
             ->and($second->fresh()->domain_status)->toBe(Word::DOMAIN_UNCHECKED)
             ->and($second->fresh()->domain_checked_at)->toBeNull();
     });
+
+    test('Given persistence writes fail, --limit still caps RDAP attempts', function () {
+        foreach (range(1, 10) as $number) {
+            domainCheckableWord("failedwrite{$number}");
+        }
+
+        Http::fake(['*' => Http::response(null, 404)]);
+        Word::updating(function (Word $word) {
+            if (str_starts_with($word->text, 'failedwrite')) {
+                throw new RuntimeException('Simulated per-word persistence failure');
+            }
+        });
+
+        $this->artisan('words:check-domains --limit=8')
+            ->expectsOutputToContain('Checked 0 of 8 attempted words')
+            ->assertExitCode(0);
+
+        Http::assertSentCount(8);
+        expect(Word::whereNull('domain_checked_at')->count())->toBe(10);
+    });
 });
 
 describe('the durable production run lease', function () {

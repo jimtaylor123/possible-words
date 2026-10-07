@@ -81,6 +81,7 @@ class CheckWordsDomains extends Command
         $bar->start();
 
         $throttle = (int) ($this->option('throttle') ?? config('domain.throttle_per_second', 4));
+        $attempted = 0;
         $processed = 0;
         $failures = 0;
         $results = array_fill_keys([
@@ -92,11 +93,15 @@ class CheckWordsDomains extends Command
         // Statuses change inside this loop (a checked row leaves the due
         // set). Cursor by id so changing a row does not shift later rows
         // past an offset-based chunk.
-        $query->chunkById($chunkSize, function ($words) use ($service, $bar, $throttle, $limit, &$processed, &$failures, &$results) {
+        $query->chunkById($chunkSize, function ($words) use ($service, $bar, $throttle, $limit, &$attempted, &$processed, &$failures, &$results) {
             foreach ($words as $word) {
-                if ($limit !== null && $processed >= $limit) {
+                if ($limit !== null && $attempted >= $limit) {
                     return false;
                 }
+
+                // The limit bounds external RDAP requests, even when a
+                // database failure prevents this word from being persisted.
+                $attempted++;
 
                 try {
                     $status = $service->checkComAvailability($word->text);
@@ -128,8 +133,9 @@ class CheckWordsDomains extends Command
         $this->newLine();
 
         $this->info(sprintf(
-            'Checked %d words: %d available, %d taken, %d check_failed (%d failures).',
+            'Checked %d of %d attempted words: %d available, %d taken, %d check_failed (%d failures).',
             $processed,
+            $attempted,
             $results[Word::DOMAIN_AVAILABLE],
             $results[Word::DOMAIN_TAKEN],
             $results[Word::DOMAIN_CHECK_FAILED],
