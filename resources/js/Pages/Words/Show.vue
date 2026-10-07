@@ -28,6 +28,18 @@
           <span>{{ word.syllables }} syllable{{ word.syllables !== 1 ? 's' : '' }}</span>
           <span>{{ word.text.length }} letters</span>
         </div>
+        <!-- Plain external link: no popup, no interstitial, no redirect on this
+             page. Rendered only for a definitive "available" verdict, so an
+             unchecked or failed check never reads as a free domain. -->
+        <a
+          v-if="word.domain_status === 'available'"
+          :href="domainRegisterUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-block mt-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+        >
+          Register {{ word.text }}.com
+        </a>
         <div v-if="word.ipa" class="flex items-center justify-center gap-3 mt-3">
           <span class="text-lg text-neutral-500 font-mono">{{ word.ipa }}</span>
           <n-tooltip v-if="word.audio_url" trigger="hover">
@@ -104,6 +116,20 @@
         </n-tooltip>
       </div>
 
+      <div v-if="$page.props.auth.user" class="mb-8 text-center">
+        <n-button secondary aria-label="Report this word" @click="showReportDialog = true">
+          Report this word
+        </n-button>
+        <ReportDialog
+          :show="showReportDialog"
+          target-type="word"
+          :target="word.slug"
+          :reason-options="reportReasonOptions"
+          @close="showReportDialog = false"
+          @success="showReportDialog = false"
+        />
+      </div>
+
       <!-- Definitions Section -->
       <div class="bg-white rounded-lg shadow-sm border p-6 mb-8">
         <h2 class="text-2xl font-bold text-gray-900 mb-6">Definitions</h2>
@@ -162,6 +188,15 @@
                   </template>
                   Remove this definition? Its likes are kept, but its text stops being shown.
                 </n-popconfirm>
+                <n-button
+                  v-if="$page.props.auth.user && !definition.removed_at"
+                  size="tiny"
+                  quaternary
+                  aria-label="Report this definition"
+                  @click="selectedDefinitionId = definition.id"
+                >
+                  Report this definition
+                </n-button>
               </div>
             </div>
             <div class="text-sm text-gray-500 flex items-center gap-1.5">
@@ -185,6 +220,16 @@
           No definitions yet. Be the first to define this word!
         </div>
       </div>
+
+      <ReportDialog
+        v-if="selectedDefinitionId !== null"
+        :show="true"
+        target-type="definition"
+        :target="selectedDefinitionId"
+        :reason-options="definitionReportReasonOptions"
+        @close="selectedDefinitionId = null"
+        @success="selectedDefinitionId = null"
+      />
 
       <!-- Add Definition Form -->
       <div v-if="$page.props.auth.user" class="bg-white rounded-lg shadow-sm border p-6">
@@ -235,6 +280,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { mdiPlay, mdiStar, mdiThumbUp, mdiWhatsapp, mdiFacebook, mdiLinkedin } from '@mdi/js'
 import Layout from '@/Components/Layout.vue'
 import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
+import ReportDialog from '@/Components/ReportDialog.vue'
 
 const props = defineProps({
   word: { type: Object, required: true },
@@ -243,6 +289,15 @@ const props = defineProps({
 const page = usePage()
 const playing = ref(false)
 const audioPlayer = ref(null)
+const showReportDialog = ref(false)
+const reportReasonOptions = [
+  { label: 'This word is not fresh', value: 'word_unfresh' },
+  { label: 'This word is offensive or obscene', value: 'word_offensive' },
+]
+const selectedDefinitionId = ref(null)
+const definitionReportReasonOptions = [
+  { label: 'This definition is offensive or obscene', value: 'definition_offensive' },
+]
 
 const favouriteIds = computed(() => page.props.auth?.favourite_ids ?? [])
 
@@ -271,6 +326,12 @@ const playAudio = () => {
 
 const shareUrl = computed(() => window.location.href)
 const shareText = computed(() => `Check out this possible word: ${props.word.text}`)
+
+// Registrar search URL (Namecheap, no affiliate parameters). Swapping the
+// registrar is a one-line change here.
+const domainRegisterUrl = computed(() =>
+  `https://www.namecheap.com/domains/registration/results/?domain=${encodeURIComponent(props.word.text.toLowerCase() + '.com')}`,
+)
 
 const shareWhatsApp = () => {
   window.open(`https://wa.me/?text=${encodeURIComponent(shareText.value + '\n' + shareUrl.value)}`, '_blank', 'noopener,noreferrer')

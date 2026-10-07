@@ -21,7 +21,7 @@ class GenerateWordDefinition implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable;
 
-    public const TIMEOUT = 30;
+    public const TIMEOUT = 50;
 
     public $timeout = self::TIMEOUT;
 

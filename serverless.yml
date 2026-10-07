@@ -38,6 +38,17 @@ provider:
         FREE_DICTIONARY_ENABLED: 'false'
         MERRIAM_WEBSTER_ENABLED: 'true'
         MERRIAM_WEBSTER_API_KEY: ${env:MERRIAM_WEBSTER_API_KEY}
+        GEMINI_API_KEY: ${env:GEMINI_API_KEY}
+
+        # Keep the scheduled RDAP batch's per-word worst case fixed: three
+        # ten-second attempts, 1.2 seconds of retry backoff, and a 4/s throttle.
+        DOMAIN_TIMEOUT: '10'
+        DOMAIN_ATTEMPTS: '3'
+        DOMAIN_RETRY_SLEEP_MS: '400'
+        DOMAIN_THROTTLE: '4'
+        # Database-backed lease shared by all Lambda invocations. It matches
+        # the Lambda ceiling so a timed-out invocation cannot overlap a retry.
+        DOMAIN_RUN_LOCK_TTL_SECONDS: '720'
 
         WORD_RELEASE_BATCH_SIZE: ${env:WORD_RELEASE_BATCH_SIZE, '10'}
         WORD_RELEASE_SCHEDULE: ${env:WORD_RELEASE_SCHEDULE, 'cron(0 */6 * * ? *)'}
@@ -98,6 +109,19 @@ functions:
                   rate: cron(0 6 * * ? *)
                   input:
                       cli: 'words:check-dictionary --chunk=50 --retry-failed'
+            # Each invocation is capped at 8 RDAP attempts. Worst case is 596.6 s:
+            # 8 * (3 * 10 + 1.2 retry sleeps + 0.25 throttle + 15 Turso
+            # write) = 371.6 s, plus 90 s for insert-or-ignore + conditional
+            # expired-lease replacement + count + full-page and terminating
+            # chunkById selects + release DB requests,
+            # 15 s startup/logging, and 120 s margin. It is below
+            # both the 660-second cadence and the 720-second Lambda timeout.
+            # The database lease prevents overlapping retries from duplicating
+            # a word or collectively exceeding the 4 r/s RDAP throttle.
+            - schedule:
+                  rate: rate(11 minutes)
+                  input:
+                      cli: 'words:check-domains --chunk=8 --limit=8'
             - schedule:
                   rate: ${env:WORD_RELEASE_SCHEDULE, 'cron(0 */6 * * ? *)'}
                   input:

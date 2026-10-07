@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Definition;
 use App\Models\Report;
 use App\Models\User;
 use App\Models\Word;
@@ -18,14 +19,14 @@ function reportRoute(string $targetType, string|int $target): string
 }
 
 describe('submitting reports', function () {
-    test('an authenticated user can report a published word', function () {
+    test('an authenticated user can report a published word without an explanation', function () {
         $reporter = User::factory()->create();
         $word = reportableWord();
 
         $this->actingAs($reporter)
             ->post(reportRoute('word', $word->slug), [
                 'reason' => Report::REASON_WORD_UNFRESH,
-                'explanation' => 'This word has appeared elsewhere.',
+                'explanation' => '',
             ])
             ->assertRedirect()
             ->assertSessionHas('success', 'Report submitted.');
@@ -35,12 +36,54 @@ describe('submitting reports', function () {
             'reportable_type' => Word::class,
             'reportable_id' => $word->id,
             'reason' => Report::REASON_WORD_UNFRESH,
-            'explanation' => 'This word has appeared elsewhere.',
+            'explanation' => null,
             'status' => Report::STATUS_OPEN,
         ]);
     });
 
-    test('an authenticated user can report a live definition', function () {
+    test('an authenticated user can report an offensive word with an explanation', function () {
+        $reporter = User::factory()->create();
+        $word = reportableWord();
+
+        $this->actingAs($reporter)
+            ->post(reportRoute('word', $word->slug), [
+                'reason' => Report::REASON_WORD_OFFENSIVE,
+                'explanation' => 'This word is obscene.',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Report submitted.');
+
+        $this->assertDatabaseHas('reports', [
+            'reporter_id' => $reporter->id,
+            'reportable_type' => Word::class,
+            'reportable_id' => $word->id,
+            'reason' => Report::REASON_WORD_OFFENSIVE,
+            'explanation' => 'This word is obscene.',
+            'status' => Report::STATUS_OPEN,
+        ]);
+    });
+
+    test('an authenticated user can report a published word with the explanation field omitted entirely', function () {
+        $reporter = User::factory()->create();
+        $word = reportableWord();
+
+        $this->actingAs($reporter)
+            ->post(reportRoute('word', $word->slug), [
+                'reason' => Report::REASON_WORD_UNFRESH,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Report submitted.');
+
+        $this->assertDatabaseHas('reports', [
+            'reporter_id' => $reporter->id,
+            'reportable_type' => Word::class,
+            'reportable_id' => $word->id,
+            'reason' => Report::REASON_WORD_UNFRESH,
+            'explanation' => null,
+        ]);
+    });
+
+    test('an authenticated user can report a live definition with an explanation', function () {
         $author = User::factory()->create();
         $reporter = User::factory()->create();
         $definition = reportableWord()->definitions()->create([
@@ -51,13 +94,19 @@ describe('submitting reports', function () {
         $this->actingAs($reporter)
             ->post(reportRoute('definition', $definition->id), [
                 'reason' => Report::REASON_DEFINITION_OFFENSIVE,
-                'explanation' => '',
+                'explanation' => 'This definition is obscene.',
             ])
-            ->assertRedirect();
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Report submitted.');
 
-        expect($definition->reports()->first())
-            ->reason->toBe(Report::REASON_DEFINITION_OFFENSIVE)
-            ->explanation->toBeNull();
+        $this->assertDatabaseHas('reports', [
+            'reporter_id' => $reporter->id,
+            'reportable_type' => Definition::class,
+            'reportable_id' => $definition->id,
+            'reason' => Report::REASON_DEFINITION_OFFENSIVE,
+            'explanation' => 'This definition is obscene.',
+            'status' => Report::STATUS_OPEN,
+        ]);
     });
 
     test('a reason must be supported by the target type', function () {
@@ -85,11 +134,55 @@ describe('submitting reports', function () {
         expect(Report::count())->toBe(0);
     });
 
+    test('report submission is rejected without a valid CSRF token', function () {
+        $reporter = User::factory()->create();
+        $word = reportableWord();
+
+        // Feature tests normally bypass CSRF verification; force the
+        // production behaviour so the token check actually runs.
+        app()->instance('env', 'production');
+
+        $this->actingAs($reporter)
+            ->post(reportRoute('word', $word->slug), ['reason' => Report::REASON_WORD_UNFRESH])
+            ->assertStatus(419);
+
+        expect(Report::count())->toBe(0);
+
+        // Positive control: the same setup with a valid token must succeed,
+        // proving the 419 above comes from CSRF verification.
+        $token = 'valid-csrf-token-for-test';
+
+        $this->actingAs($reporter)
+            ->withSession(['_token' => $token])
+            ->post(reportRoute('word', $word->slug), [
+                'reason' => Report::REASON_WORD_UNFRESH,
+                '_token' => $token,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Report submitted.');
+
+        expect(Report::count())->toBe(1);
+    });
+
     test('guests are redirected to sign in', function () {
         $word = reportableWord();
 
         $this->post(reportRoute('word', $word->slug), ['reason' => Report::REASON_WORD_UNFRESH])
             ->assertRedirect(route('auth.google'));
+    });
+
+    test('guests cannot submit a crafted definition report', function () {
+        $author = User::factory()->create();
+        $definition = reportableWord()->definitions()->create([
+            'user_id' => $author->id,
+            'text' => 'A live definition.',
+        ]);
+
+        $this->post(reportRoute('definition', $definition->id), [
+            'reason' => Report::REASON_DEFINITION_OFFENSIVE,
+        ])->assertRedirect(route('auth.google'));
+
+        expect(Report::count())->toBe(0);
     });
 
     test('unknown target types and targets return not found', function () {
@@ -161,6 +254,26 @@ describe('submitting reports', function () {
             ->assertSessionHas('error', 'You have already reported this item.');
 
         expect(Report::count())->toBe(2);
+    });
+
+    test('one reporter cannot duplicate an open definition report', function () {
+        $author = User::factory()->create();
+        $reporter = User::factory()->create();
+        $definition = reportableWord()->definitions()->create([
+            'user_id' => $author->id,
+            'text' => 'A live definition.',
+        ]);
+
+        $this->actingAs($reporter)
+            ->post(reportRoute('definition', $definition->id), ['reason' => Report::REASON_DEFINITION_OFFENSIVE])
+            ->assertRedirect();
+
+        $this->actingAs($reporter)
+            ->post(reportRoute('definition', $definition->id), ['reason' => Report::REASON_DEFINITION_OFFENSIVE])
+            ->assertRedirect()
+            ->assertSessionHas('error', 'You have already reported this item.');
+
+        expect(Report::count())->toBe(1);
     });
 
     test('the database prevents concurrent duplicate open reports', function () {

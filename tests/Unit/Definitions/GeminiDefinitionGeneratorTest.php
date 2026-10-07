@@ -69,6 +69,16 @@ test('it sends the API key as a header, never in the URL', function () {
     });
 });
 
+test('it uses the supported Gemini definition model by default', function () {
+    Http::fake(['*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A pleasant made-up thing.","part_of_speech":"noun"}']]]]],
+    ])]);
+
+    app(GeminiDefinitionGenerator::class)->generate('blorg');
+
+    Http::assertSent(fn ($request) => $request->url() === 'https://example.test/v1beta/models/gemini-flash-lite-latest:generateContent');
+});
+
 test('it never exposes the API key in thrown exception messages', function () {
     Http::fake(['*' => Http::response(['error' => ['message' => 'secret']], 500)]);
 
@@ -83,6 +93,12 @@ test('it never exposes the API key in thrown exception messages', function () {
 
         expect($messages)->not->toContain('test-key');
     }
+});
+
+test('it allows Gemini enough time to respond by default', function () {
+    expect(app(GeminiDefinitionGenerator::class)->requestTimeout())
+        ->toBe(45)
+        ->and(GenerateWordDefinition::TIMEOUT)->toBe(50);
 });
 
 test('it caps the request timeout below the queue job timeout', function () {

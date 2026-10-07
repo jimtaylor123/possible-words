@@ -88,8 +88,8 @@ test.describe('Removing a definition', () => {
         const card = definitionCard(page, 'Other Author');
         await expect(card.getByText(phrase)).toBeVisible();
         await expect(card.getByRole('button', { name: 'Remove', exact: true })).toHaveCount(0);
-        // Voting is open to everyone, so the like button is the only button present.
-        await expect(card.locator('button')).toHaveCount(1);
+        // Live definitions remain votable and reportable to signed-in users.
+        await expect(card.locator('button')).toHaveCount(2);
     });
 
     test('a guest sees no remove control', async ({ page }) => {
