@@ -110,7 +110,7 @@ test.describe('Adding definitions and voting', () => {
         const definition = page.locator('.border.rounded-lg.p-4').filter({ hasText: phrase });
         await expect(definition).toBeVisible();
 
-        await definition.getByRole('button').click();
+        await definition.locator('button').first().click();
 
         await expect(definition.getByText(/2 likes$/)).toBeVisible();
     });
