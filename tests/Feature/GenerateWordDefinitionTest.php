@@ -20,7 +20,7 @@ test('it creates one attributed AI definition with a valid category', function (
     $word = Word::factory()->create();
     $generator = mock(DefinitionGenerator::class);
     $generator->shouldReceive('generate')->once()->with($word->text)
-        ->andReturn(new GeneratedDefinition('A word for an unexpected delight.', 'noun'));
+        ->andReturn(new GeneratedDefinition('A word for an unexpected delight.', 'noun', 'A blorg made the gathering brighter.'));
 
     app()->instance(DefinitionGenerator::class, $generator);
     app(GenerateWordDefinition::class, ['wordId' => $word->id])->handle($generator, app(\App\Services\Definitions\SystemAiUser::class));
@@ -28,6 +28,7 @@ test('it creates one attributed AI definition with a valid category', function (
     $definition = $word->definitions()->where('origin', Definition::ORIGIN_AI)->firstOrFail();
     expect($definition->text)->toBe('A word for an unexpected delight.')
         ->and($definition->part_of_speech)->toBe('noun')
+        ->and($definition->example_sentence)->toBe('A blorg made the gathering brighter.')
         ->and($definition->votes_count)->toBe(0)
         ->and($definition->user->name)->toBe('PossibleWords AI')
         ->and($word->fresh()->ai_definition_status)->toBe(Word::AI_DEFINITION_GENERATED);
@@ -125,7 +126,7 @@ test('it drains a backfill across more rate-limit windows than provider retries'
     $words = Word::factory()->count(31)->create();
     $generator = mock(DefinitionGenerator::class);
     $generator->shouldReceive('generate')->times(31)
-        ->andReturn(new GeneratedDefinition('A backfilled definition.', 'noun'));
+        ->andReturn(new GeneratedDefinition('A backfilled definition.', 'noun', 'A blorg made the gathering brighter.'));
     app()->instance(DefinitionGenerator::class, $generator);
 
     $queue = Queue::connection('database');

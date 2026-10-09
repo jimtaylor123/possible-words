@@ -320,6 +320,24 @@ describe('word detail', function () {
             );
     });
 
+    test('Given an AI definition with an example, its show page serializes the example but not internal AI status', function () {
+        $word = makeWord();
+        $definition = $word->definitions()->create([
+            'user_id' => User::factory()->create()->id,
+            'text' => 'A pleasant made-up thing.',
+            'part_of_speech' => 'noun',
+            'origin' => 'ai',
+            'example_sentence' => 'The blorg brought a smile to everyone.',
+        ]);
+
+        $this->get(route('words.show', $word))
+            ->assertInertia(fn ($page) => $page
+                ->where('word.definitions.0.id', $definition->id)
+                ->where('word.definitions.0.example_sentence', 'The blorg brought a smile to everyone.')
+                ->missing('word.ai_definition_status')
+            );
+    });
+
     test('Given an unknown slug, the show page returns 404', function () {
         $this->get('/words/does-not-exist')->assertStatus(404);
     });

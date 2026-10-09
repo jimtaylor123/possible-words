@@ -13,14 +13,15 @@ beforeEach(function () {
 test('it returns a validated Gemini definition', function () {
     Http::fake([
         '*' => Http::response([
-            'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A pleasant made-up thing.","part_of_speech":"noun"}']]]]],
+            'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A pleasant made-up thing.","part_of_speech":"noun","example_sentence":"The blorg brought a smile to everyone."}']]]]],
         ]),
     ]);
 
     $definition = app(GeminiDefinitionGenerator::class)->generate('blorg');
 
     expect($definition->text)->toBe('A pleasant made-up thing.')
-        ->and($definition->partOfSpeech)->toBe('noun');
+        ->and($definition->partOfSpeech)->toBe('noun')
+        ->and($definition->exampleSentence)->toBe('The blorg brought a smile to everyone.');
 });
 
 test('it rejects malformed or invalid Gemini content', function (string $content) {
@@ -32,9 +33,13 @@ test('it rejects malformed or invalid Gemini content', function (string $content
         ->toThrow(DefinitionGenerationException::class);
 })->with([
     'invalid json' => '{',
-    'missing category' => '{"definition":"Meaning"}',
-    'invalid category' => '{"definition":"Meaning","part_of_speech":"adjective"}',
-    'empty definition' => '{"definition":" ","part_of_speech":"noun"}',
+    'missing category' => '{"definition":"Meaning","example_sentence":"A blorg appeared."}',
+    'invalid category' => '{"definition":"Meaning","part_of_speech":"adjective","example_sentence":"A blorg appeared."}',
+    'empty definition' => '{"definition":" ","part_of_speech":"noun","example_sentence":"A blorg appeared."}',
+    'missing example' => '{"definition":"Meaning","part_of_speech":"noun"}',
+    'blank example' => '{"definition":"Meaning","part_of_speech":"noun","example_sentence":" "}',
+    'oversized example' => '{"definition":"Meaning","part_of_speech":"noun","example_sentence":"'.str_repeat('a', 501).' blorg"}',
+    'example missing word' => '{"definition":"Meaning","part_of_speech":"noun","example_sentence":"A thing appeared."}',
 ]);
 
 test('it maps HTTP failures to a safe exception', function () {
@@ -50,14 +55,15 @@ test('it recovers from sequential transient Gemini responses', function () {
             ->push(['error' => ['message' => 'rate limited']], 429)
             ->push(['error' => ['message' => 'unavailable']], 503)
             ->push([
-                'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A recovered meaning.","part_of_speech":"noun"}']]]]],
+                'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A recovered meaning.","part_of_speech":"noun","example_sentence":"The recovered blorg shines."}']]]]],
             ]),
     ]);
 
     $definition = app(GeminiDefinitionGenerator::class)->generate('blorg');
 
     expect($definition->text)->toBe('A recovered meaning.')
-        ->and($definition->partOfSpeech)->toBe('noun');
+        ->and($definition->partOfSpeech)->toBe('noun')
+        ->and($definition->exampleSentence)->toBe('The recovered blorg shines.');
     Http::assertSentCount(3);
 });
 
@@ -99,7 +105,7 @@ test('it rejects a missing Gemini API key before sending anything', function () 
 test('it sends the API key as a header, never in the URL', function () {
     Http::fake([
         '*' => Http::response([
-            'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A pleasant made-up thing.","part_of_speech":"noun"}']]]]],
+            'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A pleasant made-up thing.","part_of_speech":"noun","example_sentence":"The blorg brought a smile to everyone."}']]]]],
         ]),
     ]);
 
@@ -111,9 +117,58 @@ test('it sends the API key as a header, never in the URL', function () {
     });
 });
 
+test('it requests a required example sentence that uses the supplied word', function () {
+    Http::fake(['*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A pleasant made-up thing.","part_of_speech":"noun","example_sentence":"The blorg brought a smile to everyone."}']]]]],
+    ])]);
+
+    app(GeminiDefinitionGenerator::class)->generate('blorg');
+
+    Http::assertSent(function ($request) {
+        $body = $request->data();
+
+        return $body['generationConfig']['responseSchema']['required'] === ['definition', 'part_of_speech', 'example_sentence']
+            && str_contains($body['contents'][0]['parts'][0]['text'], "using 'blorg'");
+    });
+});
+
+test('it requests only an example sentence for an established definition', function () {
+    Http::fake(['*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => '{"example_sentence":"The blorg brought a smile to everyone."}']]]]],
+    ])]);
+
+    $exampleSentence = app(GeminiDefinitionGenerator::class)->generateExampleSentence(
+        'blorg',
+        'A pleasant made-up thing.',
+        'noun',
+    );
+
+    expect($exampleSentence)->toBe('The blorg brought a smile to everyone.');
+
+    Http::assertSent(function ($request) {
+        $body = $request->data();
+
+        return $body['generationConfig']['responseSchema']['required'] === ['example_sentence']
+            && str_contains($body['contents'][0]['parts'][0]['text'], 'A pleasant made-up thing.')
+            && str_contains($body['contents'][0]['parts'][0]['text'], 'Do not rewrite the definition.');
+    });
+});
+
+test('it rejects an example sentence that omits the supplied word', function () {
+    Http::fake(['*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => '{"example_sentence":"A pleasant thing appeared."}']]]]],
+    ])]);
+
+    expect(fn () => app(GeminiDefinitionGenerator::class)->generateExampleSentence(
+        'blorg',
+        'A pleasant made-up thing.',
+        'noun',
+    ))->toThrow(DefinitionGenerationException::class, 'Gemini returned an invalid example sentence.');
+});
+
 test('it uses the supported Gemini definition model by default', function () {
     Http::fake(['*' => Http::response([
-        'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A pleasant made-up thing.","part_of_speech":"noun"}']]]]],
+        'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A pleasant made-up thing.","part_of_speech":"noun","example_sentence":"The blorg brought a smile to everyone."}']]]]],
     ])]);
 
     app(GeminiDefinitionGenerator::class)->generate('blorg');

@@ -57,6 +57,7 @@ class GenerateWordDefinition implements ShouldQueue
                         'user_id' => $systemAiUser->get()->id,
                         'text' => $generated->text,
                         'part_of_speech' => $generated->partOfSpeech,
+                        'example_sentence' => $generated->exampleSentence,
                         'votes_count' => 0,
                     ],
                 );
