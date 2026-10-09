@@ -75,6 +75,7 @@ function submit() {
     :show="show"
     preset="card"
     title="Report content"
+    style="width: min(32rem, calc(100vw - 2rem))"
     :mask-closable="false"
     @update:show="(visible) => !visible && close()"
   >
