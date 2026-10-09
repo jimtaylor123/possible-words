@@ -56,7 +56,7 @@ test.describe('Admin area', () => {
         await login(page, `admin-queue-second-reporter-${suffix}@example.com`);
         await page.getByRole('button', { name: 'Report this word' }).click();
         await page.locator('#report-reason').click();
-        await page.getByText('This word feels stale or not fresh', { exact: true }).last().click();
+        await page.getByText('This word is not fresh', { exact: true }).last().click();
         await page.getByRole('button', { name: 'Submit report' }).click();
         await expect(page.getByRole('status')).toHaveText('Report submitted.');
 
@@ -82,24 +82,26 @@ test.describe('Admin area', () => {
         await expect(page.getByText('Offensive word', { exact: true }).first()).toBeVisible();
 
         await page.getByRole('button', { name: 'Review or dismiss' }).first().click();
-        await page.getByLabel('Internal note').fill('Reviewed first.');
+        await page.getByRole('textbox', { name: 'Internal note (optional)' }).fill('Reviewed first.');
         await page.getByRole('button', { name: 'reviewed' }).click();
-        await expect(page.getByRole('status')).toHaveText('Report reviewed.');
+        await expect(page.locator('main').getByRole('status')).toHaveText('Report reviewed.');
 
         await page.getByLabel('Lifecycle status').click();
         await page.getByText('Reviewed', { exact: true }).last().click();
-        await expect(page.getByText('Reviewed first.')).toBeVisible();
+        await expect(page.getByLabel(/Review history for report/).getByText('Reviewed first.')).toBeVisible();
         await page.getByRole('button', { name: 'Reopen' }).first().click();
-        await page.getByLabel('Internal note').fill('Needs another look.');
+        await page.getByRole('textbox', { name: 'Internal note (optional)' }).fill('Needs another look.');
         await page.getByRole('button', { name: 'reopened' }).click();
-        await expect(page.getByRole('status')).toHaveText('Report reopened.');
+        await expect(page.locator('main').getByRole('status')).toHaveText('Report reopened.');
 
+        await page.getByLabel('Lifecycle status').click();
+        await page.getByText('Open', { exact: true }).last().click();
         await page.getByRole('button', { name: 'Review or dismiss' }).first().click();
         await page.getByLabel('Review action').click();
         await page.getByText('Dismiss', { exact: true }).last().click();
-        await page.getByLabel('Internal note').fill('Not actionable.');
+        await page.getByRole('textbox', { name: 'Internal note (optional)' }).fill('Not actionable.');
         await page.getByRole('button', { name: 'dismissed' }).click();
-        await expect(page.getByRole('status')).toHaveText('Report dismissed.');
+        await expect(page.locator('main').getByRole('status')).toHaveText('Report dismissed.');
 
         await page.getByLabel('Lifecycle status').click();
         await page.getByText('Dismissed', { exact: true }).last().click();
@@ -111,7 +113,7 @@ test.describe('Admin area', () => {
         ]);
     });
 
-    test('a regular user cannot submit a crafted report review mutation', async ({ page }) => {
+    test('a regular user receives not found for a crafted mutation to a missing report', async ({ page }) => {
         await login(page, `crafted-review-${Date.now()}@example.com`);
         await page.goto('/');
         const csrfToken = await page.locator('meta[name="csrf-token"]').getAttribute('content');
@@ -121,6 +123,9 @@ test.describe('Admin area', () => {
             headers: { 'X-CSRF-TOKEN': csrfToken },
         });
 
-        expect(response.status()).toBe(403);
+        // Route-model binding resolves this deliberately missing report before
+        // the admin middleware. Existing-resource authorization remains covered
+        // by AdminReportQueueTest.
+        expect(response.status()).toBe(404);
     });
 });

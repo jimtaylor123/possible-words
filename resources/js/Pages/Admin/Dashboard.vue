@@ -33,7 +33,8 @@
           </div>
 
           <div class="mt-4 space-y-2 text-sm text-gray-700">
-            <p><span class="font-medium">Reported {{ report.target.type }}:</span>
+            <p>
+              <span class="font-medium">Reported {{ report.target.type }}:</span>
               <a v-if="report.target.url" :href="report.target.url" class="text-blue-600 hover:underline">{{ report.target.text }}</a>
               <span v-else>{{ report.target.text || 'Deleted content' }}</span>
               <span v-if="report.target.type === 'definition' && report.target.word_text"> (for {{ report.target.word_text }})</span>
@@ -66,7 +67,14 @@
           <n-select v-model:value="selectedAction" :options="openActionOptions" class="mt-1" aria-label="Review action" />
         </label>
         <label class="block text-sm font-medium text-gray-700">Internal note (optional)
-          <n-input v-model:value="note" type="textarea" :maxlength="1000" :rows="4" class="mt-1" aria-label="Internal note" />
+          <n-input
+            v-model:value="note"
+            type="textarea"
+            :maxlength="1000"
+            :rows="4"
+            class="mt-1"
+            aria-label="Internal note"
+          />
         </label>
         <p v-if="error" role="alert" class="mt-2 text-sm text-red-600">{{ error }}</p>
         <div class="mt-5 flex justify-end gap-3"><n-button @click="showAction = false">Cancel</n-button><n-button attr-type="submit" type="primary" :loading="submitting">{{ selectedAction }}</n-button></div>
