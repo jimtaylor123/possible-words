@@ -155,6 +155,12 @@
                 >
                   AI-generated
                 </span>
+                <p
+                  v-if="definition.origin === 'ai' && definition.example_sentence"
+                  class="mt-2 text-sm italic text-gray-600"
+                >
+                  <span class="not-italic font-medium">Example:</span> “{{ definition.example_sentence }}”
+                </p>
               </div>
               <div class="flex items-center gap-1 ml-2 shrink-0">
                 <button

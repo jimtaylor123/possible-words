@@ -108,7 +108,7 @@ describe('word definition realtime updates', () => {
     delete window.Echo
   })
 
-  it('renders the category from a received definition.created payload', async () => {
+  it('renders the category and example from a received AI definition.created payload', async () => {
     const mounted = mountShow({
       id: 42,
       text: 'blorg',
@@ -123,6 +123,8 @@ describe('word definition realtime updates', () => {
         id: 7,
         text: 'To move with purpose',
         part_of_speech: 'verb',
+        origin: 'ai',
+        example_sentence: 'They blorged through the busy market.',
         votes_count: 0,
         user: { id: 3, name: 'Receiving User', avatar: null },
       },
@@ -131,6 +133,26 @@ describe('word definition realtime updates', () => {
 
     expect(mounted.target.textContent).toContain('To move with purpose')
     expect(mounted.target.textContent).toContain('Verb')
+    expect(mounted.target.textContent).toContain('Example:')
+    expect(mounted.target.textContent).toContain('They blorged through the busy market.')
+  })
+
+  it('renders examples only for AI definitions with a non-empty sentence', () => {
+    const mounted = mountShow({
+      id: 42,
+      text: 'blorg',
+      slug: 'blorg',
+      syllables: 1,
+      definitions: [
+        { id: 1, text: 'An AI meaning', origin: 'ai', example_sentence: 'A blorg brightened the room.', votes_count: 0, votes: [], user: { id: 1, name: 'AI', avatar: null } },
+        { id: 2, text: 'A human meaning', origin: null, example_sentence: 'A blorg should stay hidden.', votes_count: 0, votes: [], user: { id: 2, name: 'Human', avatar: null } },
+        { id: 3, text: 'An older AI meaning', origin: 'ai', example_sentence: null, votes_count: 0, votes: [], user: { id: 1, name: 'AI', avatar: null } },
+      ],
+    })
+    app = mounted.app
+
+    expect(mounted.target.textContent).toContain('A blorg brightened the room.')
+    expect(mounted.target.textContent).not.toContain('A blorg should stay hidden.')
   })
 })
 
