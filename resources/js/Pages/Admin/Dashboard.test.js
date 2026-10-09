@@ -75,10 +75,13 @@ describe('Admin Dashboard', () => {
         vi.unstubAllGlobals();
     });
 
-    it('renders reopen conflict feedback from an error flash', () => {
-        const target = mount({ flash: { error: 'This report cannot be reopened.' } });
+    it('renders the duplicate open report conflict from an error flash', () => {
+        const target = mount({
+            flash: { error: 'This report cannot be reopened because the reporter already has an open report for this item.' },
+        });
 
-        expect(target.querySelector('[role="alert"]').textContent).toBe('This report cannot be reopened.');
+        expect(target.querySelector('[role="alert"]').textContent)
+            .toBe('This report cannot be reopened because the reporter already has an open report for this item.');
     });
 
     it('resets pagination before applying filters from a later page', async () => {

@@ -20,6 +20,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['report_id', 'created_at', 'id']);
+            $table->index('admin_user_id');
         });
     }
 
