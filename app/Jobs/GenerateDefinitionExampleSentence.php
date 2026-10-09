@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Contracts\DefinitionGenerator;
+use App\Events\DefinitionUpdated;
 use App\Models\Definition;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -45,10 +46,22 @@ class GenerateDefinitionExampleSentence implements ShouldQueue
 
             // The null predicate protects a concurrent worker's completed example and
             // limits this legacy-data job to its one permitted column update.
-            Definition::query()
+            $updated = Definition::query()
                 ->whereKey($definition->id)
                 ->whereNull('example_sentence')
                 ->update(['example_sentence' => $exampleSentence]);
+
+            if ($updated === 1) {
+                try {
+                    broadcast(new DefinitionUpdated($definition->fresh()))->toOthers();
+                } catch (\Throwable $exception) {
+                    Log::warning('AI definition example was saved but could not be broadcast.', [
+                        'definition_id' => $definition->id,
+                        'word_id' => $definition->word_id,
+                        'exception' => $exception,
+                    ]);
+                }
+            }
         } catch (\Throwable $exception) {
             Log::warning('AI definition example generation failed.', [
                 'definition_id' => $definition->id,

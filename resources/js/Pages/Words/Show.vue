@@ -487,6 +487,12 @@ onMounted(() => {
       })
     }
   })
+  defChannel.listen('.definition.updated', (e) => {
+    const defToUpdate = definitions.value.find(d => d.id === e.definition.id)
+    if (defToUpdate) {
+      defToUpdate.example_sentence = e.definition.example_sentence
+    }
+  })
   echoChannels.push(defChannel)
 })
 

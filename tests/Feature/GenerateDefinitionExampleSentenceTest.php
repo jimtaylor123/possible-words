@@ -1,18 +1,21 @@
 <?php
 
 use App\Contracts\DefinitionGenerator;
+use App\Events\DefinitionUpdated;
 use App\Jobs\GenerateDefinitionExampleSentence;
 use App\Models\Definition;
 use App\Models\User;
 use App\Models\Word;
 use Illuminate\Queue\Middleware\RateLimited;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 test('it backfills only a missing AI example sentence', function () {
     $definition = aiDefinition('A pleasant made-up thing.', 'noun');
+    Event::fake([DefinitionUpdated::class]);
     $generator = mock(DefinitionGenerator::class);
     $generator->shouldReceive('generateExampleSentence')->once()
         ->with($definition->word->text, 'A pleasant made-up thing.', 'noun')
@@ -23,6 +26,11 @@ test('it backfills only a missing AI example sentence', function () {
     expect($definition->fresh()->example_sentence)->toBe('The blorg brought a smile to everyone.')
         ->and($definition->fresh()->text)->toBe('A pleasant made-up thing.')
         ->and($definition->fresh()->part_of_speech)->toBe('noun');
+
+    Event::assertDispatched(DefinitionUpdated::class, function (DefinitionUpdated $event) use ($definition) {
+        return $event->definition->id === $definition->id
+            && $event->definition->example_sentence === 'The blorg brought a smile to everyone.';
+    });
 });
 
 test('it skips definitions that already have an example or are not AI generated', function () {

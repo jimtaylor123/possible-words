@@ -154,6 +154,27 @@ describe('word definition realtime updates', () => {
     expect(mounted.target.textContent).toContain('A blorg brightened the room.')
     expect(mounted.target.textContent).not.toContain('A blorg should stay hidden.')
   })
+
+  it('renders a backfilled example from a definition.updated payload', async () => {
+    const mounted = mountShow({
+      id: 42,
+      text: 'blorg',
+      slug: 'blorg',
+      syllables: 1,
+      definitions: [
+        { id: 7, text: 'An older AI meaning', origin: 'ai', example_sentence: null, votes_count: 0, votes: [], user: { id: 1, name: 'AI', avatar: null } },
+      ],
+    })
+    app = mounted.app
+
+    listeners['word.42.definitions:.definition.updated']({
+      definition: { id: 7, example_sentence: 'A blorg brightened the room.' },
+    })
+    await nextTick()
+
+    expect(mounted.target.textContent).toContain('Example:')
+    expect(mounted.target.textContent).toContain('A blorg brightened the room.')
+  })
 })
 
 describe('register link for a free .com', () => {
