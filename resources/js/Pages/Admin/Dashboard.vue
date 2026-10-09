@@ -7,6 +7,9 @@
       <p v-if="$page.props.flash?.success" role="status" class="mb-4 rounded border border-green-200 bg-green-50 p-3 text-green-800">
         {{ $page.props.flash.success }}
       </p>
+      <p v-if="$page.props.flash?.error" role="alert" class="mb-4 rounded border border-red-200 bg-red-50 p-3 text-red-800">
+        {{ $page.props.flash.error }}
+      </p>
 
       <div class="grid gap-4 sm:grid-cols-2 mb-6">
         <label class="block text-sm font-medium text-gray-700">
@@ -100,6 +103,7 @@ const openActionOptions = [
 ]
 
 const applyFilters = () => {
+  currentPage.value = 1
   router.get(route('admin.dashboard'), { reason: selectedReason.value || undefined, status: selectedStatus.value }, { preserveState: true, replace: true })
 }
 

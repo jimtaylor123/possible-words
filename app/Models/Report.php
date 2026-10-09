@@ -80,6 +80,16 @@ class Report extends Model
         };
     }
 
+    /** @return list<string> */
+    public static function statusesForLifecycleAction(string $action): array
+    {
+        return match ($action) {
+            self::ACTION_REVIEWED, self::ACTION_DISMISSED => [self::STATUS_OPEN],
+            self::ACTION_REOPENED => [self::STATUS_REVIEWED, self::STATUS_DISMISSED],
+            default => [],
+        };
+    }
+
     public static function statusForAction(string $action): string
     {
         return $action === self::ACTION_REOPENED ? self::STATUS_OPEN : $action;

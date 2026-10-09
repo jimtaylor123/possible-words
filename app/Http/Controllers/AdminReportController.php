@@ -69,22 +69,25 @@ class AdminReportController extends Controller
 
         try {
             DB::transaction(function () use ($request, $report, $validated): void {
-                $report = Report::query()->lockForUpdate()->findOrFail($report->getKey());
+                $processedAt = now();
+                $updated = Report::query()
+                    ->whereKey($report->getKey())
+                    ->whereIn('status', Report::statusesForLifecycleAction($validated['action']))
+                    ->update([
+                        'status' => Report::statusForAction($validated['action']),
+                        'processed_by_user_id' => $request->user()->id,
+                        'processed_at' => $processedAt,
+                        'processing_action' => $validated['action'],
+                        'processing_note' => $validated['note'] ?? null,
+                        'updated_at' => $processedAt,
+                    ]);
 
-                if (! in_array($validated['action'], Report::lifecycleActionsFor($report->status), true)) {
+                if ($updated !== 1) {
                     throw ValidationException::withMessages([
                         'action' => 'This report has already been updated. Refresh the queue and try again.',
                     ]);
                 }
 
-                $processedAt = now();
-                $report->update([
-                    'status' => Report::statusForAction($validated['action']),
-                    'processed_by_user_id' => $request->user()->id,
-                    'processed_at' => $processedAt,
-                    'processing_action' => $validated['action'],
-                    'processing_note' => $validated['note'] ?? null,
-                ]);
                 $report->reviewActions()->create([
                     'admin_user_id' => $request->user()->id,
                     'action' => $validated['action'],

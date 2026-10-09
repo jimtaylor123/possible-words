@@ -105,7 +105,7 @@ test('reopens a dismissed report while retaining latest metadata and all actions
         ->and($report->reviewActions()->pluck('action')->all())->toBe([Report::ACTION_DISMISSED, Report::ACTION_REOPENED]);
 });
 
-test('rechecks the locked report state before applying a lifecycle action', function () {
+test('atomically guards lifecycle state and does not audit a stale action', function () {
     $admin = User::factory()->create(['is_admin' => true]);
     $report = adminReport(Word::factory()->create(), Report::REASON_WORD_UNFRESH);
 
@@ -116,6 +116,10 @@ test('rechecks the locked report state before applying a lifecycle action', func
 
     expect($report->fresh()->status)->toBe(Report::STATUS_REVIEWED)
         ->and($report->reviewActions()->pluck('action')->all())->toBe([Report::ACTION_REVIEWED]);
+    $this->assertDatabaseMissing('report_review_actions', [
+        'report_id' => $report->id,
+        'action' => Report::ACTION_DISMISSED,
+    ]);
 });
 
 test('reopening gracefully reports an existing open report conflict', function () {
