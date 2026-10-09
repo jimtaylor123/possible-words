@@ -138,6 +138,46 @@ test('reopening gracefully reports an existing open report conflict', function (
         ->and($closedReport->reviewActions)->toHaveCount(0);
 });
 
+test('treats empty string filters as unfiltered defaults', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    adminReport(Word::factory()->create(), Report::REASON_WORD_UNFRESH);
+
+    $this->actingAs($admin)->get(route('admin.dashboard').'?reason=&status=')
+        ->assertInertia(fn ($page) => $page
+            ->where('filters.reason', null)
+            ->where('filters.status', Report::STATUS_OPEN)
+            ->has('reports.data', 1));
+});
+
+test('exposes the full reason and status filter option sets', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+
+    $this->actingAs($admin)->get(route('admin.dashboard'))
+        ->assertInertia(fn ($page) => $page
+            ->where('reasonOptions', [
+                ['label' => 'All types', 'value' => null],
+                ['label' => 'Unfresh word', 'value' => Report::REASON_WORD_UNFRESH],
+                ['label' => 'Offensive word', 'value' => Report::REASON_WORD_OFFENSIVE],
+                ['label' => 'Offensive definition', 'value' => Report::REASON_DEFINITION_OFFENSIVE],
+            ])
+            ->where('statusOptions', [
+                ['label' => 'Open', 'value' => Report::STATUS_OPEN],
+                ['label' => 'Reviewed', 'value' => Report::STATUS_REVIEWED],
+                ['label' => 'Dismissed', 'value' => Report::STATUS_DISMISSED],
+            ]));
+});
+
+test('rejects an unknown lifecycle action without recording a review', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $report = adminReport(Word::factory()->create(), Report::REASON_WORD_UNFRESH);
+
+    $this->actingAs($admin)->patch(route('admin.reports.update', $report), ['action' => 'bogus'])
+        ->assertSessionHasErrors('action');
+
+    expect($report->fresh()->status)->toBe(Report::STATUS_OPEN)
+        ->and($report->reviewActions)->toHaveCount(0);
+});
+
 test('guests and regular users cannot read or mutate the queue', function () {
     $report = adminReport(Word::factory()->create(), Report::REASON_WORD_UNFRESH);
     $this->get(route('admin.dashboard'))->assertRedirect(route('auth.google'));
