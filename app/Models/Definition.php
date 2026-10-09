@@ -21,6 +21,7 @@ class Definition extends Model
         'user_id',
         'text',
         'part_of_speech',
+        'example_sentence',
         'origin',
         'votes_count',
     ];
