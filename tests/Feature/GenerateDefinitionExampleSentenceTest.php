@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Word;
 use Illuminate\Queue\Middleware\RateLimited;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -57,6 +58,44 @@ test('it uses the configured AI rate limit and a definition-specific lock', func
         ->and($withoutOverlapping->getLockKey(new ReleasableExampleJob))->toContain('definitions-ai-example:42');
 });
 
+test('it defers a duplicate example job while its definition lock is held', function () {
+    $definition = aiDefinition('A pleasant made-up thing.', 'noun');
+    $generator = mock(DefinitionGenerator::class);
+    $generator->shouldNotReceive('generateExampleSentence');
+    $middleware = collect((new GenerateDefinitionExampleSentence($definition->id))->middleware())
+        ->first(fn ($item) => $item instanceof WithoutOverlapping);
+    $queueJob = new ReleasableExampleJob;
+    $lock = Cache::lock($middleware->getLockKey($queueJob), $middleware->expiresAfter);
+
+    expect($lock->get())->toBeTrue();
+
+    try {
+        $middleware->handle($queueJob, function () use ($definition, $generator) {
+            (new GenerateDefinitionExampleSentence($definition->id))->handle($generator);
+        });
+    } finally {
+        $lock->release();
+    }
+
+    expect($queueJob->releasedAfter)->toBe(5);
+});
+
+test('it backfills an example sentence only once for a definition', function () {
+    $definition = aiDefinition('A pleasant made-up thing.', 'noun');
+    Event::fake([DefinitionUpdated::class]);
+    $generator = mock(DefinitionGenerator::class);
+    $generator->shouldReceive('generateExampleSentence')->once()
+        ->with($definition->word->text, 'A pleasant made-up thing.', 'noun')
+        ->andReturn('The blorg brought a smile to everyone.');
+
+    (new GenerateDefinitionExampleSentence($definition->id))->handle($generator);
+    (new GenerateDefinitionExampleSentence($definition->id))->handle($generator);
+
+    expect($definition->fresh()->example_sentence)->toBe('The blorg brought a smile to everyone.');
+
+    Event::assertDispatchedTimes(DefinitionUpdated::class, 1);
+});
+
 function aiDefinition(string $text, string $partOfSpeech, ?string $exampleSentence = null): Definition
 {
     $word = Word::factory()->create();
@@ -72,5 +111,10 @@ function aiDefinition(string $text, string $partOfSpeech, ?string $exampleSenten
 
 class ReleasableExampleJob
 {
-    public function release(int $delay): void {}
+    public ?int $releasedAfter = null;
+
+    public function release(int $delay): void
+    {
+        $this->releasedAfter = $delay;
+    }
 }

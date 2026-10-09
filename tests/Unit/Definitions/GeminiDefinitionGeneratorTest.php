@@ -154,6 +154,18 @@ test('it requests only an example sentence for an established definition', funct
     });
 });
 
+test('it rejects an example sentence that omits the supplied word', function () {
+    Http::fake(['*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => '{"example_sentence":"A pleasant thing appeared."}']]]]],
+    ])]);
+
+    expect(fn () => app(GeminiDefinitionGenerator::class)->generateExampleSentence(
+        'blorg',
+        'A pleasant made-up thing.',
+        'noun',
+    ))->toThrow(DefinitionGenerationException::class, 'Gemini returned an invalid example sentence.');
+});
+
 test('it uses the supported Gemini definition model by default', function () {
     Http::fake(['*' => Http::response([
         'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A pleasant made-up thing.","part_of_speech":"noun","example_sentence":"The blorg brought a smile to everyone."}']]]]],
