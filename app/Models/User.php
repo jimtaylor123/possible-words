@@ -82,6 +82,11 @@ class User extends Authenticatable
         return $this->hasMany(Report::class, 'reporter_id');
     }
 
+    public function reportReviewActions(): HasMany
+    {
+        return $this->hasMany(ReportReviewAction::class, 'admin_user_id');
+    }
+
     public function favouriteWords()
     {
         return $this->belongsToMany(Word::class, 'favourites')
