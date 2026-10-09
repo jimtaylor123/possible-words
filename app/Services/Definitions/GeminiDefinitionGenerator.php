@@ -12,6 +12,12 @@ class GeminiDefinitionGenerator implements DefinitionGenerator
 {
     public const TIMEOUT_BUFFER = 5;
 
+    private const MAX_ATTEMPTS = 3;
+
+    private const RETRY_DELAYS_MS = [100, 200];
+
+    private const RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504];
+
     public function generate(string $word): GeneratedDefinition
     {
         $key = config('services.definitions_ai.gemini.key');
@@ -20,29 +26,37 @@ class GeminiDefinitionGenerator implements DefinitionGenerator
         }
 
         try {
-            // The key travels as a header, never in the URL: URLs end up in
-            // exception messages and traces, which are logged on failure.
-            $response = Http::timeout($this->requestTimeout())
-                ->acceptJson()
-                ->withHeaders(['x-goog-api-key' => $key])
-                ->post($this->endpoint(), [
-                    'contents' => [[
-                        'parts' => [[
-                            'text' => "Invent a concise, dictionary-style meaning for the made-up word '{$word}'. Return JSON only.",
+            for ($attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++) {
+                // The key travels as a header, never in the URL: URLs end up in
+                // exception messages and traces, which are logged on failure.
+                $response = Http::timeout($this->requestTimeout())
+                    ->acceptJson()
+                    ->withHeaders(['x-goog-api-key' => $key])
+                    ->post($this->endpoint(), [
+                        'contents' => [[
+                            'parts' => [[
+                                'text' => "Invent a concise, dictionary-style meaning for the made-up word '{$word}'. Return JSON only.",
+                            ]],
                         ]],
-                    ]],
-                    'generationConfig' => [
-                        'responseMimeType' => 'application/json',
-                        'responseSchema' => [
-                            'type' => 'OBJECT',
-                            'properties' => [
-                                'definition' => ['type' => 'STRING'],
-                                'part_of_speech' => ['type' => 'STRING', 'enum' => ['noun', 'verb', 'other']],
+                        'generationConfig' => [
+                            'responseMimeType' => 'application/json',
+                            'responseSchema' => [
+                                'type' => 'OBJECT',
+                                'properties' => [
+                                    'definition' => ['type' => 'STRING'],
+                                    'part_of_speech' => ['type' => 'STRING', 'enum' => ['noun', 'verb', 'other']],
+                                ],
+                                'required' => ['definition', 'part_of_speech'],
                             ],
-                            'required' => ['definition', 'part_of_speech'],
                         ],
-                    ],
-                ]);
+                    ]);
+
+                if (! in_array($response->status(), self::RETRYABLE_STATUS_CODES, true) || $attempt === self::MAX_ATTEMPTS) {
+                    break;
+                }
+
+                usleep(self::RETRY_DELAYS_MS[$attempt - 1] * 1000);
+            }
         } catch (\Throwable $exception) {
             throw new DefinitionGenerationException('Gemini request failed.', previous: $exception);
         }
