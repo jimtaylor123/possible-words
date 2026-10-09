@@ -36,7 +36,7 @@ test('an admin receives all report types with explicitly shaped queue payloads',
             ->has('reports.data.0.submitted_at'));
 });
 
-test('queue filters are whitelisted and preserved by pagination', function () {
+test('queue filters valid lifecycle values, rejects malformed values, and preserves filters in pagination', function () {
     $admin = User::factory()->create(['is_admin' => true]);
     $word = Word::factory()->create();
     $open = adminReport($word, Report::REASON_WORD_UNFRESH);
@@ -48,6 +48,23 @@ test('queue filters are whitelisted and preserved by pagination', function () {
 
     $this->actingAs($admin)->get(route('admin.dashboard', ['reason' => [Report::REASON_WORD_OFFENSIVE], 'status' => [Report::STATUS_DISMISSED]]))
         ->assertInertia(fn ($page) => $page->where('filters.reason', null)->where('filters.status', 'open')->has('reports.data', 1));
+
+    $this->actingAs($admin)->get(route('admin.dashboard', ['reason' => Report::REASON_WORD_OFFENSIVE, 'status' => Report::STATUS_DISMISSED]))
+        ->assertInertia(fn ($page) => $page->where('filters.reason', Report::REASON_WORD_OFFENSIVE)->where('filters.status', Report::STATUS_DISMISSED)->has('reports.data', 1));
+
+    foreach (range(1, 20) as $index) {
+        adminReport(Word::factory()->create(), Report::REASON_WORD_UNFRESH);
+    }
+
+    $this->actingAs($admin)->get(route('admin.dashboard', [
+        'reason' => Report::REASON_WORD_UNFRESH,
+        'status' => Report::STATUS_OPEN,
+        'page' => 2,
+    ]))->assertInertia(fn ($page) => $page
+        ->where('reports.current_page', 2)
+        ->has('reports.data', 1)
+        ->where('reports.prev_page_url', fn ($url) => str_contains((string) $url, 'reason='.Report::REASON_WORD_UNFRESH)
+            && str_contains((string) $url, 'status='.Report::STATUS_OPEN)));
 });
 
 test('reviewing, dismissing, and reopening append immutable audit history without changing content', function () {
@@ -68,6 +85,53 @@ test('reviewing, dismissing, and reopening append immutable audit history withou
         ->and($word->fresh()->text)->toBe('unchanged')
         ->and($definition->fresh()->text)->toBe('Unchanged definition');
     $this->assertDatabaseHas('report_review_actions', ['report_id' => $report->id, 'admin_user_id' => $admin->id, 'note' => 'Looked at it.']);
+});
+
+test('reopens a dismissed report while retaining latest metadata and all actions', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $report = adminReport(Word::factory()->create(), Report::REASON_WORD_UNFRESH);
+
+    $this->actingAs($admin)->patch(route('admin.reports.update', $report), ['action' => Report::ACTION_DISMISSED, 'note' => 'First decision.'])
+        ->assertRedirect();
+    $this->actingAs($admin)->patch(route('admin.reports.update', $report), ['action' => Report::ACTION_REOPENED, 'note' => 'Reconsidering.'])
+        ->assertRedirect();
+
+    expect($report->fresh())
+        ->status->toBe(Report::STATUS_OPEN)
+        ->processing_action->toBe(Report::ACTION_REOPENED)
+        ->processing_note->toBe('Reconsidering.')
+        ->processed_by_user_id->toBe($admin->id)
+        ->processed_at->not->toBeNull()
+        ->and($report->reviewActions()->pluck('action')->all())->toBe([Report::ACTION_DISMISSED, Report::ACTION_REOPENED]);
+});
+
+test('rechecks the locked report state before applying a lifecycle action', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $report = adminReport(Word::factory()->create(), Report::REASON_WORD_UNFRESH);
+
+    $this->actingAs($admin)->patch(route('admin.reports.update', $report), ['action' => Report::ACTION_REVIEWED])
+        ->assertRedirect();
+    $this->actingAs($admin)->patch(route('admin.reports.update', $report), ['action' => Report::ACTION_DISMISSED])
+        ->assertSessionHasErrors('action');
+
+    expect($report->fresh()->status)->toBe(Report::STATUS_REVIEWED)
+        ->and($report->reviewActions()->pluck('action')->all())->toBe([Report::ACTION_REVIEWED]);
+});
+
+test('reopening gracefully reports an existing open report conflict', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $reporter = User::factory()->create();
+    $word = Word::factory()->create();
+    $closedReport = adminReport($word, Report::REASON_WORD_UNFRESH, $reporter);
+    $closedReport->update(['status' => Report::STATUS_DISMISSED]);
+    adminReport($word, Report::REASON_WORD_OFFENSIVE, $reporter);
+
+    $this->actingAs($admin)->patch(route('admin.reports.update', $closedReport), ['action' => Report::ACTION_REOPENED])
+        ->assertRedirect()
+        ->assertSessionHas('error', 'This report cannot be reopened because the reporter already has an open report for this item.');
+
+    expect($closedReport->fresh()->status)->toBe(Report::STATUS_DISMISSED)
+        ->and($closedReport->reviewActions)->toHaveCount(0);
 });
 
 test('guests and regular users cannot read or mutate the queue', function () {

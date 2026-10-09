@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Definition;
 use App\Models\Report;
 use App\Models\Word;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class AdminReportController extends Controller
 {
@@ -57,27 +59,47 @@ class AdminReportController extends Controller
     public function update(Request $request, Report $report)
     {
         $validated = $request->validate([
-            'action' => ['required', 'string', Rule::in(Report::lifecycleActionsFor($report->status))],
+            'action' => ['required', 'string', Rule::in([
+                Report::ACTION_REVIEWED,
+                Report::ACTION_DISMISSED,
+                Report::ACTION_REOPENED,
+            ])],
             'note' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        DB::transaction(function () use ($request, $report, $validated): void {
-            $processedAt = now();
-            $report->update([
-                'status' => Report::statusForAction($validated['action']),
-                'processed_by_user_id' => $request->user()->id,
-                'processed_at' => $processedAt,
-                'processing_action' => $validated['action'],
-                'processing_note' => $validated['note'] ?? null,
-            ]);
-            $report->reviewActions()->create([
-                'admin_user_id' => $request->user()->id,
-                'action' => $validated['action'],
-                'note' => $validated['note'] ?? null,
-                'created_at' => $processedAt,
-                'updated_at' => $processedAt,
-            ]);
-        });
+        try {
+            DB::transaction(function () use ($request, $report, $validated): void {
+                $report = Report::query()->lockForUpdate()->findOrFail($report->getKey());
+
+                if (! in_array($validated['action'], Report::lifecycleActionsFor($report->status), true)) {
+                    throw ValidationException::withMessages([
+                        'action' => 'This report has already been updated. Refresh the queue and try again.',
+                    ]);
+                }
+
+                $processedAt = now();
+                $report->update([
+                    'status' => Report::statusForAction($validated['action']),
+                    'processed_by_user_id' => $request->user()->id,
+                    'processed_at' => $processedAt,
+                    'processing_action' => $validated['action'],
+                    'processing_note' => $validated['note'] ?? null,
+                ]);
+                $report->reviewActions()->create([
+                    'admin_user_id' => $request->user()->id,
+                    'action' => $validated['action'],
+                    'note' => $validated['note'] ?? null,
+                    'created_at' => $processedAt,
+                    'updated_at' => $processedAt,
+                ]);
+            });
+        } catch (QueryException $exception) {
+            if ($this->isDuplicateOpenReportException($exception)) {
+                return back()->with('error', 'This report cannot be reopened because the reporter already has an open report for this item.');
+            }
+
+            throw $exception;
+        }
 
         return back()->with('success', 'Report '.($validated['action'] === Report::ACTION_REOPENED ? 'reopened' : $validated['action']).'.');
     }
@@ -88,6 +110,12 @@ class AdminReportController extends Controller
         $value = $request->query($key);
 
         return is_string($value) && in_array($value, $allowed, true) ? $value : null;
+    }
+
+    private function isDuplicateOpenReportException(QueryException $exception): bool
+    {
+        return $exception->getCode() === '23000'
+            || str_contains(strtolower($exception->getMessage()), 'unique constraint');
     }
 
     /** @return array<string, mixed> */

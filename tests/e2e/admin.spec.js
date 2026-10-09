@@ -43,8 +43,9 @@ test.describe('Admin area', () => {
         await expect(page.locator('.n-dropdown-option').filter({ hasText: 'Admin' })).toBeVisible();
     });
 
-    test('an admin can filter, dismiss, and reopen a submitted report', async ({ page }) => {
-        await login(page, `admin-queue-reporter-${Date.now()}@example.com`);
+    test('an admin can filter all report types and review a complete lifecycle history', async ({ page }) => {
+        const suffix = Date.now();
+        await login(page, `admin-queue-reporter-${suffix}@example.com`);
         await openFirstWord(page);
         await page.getByRole('button', { name: 'Report this word' }).click();
         await page.locator('#report-reason').click();
@@ -52,11 +53,46 @@ test.describe('Admin area', () => {
         await page.getByRole('button', { name: 'Submit report' }).click();
         await expect(page.getByRole('status')).toHaveText('Report submitted.');
 
-        await login(page, `admin-queue-${Date.now()}@example.com`, true);
+        await login(page, `admin-queue-second-reporter-${suffix}@example.com`);
+        await page.getByRole('button', { name: 'Report this word' }).click();
+        await page.locator('#report-reason').click();
+        await page.getByText('This word feels stale or not fresh', { exact: true }).last().click();
+        await page.getByRole('button', { name: 'Submit report' }).click();
+        await expect(page.getByRole('status')).toHaveText('Report submitted.');
+
+        const definitionText = `E2E report definition ${suffix}`;
+        await login(page, `admin-queue-definition-${suffix}@example.com`);
+        await page.locator('textarea[placeholder="What does this word mean?"]').fill(definitionText);
+        await page.getByRole('button', { name: 'Submit Definition' }).click();
+        const definition = page.locator('.border.rounded-lg.p-4').filter({ hasText: definitionText });
+        await expect(definition).toBeVisible();
+        await definition.getByRole('button', { name: 'Report this definition' }).click();
+        await page.locator('#report-reason').click();
+        await page.getByText('This definition is offensive or obscene', { exact: true }).last().click();
+        await page.getByRole('button', { name: 'Submit report' }).click();
+        await expect(page.getByRole('status')).toHaveText('Report submitted.');
+
+        await login(page, `admin-queue-${suffix}@example.com`, true);
         await page.goto('/admin');
+        await expect(page.getByText('Unfresh word', { exact: true })).toBeVisible();
+        await expect(page.getByText('Offensive word', { exact: true })).toBeVisible();
+        await expect(page.getByText('Offensive definition', { exact: true })).toBeVisible();
         await page.getByLabel('Report type').click();
         await page.getByText('Offensive word', { exact: true }).last().click();
         await expect(page.getByText('Offensive word', { exact: true }).first()).toBeVisible();
+
+        await page.getByRole('button', { name: 'Review or dismiss' }).first().click();
+        await page.getByLabel('Internal note').fill('Reviewed first.');
+        await page.getByRole('button', { name: 'reviewed' }).click();
+        await expect(page.getByRole('status')).toHaveText('Report reviewed.');
+
+        await page.getByLabel('Lifecycle status').click();
+        await page.getByText('Reviewed', { exact: true }).last().click();
+        await expect(page.getByText('Reviewed first.')).toBeVisible();
+        await page.getByRole('button', { name: 'Reopen' }).first().click();
+        await page.getByLabel('Internal note').fill('Needs another look.');
+        await page.getByRole('button', { name: 'reopened' }).click();
+        await expect(page.getByRole('status')).toHaveText('Report reopened.');
 
         await page.getByRole('button', { name: 'Review or dismiss' }).first().click();
         await page.getByLabel('Review action').click();
@@ -67,10 +103,24 @@ test.describe('Admin area', () => {
 
         await page.getByLabel('Lifecycle status').click();
         await page.getByText('Dismissed', { exact: true }).last().click();
-        await expect(page.getByText('Not actionable.')).toBeVisible();
-        await page.getByRole('button', { name: 'Reopen' }).first().click();
-        await page.getByLabel('Internal note').fill('Needs another look.');
-        await page.getByRole('button', { name: 'reopened' }).click();
-        await expect(page.getByRole('status')).toHaveText('Report reopened.');
+        const history = page.getByLabel(/Review history for report/).first().locator('li');
+        await expect(history).toHaveText([
+            /reviewed.*Reviewed first\./,
+            /reopened.*Needs another look\./,
+            /dismissed.*Not actionable\./,
+        ]);
+    });
+
+    test('a regular user cannot submit a crafted report review mutation', async ({ page }) => {
+        await login(page, `crafted-review-${Date.now()}@example.com`);
+        await page.goto('/');
+        const csrfToken = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+
+        const response = await page.request.patch('/admin/reports/1', {
+            form: { action: 'reviewed' },
+            headers: { 'X-CSRF-TOKEN': csrfToken },
+        });
+
+        expect(response.status()).toBe(403);
     });
 });
