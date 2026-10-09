@@ -51,7 +51,11 @@ describe('Admin Dashboard', () => {
                 { label: 'All types', value: null },
                 { label: 'Offensive word', value: 'word_offensive' },
             ],
-            statusOptions: [{ label: 'Open', value: 'open' }],
+            statusOptions: [
+                { label: 'Open', value: 'open' },
+                { label: 'Reviewed', value: 'reviewed' },
+                { label: 'Dismissed', value: 'dismissed' },
+            ],
         });
         app.config.globalProperties.$page = { props: { flash } };
         app.component('NSelect', selectStub);
@@ -88,6 +92,21 @@ describe('Admin Dashboard', () => {
         expect(inertia.router.get).toHaveBeenCalledWith('/admin', {
             reason: 'word_offensive',
             status: 'open',
+        }, { preserveState: true, replace: true });
+        expect(target.querySelector('[aria-label="Pagination"]').value).toBe('1');
+    });
+
+    it('applies a lifecycle status filter and resets pagination from a later page', async () => {
+        const target = mount();
+        const selects = target.querySelectorAll('select');
+
+        selects[1].value = 'reviewed';
+        selects[1].dispatchEvent(new globalThis.Event('change'));
+        await nextTick();
+
+        expect(inertia.router.get).toHaveBeenCalledWith('/admin', {
+            reason: undefined,
+            status: 'reviewed',
         }, { preserveState: true, replace: true });
         expect(target.querySelector('[aria-label="Pagination"]').value).toBe('1');
     });

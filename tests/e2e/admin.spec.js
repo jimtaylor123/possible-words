@@ -113,7 +113,7 @@ test.describe('Admin area', () => {
         ]);
     });
 
-    test('a regular user receives not found for a crafted mutation to a missing report', async ({ page }) => {
+    test('a regular user cannot submit a crafted report review mutation', async ({ page }) => {
         await login(page, `crafted-review-${Date.now()}@example.com`);
         await page.goto('/');
         const csrfToken = await page.locator('meta[name="csrf-token"]').getAttribute('content');
@@ -123,9 +123,8 @@ test.describe('Admin area', () => {
             headers: { 'X-CSRF-TOKEN': csrfToken },
         });
 
-        // Route-model binding resolves this deliberately missing report before
-        // the admin middleware. Existing-resource authorization remains covered
-        // by AdminReportQueueTest.
-        expect(response.status()).toBe(404);
+        // The admin middleware runs before route-model binding, so a non-admin
+        // is rejected with 403 regardless of whether the report exists.
+        expect(response.status()).toBe(403);
     });
 });

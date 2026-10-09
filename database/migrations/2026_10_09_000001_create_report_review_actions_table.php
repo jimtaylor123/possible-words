@@ -10,6 +10,9 @@ return new class extends Migration
     {
         Schema::create('report_review_actions', function (Blueprint $table) {
             $table->id();
+            // Audit history is intentionally preserved when a report or admin account is
+            // removed, matching the reports table's nullOnDelete columns. The queue payload
+            // renders deleted accounts as "Deleted user" and keeps the action record.
             $table->foreignId('report_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('admin_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('action');
