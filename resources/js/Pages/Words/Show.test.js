@@ -289,6 +289,24 @@ describe('definition reporting', () => {
     expect(dialog.textContent).toBe('definition_offensive')
   })
 
+  it('shows the word report action beside the pronunciation controls', async () => {
+    const mounted = mountShow(word, { id: 1, name: 'Reporter' })
+    app = mounted.app
+    const { target } = mounted
+
+    const reportButton = target.querySelector('[aria-label="Report this word"]')
+    expect(reportButton).not.toBeNull()
+    expect(reportButton.closest('.flex.items-center.justify-center.gap-3.mt-3')).not.toBeNull()
+
+    reportButton.click()
+    await nextTick()
+
+    const dialog = target.querySelector('[data-testid="definition-report-dialog"]')
+    expect(dialog.dataset.targetType).toBe('word')
+    expect(dialog.dataset.target).toBe('blorg')
+    expect(dialog.textContent).toBe('word_unfresh,word_offensive')
+  })
+
   it('does not show definition report actions to guests', () => {
     const mounted = mountShow(word)
     app = mounted.app

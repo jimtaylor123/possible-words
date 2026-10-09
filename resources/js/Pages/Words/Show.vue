@@ -28,6 +28,15 @@
           <span>{{ word.syllables }} syllable{{ word.syllables !== 1 ? 's' : '' }}</span>
           <span>{{ word.text.length }} letters</span>
         </div>
+        <ReportDialog
+          v-if="$page.props.auth.user"
+          :show="showReportDialog"
+          target-type="word"
+          :target="word.slug"
+          :reason-options="reportReasonOptions"
+          @close="showReportDialog = false"
+          @success="showReportDialog = false"
+        />
         <!-- Plain external link: no popup, no interstitial, no redirect on this
              page. Rendered only for a definitive "available" verdict, so an
              unchecked or failed check never reads as a free domain. -->
@@ -40,8 +49,8 @@
         >
           Register {{ word.text }}.com
         </a>
-        <div v-if="word.ipa" class="flex items-center justify-center gap-3 mt-3">
-          <span class="text-lg text-neutral-500 font-mono">{{ word.ipa }}</span>
+        <div v-if="word.ipa || $page.props.auth.user" class="flex items-center justify-center gap-3 mt-3">
+          <span v-if="word.ipa" class="text-lg text-neutral-500 font-mono">{{ word.ipa }}</span>
           <n-tooltip v-if="word.audio_url" trigger="hover">
             <template #trigger>
               <n-button
@@ -59,7 +68,25 @@
             </template>
             Click to hear the word
           </n-tooltip>
-          <audio ref="audioPlayer" :src="word.audio_url" @ended="playing = false" @error="playing = false" />
+          <audio v-if="word.audio_url" ref="audioPlayer" :src="word.audio_url" @ended="playing = false" @error="playing = false" />
+          <n-tooltip v-if="$page.props.auth.user" trigger="hover">
+            <template #trigger>
+              <n-button
+                size="tiny"
+                quaternary
+                circle
+                aria-label="Report this word"
+                @click="showReportDialog = true"
+              >
+                <template #icon>
+                  <svg viewBox="0 0 24 24" width="16" height="16" style="fill: currentColor;">
+                    <path :d="mdiFlag" />
+                  </svg>
+                </template>
+              </n-button>
+            </template>
+            Report this word as unfresh or obscene
+          </n-tooltip>
         </div>
       </div>
 
@@ -114,20 +141,6 @@
           </template>
           LinkedIn
         </n-tooltip>
-      </div>
-
-      <div v-if="$page.props.auth.user" class="mb-8 text-center">
-        <n-button secondary aria-label="Report this word" @click="showReportDialog = true">
-          Report this word
-        </n-button>
-        <ReportDialog
-          :show="showReportDialog"
-          target-type="word"
-          :target="word.slug"
-          :reason-options="reportReasonOptions"
-          @close="showReportDialog = false"
-          @success="showReportDialog = false"
-        />
       </div>
 
       <!-- Definitions Section -->
@@ -194,15 +207,24 @@
                   </template>
                   Remove this definition? Its likes are kept, but its text stops being shown.
                 </n-popconfirm>
-                <n-button
-                  v-if="$page.props.auth.user && !definition.removed_at"
-                  size="tiny"
-                  quaternary
-                  aria-label="Report this definition"
-                  @click="selectedDefinitionId = definition.id"
-                >
-                  Report this definition
-                </n-button>
+                <n-tooltip v-if="$page.props.auth.user && !definition.removed_at" trigger="hover">
+                  <template #trigger>
+                    <n-button
+                      size="tiny"
+                      quaternary
+                      circle
+                      aria-label="Report this definition"
+                      @click="selectedDefinitionId = definition.id"
+                    >
+                      <template #icon>
+                        <svg viewBox="0 0 24 24" width="16" height="16" style="fill: currentColor;">
+                          <path :d="mdiFlag" />
+                        </svg>
+                      </template>
+                    </n-button>
+                  </template>
+                  Report this definition as offensive or obscene
+                </n-tooltip>
               </div>
             </div>
             <div class="text-sm text-gray-500 flex items-center gap-1.5">
@@ -268,7 +290,6 @@
           </n-button>
         </form>
       </div>
-
       <!-- Login Prompt -->
       <div v-else class="bg-blue-50 rounded-lg border border-blue-200 p-6 text-center">
         <p class="text-blue-800 mb-4">Want to add a definition or vote?</p>
@@ -283,7 +304,7 @@
 <script setup>
 import { router, usePage } from '@inertiajs/vue3'
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { mdiPlay, mdiStar, mdiThumbUp, mdiWhatsapp, mdiFacebook, mdiLinkedin } from '@mdi/js'
+import { mdiFlag, mdiPlay, mdiStar, mdiThumbUp, mdiWhatsapp, mdiFacebook, mdiLinkedin } from '@mdi/js'
 import Layout from '@/Components/Layout.vue'
 import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
 import ReportDialog from '@/Components/ReportDialog.vue'

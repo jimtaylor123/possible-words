@@ -49,6 +49,49 @@ test('it maps HTTP failures to a safe exception', function () {
         ->toThrow('Gemini returned HTTP 500.');
 });
 
+test('it recovers from sequential transient Gemini responses', function () {
+    Http::fake([
+        '*' => Http::sequence()
+            ->push(['error' => ['message' => 'rate limited']], 429)
+            ->push(['error' => ['message' => 'unavailable']], 503)
+            ->push([
+                'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A recovered meaning.","part_of_speech":"noun","example_sentence":"The recovered blorg shines."}']]]]],
+            ]),
+    ]);
+
+    $definition = app(GeminiDefinitionGenerator::class)->generate('blorg');
+
+    expect($definition->text)->toBe('A recovered meaning.')
+        ->and($definition->partOfSpeech)->toBe('noun')
+        ->and($definition->exampleSentence)->toBe('The recovered blorg shines.');
+    Http::assertSentCount(3);
+});
+
+test('it stops after exhausting transient Gemini retries', function () {
+    Http::fake([
+        '*' => Http::sequence()
+            ->push(['error' => ['message' => 'server error']], 500)
+            ->push(['error' => ['message' => 'bad gateway']], 502)
+            ->push(['error' => ['message' => 'gateway timeout']], 504),
+    ]);
+
+    expect(fn () => app(GeminiDefinitionGenerator::class)->generate('blorg'))
+        ->toThrow(DefinitionGenerationException::class, 'Gemini returned HTTP 504.');
+    Http::assertSentCount(3);
+});
+
+test('it does not retry non-retryable Gemini responses', function () {
+    Http::fake([
+        '*' => Http::sequence()
+            ->push(['error' => ['message' => 'invalid request']], 400)
+            ->push(['error' => ['message' => 'should not be requested']], 500),
+    ]);
+
+    expect(fn () => app(GeminiDefinitionGenerator::class)->generate('blorg'))
+        ->toThrow(DefinitionGenerationException::class, 'Gemini returned HTTP 400.');
+    Http::assertSentCount(1);
+});
+
 test('it rejects a missing Gemini API key before sending anything', function () {
     config()->set('services.definitions_ai.gemini.key', null);
     Http::fake();
