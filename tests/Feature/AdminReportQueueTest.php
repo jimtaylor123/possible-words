@@ -167,6 +167,21 @@ test('exposes the full reason and status filter option sets', function () {
             ]));
 });
 
+test('renders reports for soft-deleted targets without error', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $word = Word::factory()->create(['text' => 'vanishing']);
+    adminReport($word, Report::REASON_WORD_UNFRESH, User::factory()->create());
+    $word->delete();
+
+    $this->actingAs($admin)->get(route('admin.dashboard'))
+        ->assertInertia(fn ($page) => $page
+            ->has('reports.data', 1)
+            ->where('reports.data.0.target.type', 'word')
+            ->where('reports.data.0.target.text', null)
+            ->where('reports.data.0.target.word_text', null)
+            ->where('reports.data.0.target.url', null));
+});
+
 test('rejects an unknown lifecycle action without recording a review', function () {
     $admin = User::factory()->create(['is_admin' => true]);
     $report = adminReport(Word::factory()->create(), Report::REASON_WORD_UNFRESH);

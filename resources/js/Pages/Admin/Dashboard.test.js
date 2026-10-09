@@ -40,12 +40,12 @@ const componentStub = { render() { return h('div', this.$slots.default?.()); } }
 describe('Admin Dashboard', () => {
     let app;
 
-    function mount({ flash = {}, reasonOptions, statusOptions } = {}) {
+    function mount({ flash = {}, reports, reasonOptions, statusOptions } = {}) {
         vi.stubGlobal('route', vi.fn(() => '/admin'));
         const target = globalThis.document.createElement('div');
         globalThis.document.body.appendChild(target);
         app = createApp(Dashboard, {
-            reports: { data: [], current_page: 2, last_page: 2 },
+            reports: reports ?? { data: [], current_page: 2, last_page: 2 },
             filters: { reason: null, status: 'open' },
             reasonOptions: reasonOptions ?? [
                 { label: 'All types', value: null },
@@ -149,5 +149,40 @@ describe('Admin Dashboard', () => {
             status: 'reviewed',
         }, { preserveState: true, replace: true });
         expect(target.querySelector('[aria-label="Pagination"]').value).toBe('1');
+    });
+
+    it('renders each review action with its admin, timestamp, and note', () => {
+        const target = mount({
+            reports: {
+                data: [{
+                    id: 7,
+                    reason: 'word_offensive',
+                    status: 'reviewed',
+                    explanation: null,
+                    submitted_at: '2026-10-09T12:00:00.000Z',
+                    reporter: { id: 1, name: 'Reporter' },
+                    target: { type: 'word', text: 'florp', word_text: null, url: null },
+                    latest_review: null,
+                    actions: [
+                        { id: 10, action: 'reviewed', note: 'Looked at it.', created_at: '2026-10-09T12:30:00.000Z', admin: { id: 2, name: 'Admin Ada' } },
+                        { id: 11, action: 'reopened', note: 'Needs another look.', created_at: '2026-10-09T13:00:00.000Z', admin: { id: 3, name: 'Admin Bob' } },
+                    ],
+                }],
+                current_page: 1,
+                last_page: 1,
+            },
+        });
+        const history = target.querySelector('[aria-label="Review history for report 7"]');
+
+        expect(history).not.toBeNull();
+        const items = history.querySelectorAll('li');
+        expect(items).toHaveLength(2);
+        expect(items[0].textContent).toContain('reviewed');
+        expect(items[0].textContent).toContain('Admin Ada');
+        expect(items[0].textContent).toContain('Looked at it.');
+        expect(items[0].textContent).toContain('2026');
+        expect(items[1].textContent).toContain('reopened');
+        expect(items[1].textContent).toContain('Admin Bob');
+        expect(items[1].textContent).toContain('Needs another look.');
     });
 });
