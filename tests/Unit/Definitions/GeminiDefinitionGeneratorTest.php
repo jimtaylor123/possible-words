@@ -89,6 +89,28 @@ test('it requests a required example sentence that uses the supplied word', func
     });
 });
 
+test('it requests only an example sentence for an established definition', function () {
+    Http::fake(['*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => '{"example_sentence":"The blorg brought a smile to everyone."}']]]]],
+    ])]);
+
+    $exampleSentence = app(GeminiDefinitionGenerator::class)->generateExampleSentence(
+        'blorg',
+        'A pleasant made-up thing.',
+        'noun',
+    );
+
+    expect($exampleSentence)->toBe('The blorg brought a smile to everyone.');
+
+    Http::assertSent(function ($request) {
+        $body = $request->data();
+
+        return $body['generationConfig']['responseSchema']['required'] === ['example_sentence']
+            && str_contains($body['contents'][0]['parts'][0]['text'], 'A pleasant made-up thing.')
+            && str_contains($body['contents'][0]['parts'][0]['text'], 'Do not rewrite the definition.');
+    });
+});
+
 test('it uses the supported Gemini definition model by default', function () {
     Http::fake(['*' => Http::response([
         'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A pleasant made-up thing.","part_of_speech":"noun","example_sentence":"The blorg brought a smile to everyone."}']]]]],
