@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AboutController;
+use App\Http\Controllers\AdminReportController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\WordController;
@@ -65,9 +66,8 @@ Route::get('/build/{path}', function (string $path) {
 
 // Admin routes
 Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
-    Route::get('/', function () {
-        return inertia('Admin/Dashboard');
-    })->name('admin.dashboard');
+    Route::get('/', [AdminReportController::class, 'index'])->name('admin.dashboard');
+    Route::patch('/reports/{report}', [AdminReportController::class, 'update'])->name('admin.reports.update');
 });
 
 // Testing-only helpers. Registered only when running the Pest suite
