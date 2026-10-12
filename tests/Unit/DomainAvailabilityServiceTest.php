@@ -16,20 +16,19 @@ use Illuminate\Support\Facades\Http;
 beforeEach(function () {
     $this->service = new DomainAvailabilityService;
 
-    config()->set('domain.retry_sleep_ms', 0);
 });
 
 describe('classifying a domain against RDAP', function () {
     test('Given an unregistered domain, the RDAP 404 means the .com is available', function () {
         Http::fake(['*' => Http::response(null, 404)]);
 
-        expect($this->service->checkComAvailability('blorg'))->toBe(Word::DOMAIN_AVAILABLE);
+        expect($this->service->checkComAvailability('blorg')->status)->toBe(Word::DOMAIN_AVAILABLE);
     });
 
     test('Given a registered domain, the RDAP 200 means the .com is taken', function () {
         Http::fake(['*' => Http::response(['objectClassName' => 'domain'], 200)]);
 
-        expect($this->service->checkComAvailability('example'))->toBe(Word::DOMAIN_TAKEN);
+        expect($this->service->checkComAvailability('example')->status)->toBe(Word::DOMAIN_TAKEN);
     });
 
     test('Given an unregistered domain, the request hits the Verisign .com RDAP path without any auth header', function () {
@@ -57,28 +56,33 @@ describe('failing closed when RDAP cannot be reached', function () {
 
         $result = $this->service->checkComAvailability('blorg');
 
-        expect($result)->toBe(Word::DOMAIN_CHECK_FAILED);
-        expect($result)->not->toBe(Word::DOMAIN_AVAILABLE);
-        Http::assertSentCount(3);
+        expect($result->status)->toBe(Word::DOMAIN_CHECK_FAILED)
+            ->and($result->failureKind)->toBe('http')
+            ->and($result->failureMessage)->toBe('The RDAP provider returned HTTP 500.')
+            ->and($result->failureDiagnostic())->toMatchArray(['kind' => 'http', 'http_status' => 500]);
+        Http::assertSentCount(1);
     });
 
     test('Given a rate limit response, the result is check_failed rather than a guess', function () {
         Http::fake(['*' => Http::response(null, 429)]);
 
-        expect($this->service->checkComAvailability('blorg'))->toBe(Word::DOMAIN_CHECK_FAILED);
+        $outcome = $this->service->checkComAvailability('blorg');
+
+        expect($outcome->status)->toBe(Word::DOMAIN_CHECK_FAILED)
+            ->and($outcome->failureKind)->toBe('http');
     });
 
     test('Given a connection error on every attempt, no exception escapes', function () {
         Http::fake(['*' => Http::failedConnection('cURL error 28: Connection timed out')]);
 
-        expect($this->service->checkComAvailability('blorg'))->toBe(Word::DOMAIN_CHECK_FAILED);
-        Http::assertSentCount(3);
+        expect($this->service->checkComAvailability('blorg')->failureKind)->toBe('transport');
+        Http::assertSentCount(1);
     });
 
     test('Given a label that is not a valid DNS label, the result is check_failed with no request sent', function (string $text) {
         Http::fake();
 
-        expect($this->service->checkComAvailability($text))->toBe(Word::DOMAIN_CHECK_FAILED);
+        expect($this->service->checkComAvailability($text)->failureKind)->toBe('invalid_label');
         Http::assertNothingSent();
     })->with([
         'empty string' => [''],
@@ -92,21 +96,27 @@ describe('failing closed when RDAP cannot be reached', function () {
     ]);
 });
 
-describe('retrying a flaky RDAP lookup', function () {
-    test('Given a server error that recovers on the second attempt, the real verdict wins', function () {
-        Http::fakeSequence()
-            ->push('', 500)
-            ->push(null, 404);
+describe('Retry-After metadata', function () {
+    test('Given a rate limit response with delta seconds, it exposes the provider delay without response content', function () {
+        Http::fake(['*' => Http::response(['unsafe' => 'response body'], 429, ['Retry-After' => '120'])]);
 
-        expect($this->service->checkComAvailability('blorg'))->toBe(Word::DOMAIN_AVAILABLE);
-        Http::assertSentCount(2);
+        $outcome = $this->service->checkComAvailability('blorg');
+
+        expect($outcome->retryAfterSeconds)->toBe(120)
+            ->and($outcome->failureDiagnostic())->not->toHaveKey('body');
     });
 
-    test('Given a 404, the lookup is never retried', function () {
-        Http::fake(['*' => Http::response(null, 404)]);
+    test('Given an HTTP-date Retry-After, it calculates a future delay and ignores malformed or past values', function () {
+        $future = now()->addSeconds(90)->toRfc7231String();
 
-        $this->service->checkComAvailability('blorg');
+        expect($this->service->retryAfterSeconds($future))->toBeGreaterThanOrEqual(89)
+            ->and($this->service->retryAfterSeconds('not a date'))->toBeNull()
+            ->and($this->service->retryAfterSeconds(now()->subSecond()->toRfc7231String()))->toBeNull();
+    });
 
-        Http::assertSentCount(1);
+    test('Given a non-200 successful response, it remains unknown', function () {
+        Http::fake(['*' => Http::response([], 201)]);
+
+        expect($this->service->checkComAvailability('blorg')->status)->toBe(Word::DOMAIN_CHECK_FAILED);
     });
 });

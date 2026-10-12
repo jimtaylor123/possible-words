@@ -6,16 +6,16 @@ use App\Models\Word;
 use App\Services\DomainAvailabilityService;
 use App\Services\DomainCheckRunLock;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Builder;
 use Throwable;
 
 /**
  * Check the .com availability of every word against Verisign's free RDAP
  * endpoint.
  *
- * The default selection is "never checked, or checked more than a day ago",
- * so a daily run re-verifies the whole catalogue (including the words added
- * by words:generate) and an interrupted run resumes naturally: completed
- * rows carry a fresh domain_checked_at and drop out of the due set.
+ * New words are always checked before deferred failures and stale conclusive
+ * verdicts. A failed attempt records its next retry in the database, so a
+ * restart cannot accidentally turn provider trouble into a request storm.
  *
  * Always returns SUCCESS: a flaky third-party API must not fail the
  * scheduled event.
@@ -55,18 +55,28 @@ class CheckWordsDomains extends Command
 
     private function checkWords(DomainAvailabilityService $service): int
     {
-        $query = Word::query();
+        $forced = (bool) $this->option('force');
+        $now = now();
 
-        if ($this->option('force')) {
+        if ($forced) {
             $this->warn('Re-checking every word, including recently checked ones.');
-        } else {
-            $query->where(function ($q) {
-                $q->whereNull('domain_checked_at')
-                    ->orWhere('domain_checked_at', '<=', now()->subDay());
-            });
         }
 
-        $total = $query->count();
+        $queries = $forced
+            ? [Word::query()]
+            : [
+                Word::query()->where('domain_status', Word::DOMAIN_UNCHECKED),
+                Word::query()->where('domain_status', Word::DOMAIN_CHECK_FAILED)
+                    ->where(function (Builder $query) use ($now) {
+                        $query->whereNull('domain_retry_at')->orWhere('domain_retry_at', '<=', $now);
+                    }),
+                Word::query()->whereIn('domain_status', [Word::DOMAIN_AVAILABLE, Word::DOMAIN_TAKEN])
+                    ->where(function (Builder $query) use ($now) {
+                        $query->whereNull('domain_checked_at')->orWhere('domain_checked_at', '<=', $now->copy()->subDay());
+                    }),
+            ];
+
+        $total = array_sum(array_map(fn (Builder $query) => $query->count(), $queries));
 
         if ($total === 0) {
             $this->info('No words to check.');
@@ -80,7 +90,11 @@ class CheckWordsDomains extends Command
         $bar = $this->output->createProgressBar($limit === null ? $total : min($total, $limit));
         $bar->start();
 
-        $throttle = (int) ($this->option('throttle') ?? config('domain.throttle_per_second', 4));
+        $throttle = $this->option('throttle');
+        $intervalMs = $throttle !== null
+            ? (int) floor(1000 / max(1, (int) $throttle))
+            : max(0, (int) config('domain.request_interval_ms', 1000));
+        $requestJitterMs = max(0, (int) config('domain.request_jitter_ms', 100));
         $attempted = 0;
         $processed = 0;
         $failures = 0;
@@ -90,44 +104,70 @@ class CheckWordsDomains extends Command
             Word::DOMAIN_CHECK_FAILED,
         ], 0);
 
-        // Statuses change inside this loop (a checked row leaves the due
-        // set). Cursor by id so changing a row does not shift later rows
-        // past an offset-based chunk.
-        $query->chunkById($chunkSize, function ($words) use ($service, $bar, $throttle, $limit, &$attempted, &$processed, &$failures, &$results) {
-            foreach ($words as $word) {
-                if ($limit !== null && $attempted >= $limit) {
-                    return false;
+        $lastRequestAt = null;
+        $providerCooldowns = [];
+
+        foreach ($queries as $query) {
+            $continue = $query->chunkById($chunkSize, function ($words) use ($service, $bar, $limit, $intervalMs, $requestJitterMs, &$attempted, &$processed, &$failures, &$results, &$lastRequestAt, &$providerCooldowns) {
+                foreach ($words as $word) {
+                    if ($limit !== null && $attempted >= $limit) {
+                        return false;
+                    }
+
+                    $this->paceRequest(DomainAvailabilityService::PROVIDER, $lastRequestAt, $providerCooldowns, $intervalMs, $requestJitterMs);
+                    $lastRequestAt = microtime(true);
+                    $attempted++;
+
+                    try {
+                        $outcome = $service->checkComAvailability($word->text);
+                        $checkedAt = now();
+
+                        if ($outcome->isConclusive()) {
+                            $word->update([
+                                'domain_status' => $outcome->status,
+                                'domain_checked_at' => $checkedAt,
+                                'domain_provider' => $outcome->provider,
+                                'domain_retry_at' => null,
+                                'domain_attempts' => 0,
+                                'domain_failure' => null,
+                            ]);
+                        } else {
+                            $attempts = $word->domain_attempts + 1;
+                            $retryAfter = min(max(0, (int) ($outcome->retryAfterSeconds ?? 0)), max(0, (int) config('domain.max_retry_after_seconds', 3600)));
+                            $delay = max($this->retryDelaySeconds($attempts), $retryAfter);
+
+                            $word->update([
+                                'domain_status' => Word::DOMAIN_CHECK_FAILED,
+                                'domain_checked_at' => $checkedAt,
+                                'domain_provider' => $outcome->provider,
+                                'domain_retry_at' => $checkedAt->copy()->addSeconds($delay),
+                                'domain_attempts' => $attempts,
+                                'domain_failure' => $outcome->failureDiagnostic(),
+                            ]);
+
+                            if ($retryAfter > 0) {
+                                $providerCooldowns[$outcome->provider] = microtime(true) + $retryAfter;
+                            }
+                        }
+
+                        $results[$outcome->status] = ($results[$outcome->status] ?? 0) + 1;
+                        $processed++;
+                    } catch (Throwable $e) {
+                        $failures++;
+                        $this->newLine();
+                        $this->error("Failed to persist domain check for '{$word->text}'.");
+                    }
+
+                    $bar->advance();
                 }
 
-                // The limit bounds external RDAP requests, even when a
-                // database failure prevents this word from being persisted.
-                $attempted++;
+                return true;
+            });
 
-                try {
-                    $status = $service->checkComAvailability($word->text);
-
-                    $word->update([
-                        'domain_status' => $status,
-                        'domain_checked_at' => now(),
-                    ]);
-
-                    $results[$status] = ($results[$status] ?? 0) + 1;
-                    $processed++;
-                } catch (Throwable $e) {
-                    $failures++;
-                    $this->newLine();
-                    $this->error("Failed to check '{$word->text}': {$e->getMessage()}");
-                }
-
-                if ($throttle > 0) {
-                    usleep((int) (1000000 / $throttle));
-                }
-
-                $bar->advance();
+            if ($continue === false || ($limit !== null && $attempted >= $limit)) {
+                break;
             }
-
-            return true;
-        });
+        }
 
         $bar->finish();
         $this->newLine();
@@ -145,11 +185,34 @@ class CheckWordsDomains extends Command
         if ($results[Word::DOMAIN_CHECK_FAILED] > 0) {
             $this->warn(
                 $results[Word::DOMAIN_CHECK_FAILED]
-                .' word(s) could not be checked and show no link — re-run this command to retry them.'
+                .' word(s) could not be checked and will be retried after their recorded delay.'
             );
         }
 
         // Always SUCCESS: a flaky third-party API must not fail the scheduled event.
         return self::SUCCESS;
+    }
+
+    /** @param array<string, float> $providerCooldowns */
+    private function paceRequest(string $provider, ?float $lastRequestAt, array $providerCooldowns, int $intervalMs, int $jitterMs): void
+    {
+        $intervalSeconds = ($intervalMs + ($jitterMs > 0 ? random_int(0, $jitterMs) : 0)) / 1000;
+        $nextPacedAt = ($lastRequestAt ?? microtime(true)) + $intervalSeconds;
+        $notBefore = max($nextPacedAt, $providerCooldowns[$provider] ?? 0);
+        $sleepMicros = (int) max(0, ($notBefore - microtime(true)) * 1000000);
+
+        if ($sleepMicros > 0) {
+            usleep($sleepMicros);
+        }
+    }
+
+    private function retryDelaySeconds(int $attempts): int
+    {
+        $base = max(1, (int) config('domain.retry_base_seconds', 60));
+        $cap = max($base, (int) config('domain.retry_cap_seconds', 3600));
+        $exponential = min($cap, $base * (2 ** min(30, max(0, $attempts - 1))));
+        $jitter = max(0, (int) config('domain.retry_jitter_seconds', 15));
+
+        return min($cap, $exponential + ($jitter > 0 ? random_int(0, $jitter) : 0));
     }
 }
