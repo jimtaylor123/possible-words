@@ -221,3 +221,28 @@ describe('narrowing suggestions by .com availability', function () {
             ->assertJsonCount(4);
     });
 });
+
+describe('narrowing suggestions by live definitions', function () {
+    test('Given definition filters, suggestions use the same live-definition semantics as browsing', function () {
+        $user = User::factory()->create();
+        $live = makeSuggestionWord(['text' => 'blorglive', 'slug' => 'blorglive']);
+        $removed = makeSuggestionWord(['text' => 'blorgremoved', 'slug' => 'blorgremoved']);
+        makeSuggestionWord(['text' => 'blorgundefined', 'slug' => 'blorgundefined']);
+
+        $live->definitions()->create(['user_id' => $user->id, 'text' => 'Still defined']);
+        $definition = $removed->definitions()->create(['user_id' => $user->id, 'text' => 'No longer defined']);
+        $definition->removed_at = now();
+        $definition->save();
+
+        $this->getJson(route('words.suggestions', ['q' => 'blorg', 'definitions' => 'with']))
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.text', 'blorglive');
+
+        $this->getJson(route('words.suggestions', ['q' => 'blorg', 'definitions' => 'without']))
+            ->assertOk()
+            ->assertJsonCount(2)
+            ->assertJsonPath('0.text', 'blorgundefined')
+            ->assertJsonPath('1.text', 'blorgremoved');
+    });
+});

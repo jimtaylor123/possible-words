@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Show from './Show.vue'
 
 const inertia = vi.hoisted(() => ({
+  router: { get: vi.fn(), post: vi.fn() },
   page: {
     props: {
       auth: { user: null, favourite_ids: [] },
@@ -12,7 +13,7 @@ const inertia = vi.hoisted(() => ({
 }))
 
 vi.mock('@inertiajs/vue3', () => ({
-  router: { get: vi.fn(), post: vi.fn() },
+  router: inertia.router,
   usePage: () => inertia.page,
 }))
 
@@ -54,13 +55,28 @@ const naiveUiStub = {
   },
 }
 
+const modalStub = {
+  props: ['show'],
+  emits: ['update:show'],
+  render() {
+    if (!this.show) return null
+
+    return h('div', {
+      role: 'dialog',
+      onClick: (event) => {
+        if (event.target === event.currentTarget) this.$emit('update:show', false)
+      },
+    }, this.$slots.default?.())
+  },
+}
+
 const buttonStub = {
   render() {
     return h('button', this.$attrs, this.$slots.default?.())
   },
 }
 
-const naiveUiComponents = ['n-avatar', 'n-button', 'n-input', 'n-popconfirm', 'n-select', 'n-tooltip']
+const naiveUiComponents = ['n-avatar', 'n-button', 'n-input', 'n-modal', 'n-popconfirm', 'n-select', 'n-tooltip']
 
 // The file mounts Show through a single helper so the component is defined
 // only once (vue/one-component-per-file).
@@ -72,7 +88,7 @@ function mountShow(word, user = null) {
   const app = createApp(Show, { word })
   app.config.globalProperties.$page = inertia.page
   naiveUiComponents.forEach((component) => {
-    app.component(component, component === 'n-button' ? buttonStub : naiveUiStub)
+    app.component(component, component === 'n-button' ? buttonStub : component === 'n-modal' ? modalStub : naiveUiStub)
   })
   app.mount(target)
 
@@ -323,5 +339,153 @@ describe('definition reporting', () => {
     const { target } = mounted
 
     expect(target.querySelectorAll('[aria-label="Report this definition"]')).toHaveLength(0)
+  })
+})
+
+describe('definition modal and shortcuts', () => {
+  let app
+
+  const word = {
+    id: 42,
+    text: 'blorg',
+    slug: 'blorg',
+    syllables: 1,
+    definitions: [],
+  }
+
+  beforeEach(() => {
+    globalThis.route = vi.fn((name) => `/${name}`)
+    window.Echo = {
+      channel: vi.fn(() => ({ listen: vi.fn(), name: 'test' })),
+      leaveChannel: vi.fn(),
+    }
+  })
+
+  afterEach(() => {
+    app?.unmount()
+    globalThis.document.body.innerHTML = ''
+    delete window.Echo
+    delete globalThis.route
+    vi.clearAllMocks()
+  })
+
+  it('opens the centered empty-state modal with the plus shortcut for signed-in users', async () => {
+    const mounted = mountShow(word, { id: 1, name: 'Author' })
+    app = mounted.app
+
+    expect(mounted.target.textContent).toContain('Add a definition')
+    expect(mounted.target.textContent).not.toContain('Submit Definition')
+
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: '+' }))
+    await nextTick()
+
+    expect(mounted.target.textContent).toContain('Submit Definition')
+  })
+
+  it('puts the add trigger beside the heading when definitions are listed', () => {
+    const mounted = mountShow({
+      ...word,
+      definitions: [{ id: 1, text: 'A definition', votes_count: 0, votes: [], user: { id: 2, name: 'Author', avatar: null } }],
+    }, { id: 1, name: 'Author' })
+    app = mounted.app
+
+    const heading = Array.from(mounted.target.querySelectorAll('h2')).find((element) => element.textContent === 'Definitions')
+    expect(heading.parentElement.textContent).toContain('Add a definition')
+  })
+
+  it('does not activate shortcuts while focus is in an editable control', () => {
+    const mounted = mountShow(word, { id: 1, name: 'Author' })
+    app = mounted.app
+    const input = globalThis.document.createElement('input')
+    mounted.target.appendChild(input)
+
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'l', bubbles: true }))
+
+    expect(inertia.router.post).not.toHaveBeenCalled()
+  })
+
+  it('plays audio with p, toggles favourites with l, and opens the definition modal with +', async () => {
+    const play = vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockResolvedValue()
+    const mounted = mountShow({ ...word, audio_url: 'https://example.com/blorg.mp3' }, { id: 1, name: 'Author' })
+    app = mounted.app
+
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'p' }))
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'l' }))
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: '+' }))
+    await nextTick()
+
+    expect(play).toHaveBeenCalledOnce()
+    expect(inertia.router.post).toHaveBeenCalledWith('/words.favourite', {}, expect.objectContaining({
+      preserveScroll: true,
+      preserveState: true,
+    }))
+    expect(mounted.target.getAttribute('role')).not.toBe('dialog')
+    expect(mounted.target.querySelector('[role="dialog"]')).not.toBeNull()
+  })
+
+  it('does not activate shortcuts for guests, missing audio, modifiers, or repeated keys', () => {
+    const mounted = mountShow(word)
+    app = mounted.app
+
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'p' }))
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'l' }))
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: '+', ctrlKey: true }))
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'l', altKey: true }))
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'l', metaKey: true }))
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'l', shiftKey: true }))
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'l', repeat: true }))
+
+    expect(inertia.router.post).not.toHaveBeenCalled()
+    expect(mounted.target.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('does not activate shortcuts while the definition or report dialog is open', async () => {
+    const play = vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockResolvedValue()
+    const mounted = mountShow({ ...word, audio_url: 'https://example.com/blorg.mp3' }, { id: 1, name: 'Author' })
+    app = mounted.app
+
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: '+' }))
+    await nextTick()
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'p' }))
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'l' }))
+
+    expect(play).not.toHaveBeenCalled()
+    expect(inertia.router.post).not.toHaveBeenCalled()
+
+    Array.from(mounted.target.querySelectorAll('button')).find((button) => button.textContent === 'Cancel').click()
+    await nextTick()
+    mounted.target.querySelector('[aria-label="Report this word"]').click()
+    await nextTick()
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'p' }))
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'l' }))
+
+    expect(play).not.toHaveBeenCalled()
+    expect(inertia.router.post).not.toHaveBeenCalled()
+  })
+
+  it('shows the contribution sign-in prompt only to guests', () => {
+    const guest = mountShow(word)
+    app = guest.app
+
+    expect(guest.target.textContent).toContain('Want to add a definition or vote?')
+    guest.app.unmount()
+
+    const signedIn = mountShow(word, { id: 1, name: 'Author' })
+    app = signedIn.app
+
+    expect(signedIn.target.textContent).not.toContain('Want to add a definition or vote?')
+  })
+
+  it('removes the shortcut listener when the page unmounts', () => {
+    const removeEventListener = vi.spyOn(window, 'removeEventListener')
+    const mounted = mountShow(word, { id: 1, name: 'Author' })
+    app = mounted.app
+
+    mounted.app.unmount()
+    app = null
+
+    expect(removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function))
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'l' }))
+    expect(inertia.router.post).not.toHaveBeenCalled()
   })
 })

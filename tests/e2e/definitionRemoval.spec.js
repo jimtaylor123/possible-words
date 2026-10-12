@@ -27,6 +27,7 @@ const openFirstWord = async (page) => {
 };
 
 const addDefinition = async (page, text) => {
+    await page.getByRole('button', { name: 'Add a definition' }).click();
     await page.locator('textarea[placeholder="What does this word mean?"]').fill(text);
     await page.getByRole('button', { name: 'Submit Definition' }).click();
     await expect(page.getByText(text)).toBeVisible();

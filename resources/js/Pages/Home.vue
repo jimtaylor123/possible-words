@@ -71,6 +71,12 @@
               :options="lengthOptions"
               @update:value="search"
             />
+            <n-select
+              v-model:value="filters.definitions"
+              aria-label="Definition status"
+              :options="definitionOptions"
+              @update:value="onDefinitionFilterChange"
+            />
             <n-input
               v-model:value="filters.starts_with"
               placeholder="Starts with..."
@@ -225,7 +231,15 @@ const props = defineProps({
   filters: { type: Object, default: () => ({}) },
 })
 
-const showAdvanced = ref(false)
+// The advanced panel holds every filter except the free-text search, so open it
+// whenever any of them is already applied. Keying off definitions alone collapsed
+// the panel on a page loaded with, say, ?starts_with=A, hiding the active filter.
+const advancedFilterKeys = ['definitions', 'syllables', 'length', 'starts_with', 'domain_available']
+const hasActiveAdvancedFilters = advancedFilterKeys.some((key) => {
+  const value = props.filters[key]
+  return value !== null && value !== undefined && value !== ''
+})
+const showAdvanced = ref(hasActiveAdvancedFilters)
 const filters = ref({ ...props.filters })
 
 const allWords = ref([])
@@ -356,6 +370,9 @@ const fetchSuggestions = async () => {
     if (filters.value.domain_available) {
       suggestionParams.domain_available = 1
     }
+    if (filters.value.definitions) {
+      suggestionParams.definitions = filters.value.definitions
+    }
 
     const response = await fetch(route('words.suggestions', suggestionParams), {
       signal: controller.signal,
@@ -473,6 +490,12 @@ const lengthOptions = [
   { label: '8+ letters', value: 8 },
 ]
 
+const definitionOptions = [
+  { label: 'Any definition status', value: '' },
+  { label: 'With definitions', value: 'with' },
+  { label: 'Without definitions', value: 'without' },
+]
+
 const buildParams = () => {
   const params = {}
   for (const key in filters.value) {
@@ -504,8 +527,13 @@ const onDomainFilterChange = () => {
   fetchSuggestions()
 }
 
+const onDefinitionFilterChange = () => {
+  search()
+  fetchSuggestions()
+}
+
 const clearFilters = () => {
-  filters.value = { search: null, syllables: null, length: null, starts_with: null, domain_available: null }
+  filters.value = { search: null, syllables: null, length: null, starts_with: null, definitions: '', domain_available: null }
   router.get(route('home'), { sort: 'created_at', direction: 'desc' }, {
     preserveState: true,
     replace: true,

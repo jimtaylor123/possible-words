@@ -62,6 +62,7 @@ test.describe('Admin area', () => {
 
         const definitionText = `E2E report definition ${suffix}`;
         await login(page, `admin-queue-definition-${suffix}@example.com`);
+        await page.getByRole('button', { name: 'Add a definition' }).click();
         await page.locator('textarea[placeholder="What does this word mean?"]').fill(definitionText);
         await page.getByRole('button', { name: 'Submit Definition' }).click();
         const definition = page.locator('.border.rounded-lg.p-4').filter({ hasText: definitionText });

@@ -101,12 +101,22 @@ test.describe('Browsing and filtering', () => {
         }).toBe(true);
     });
 
+    test('definition status filter persists in the browse query', async ({ page }) => {
+        await page.goto('/');
+        await openAdvancedPanel(page);
+
+        await page.locator('.n-select').nth(2).click();
+        await selectOption(page, 'With definitions');
+
+        await expect(page).toHaveURL(/definitions=with/);
+    });
+
     test('sorting alphabetically (A-Z) reorders the word list', async ({ page }) => {
         await page.goto('/');
 
         await openAdvancedPanel(page);
 
-        await page.locator('.n-select').nth(2).click();
+        await page.locator('.n-select').nth(3).click();
         await selectOption(page, 'Alphabetical (A-Z)');
 
         const firstWord = page.locator('[role="link"]').first().locator('.text-xl');
@@ -120,5 +130,6 @@ test.describe('Browsing and filtering', () => {
 
         await expect(page.locator('.n-select').first()).toBeVisible();
         await expect(page.locator('input[placeholder="Starts with..."]')).toBeVisible();
+        await expect(page.getByLabel('Definition status')).toBeVisible();
     });
 });
