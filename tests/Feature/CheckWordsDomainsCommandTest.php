@@ -198,6 +198,30 @@ describe('choosing which words to check', function () {
         Http::assertSentCount(2);
     });
 
+    test('Given a cooldown that cannot fit the invocation deadline, it stops without sleeping through the lease', function () {
+        domainCheckableWord('deadlinefirst');
+        domainCheckableWord('deadlinesecond');
+        config()->set('domain.max_retry_after_seconds', 2);
+        config()->set('domain.run_max_seconds', 1);
+        config()->set('domain.run_deadline_reserve_seconds', 0);
+
+        Http::fake([
+            '*deadlinefirst.com' => Http::response(null, 429, ['Retry-After' => '2']),
+            '*deadlinesecond.com' => Http::response(null, 404),
+        ]);
+
+        $startedAt = microtime(true);
+        $this->artisan('words:check-domains')
+            ->expectsOutputToContain('cooldown would exceed this invocation deadline')
+            ->assertExitCode(0);
+
+        expect(microtime(true) - $startedAt)->toBeLessThan(0.8)
+            ->and(Word::where('text', 'deadlinefirst')->first()->domain_status)->toBe(Word::DOMAIN_CHECK_FAILED)
+            ->and(Word::where('text', 'deadlinesecond')->first()->domain_status)->toBe(Word::DOMAIN_UNCHECKED)
+            ->and(DB::table('domain_check_run_locks')->count())->toBe(0);
+        Http::assertSentCount(1);
+    });
+
     test('Given a word checked 12 hours ago, it is left alone', function () {
         $word = domainCheckableWord('recent', [
             'domain_status' => Word::DOMAIN_TAKEN,

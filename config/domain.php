@@ -34,6 +34,12 @@ return [
 
     'max_retry_after_seconds' => (int) env('DOMAIN_MAX_RETRY_AFTER_SECONDS', 600),
 
+    // Stop before this invocation can reach its platform timeout. The reserve
+    // covers one final HTTP attempt and its persistence write after pacing.
+    'run_max_seconds' => (int) env('DOMAIN_RUN_MAX_SECONDS', 600),
+
+    'run_deadline_reserve_seconds' => (int) env('DOMAIN_RUN_DEADLINE_RESERVE_SECONDS', 30),
+
     /*
     |--------------------------------------------------------------------------
     | Rate Limiting

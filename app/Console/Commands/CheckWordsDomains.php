@@ -110,15 +110,22 @@ class CheckWordsDomains extends Command
 
         $lastRequestAt = null;
         $providerCooldowns = [];
+        $runDeadline = microtime(true) + max(0, (int) config('domain.run_max_seconds', 600));
+        $deadlineReserveSeconds = max(0, (int) config('domain.run_deadline_reserve_seconds', 30));
 
         foreach ($queries as $query) {
-            $continue = $query->chunkById($chunkSize, function ($words) use ($service, $bar, $limit, $intervalMs, $requestJitterMs, &$attempted, &$processed, &$failures, &$results, &$lastRequestAt, &$providerCooldowns) {
+            $continue = $query->chunkById($chunkSize, function ($words) use ($service, $bar, $limit, $intervalMs, $requestJitterMs, $runDeadline, $deadlineReserveSeconds, &$attempted, &$processed, &$failures, &$results, &$lastRequestAt, &$providerCooldowns) {
                 foreach ($words as $word) {
                     if ($limit !== null && $attempted >= $limit) {
                         return false;
                     }
 
-                    $this->paceRequest(DomainAvailabilityService::PROVIDER, $lastRequestAt, $providerCooldowns, $intervalMs, $requestJitterMs);
+                    if (! $this->paceRequest(DomainAvailabilityService::PROVIDER, $lastRequestAt, $providerCooldowns, $intervalMs, $requestJitterMs, $runDeadline, $deadlineReserveSeconds)) {
+                        $this->warn('Stopping domain checks because the provider cooldown would exceed this invocation deadline.');
+
+                        return false;
+                    }
+
                     $lastRequestAt = microtime(true);
                     $attempted++;
 
@@ -199,16 +206,23 @@ class CheckWordsDomains extends Command
     }
 
     /** @param array<string, float> $providerCooldowns */
-    private function paceRequest(string $provider, ?float $lastRequestAt, array $providerCooldowns, int $intervalMs, int $jitterMs): void
+    private function paceRequest(string $provider, ?float $lastRequestAt, array $providerCooldowns, int $intervalMs, int $jitterMs, float $runDeadline, int $deadlineReserveSeconds): bool
     {
         $intervalSeconds = ($intervalMs + ($jitterMs > 0 ? random_int(0, $jitterMs) : 0)) / 1000;
         $nextPacedAt = ($lastRequestAt ?? microtime(true)) + $intervalSeconds;
         $notBefore = max($nextPacedAt, $providerCooldowns[$provider] ?? 0);
+
+        if ($notBefore + $deadlineReserveSeconds > $runDeadline) {
+            return false;
+        }
+
         $sleepMicros = (int) max(0, ($notBefore - microtime(true)) * 1000000);
 
         if ($sleepMicros > 0) {
             usleep($sleepMicros);
         }
+
+        return true;
     }
 
     private function retryDelaySeconds(int $attempts): int
