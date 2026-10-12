@@ -153,8 +153,13 @@ describe('the word detail payload', function () {
             ->assertInertia(fn ($page) => $page
                 ->component('Words/Show')
                 ->where('word.domain_status', $status)
-                // Only the status is passed to the UI; the storage detail stays hidden.
+                // Only safe status/retry metadata is passed to the UI; diagnostics
+                // and internal provider bookkeeping stay hidden.
                 ->missing('word.domain_checked_at')
+                ->missing('word.domain_failure')
+                ->missing('word.domain_provider')
+                ->missing('word.domain_attempts')
+                ->missing('word.domain_retry_at')
             );
     })->with([
         'available' => [Word::DOMAIN_AVAILABLE],

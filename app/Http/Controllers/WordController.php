@@ -176,7 +176,8 @@ class WordController extends Controller
         return Inertia::render('Words/Show', [
             // domain_status is $hidden on the model, so the browse payload
             // never carries it; the detail page is the one place the UI needs
-            // it (to gate the register link), so it is added explicitly.
+            // it (to gate the register link and explain unknown results), so it
+            // is added explicitly. Retry state and failure diagnostics remain internal.
             'word' => array_merge($word->toArray(), [
                 'domain_status' => $word->domain_status,
             ]),

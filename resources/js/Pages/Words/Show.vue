@@ -49,6 +49,12 @@
         >
           Register {{ word.text }}.com
         </a>
+        <p v-else-if="word.domain_status === 'taken'" class="mt-2 text-sm text-gray-500">
+          {{ word.text }}.com is already registered.
+        </p>
+        <p v-else class="mt-2 text-sm text-gray-500">
+          Domain availability is currently unknown. We’ll check again later.
+        </p>
         <div v-if="word.ipa || $page.props.auth.user" class="flex items-center justify-center gap-3 mt-3">
           <span v-if="word.ipa" class="text-lg text-neutral-500 font-mono">{{ word.ipa }}</span>
           <n-tooltip v-if="word.audio_url" trigger="hover">

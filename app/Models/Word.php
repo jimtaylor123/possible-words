@@ -80,6 +80,10 @@ class Word extends Model
         'dictionary_data',
         'domain_status',
         'domain_checked_at',
+        'domain_provider',
+        'domain_retry_at',
+        'domain_attempts',
+        'domain_failure',
         'ipa',
         'audio_url',
         'owner_user_id',
@@ -96,6 +100,8 @@ class Word extends Model
         'phonemes' => 'array',
         'dictionary_checked_at' => 'datetime',
         'domain_checked_at' => 'datetime',
+        'domain_retry_at' => 'datetime',
+        'domain_failure' => 'array',
         'dictionary_data' => 'array',
         'owned_until' => 'datetime',
         'generated_at' => 'datetime',
@@ -119,6 +125,10 @@ class Word extends Model
         'ai_definition_error',
         'domain_status',
         'domain_checked_at',
+        'domain_provider',
+        'domain_retry_at',
+        'domain_attempts',
+        'domain_failure',
     ];
 
     /**

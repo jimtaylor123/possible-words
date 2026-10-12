@@ -57,7 +57,7 @@ test.describe('Free .com filter', () => {
         }
     });
 
-    test('an available word shows the register link and an unchecked word does not', async ({ page }) => {
+    test('an available word shows the register link and an unchecked word is explicit about unknown status', async ({ page }) => {
         await page.goto('/words/bloarp');
 
         const link = page.locator('a', { hasText: 'Register bloarp.com' });
@@ -69,5 +69,6 @@ test.describe('Free .com filter', () => {
         await page.goto('/words/bloark');
         await expect(page.locator('h1')).toHaveText('bloark');
         await expect(page.locator('a', { hasText: 'Register' })).toHaveCount(0);
+        await expect(page.getByText('Domain availability is currently unknown. We’ll check again later.')).toBeVisible();
     });
 });
