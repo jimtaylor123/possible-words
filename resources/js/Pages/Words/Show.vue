@@ -145,7 +145,13 @@
 
       <!-- Definitions Section -->
       <div class="bg-white rounded-lg shadow-sm border p-6 mb-8">
-        <h2 class="text-2xl font-bold text-gray-900 mb-6">Definitions</h2>
+        <div v-if="definitions.length > 0" class="flex items-center justify-between gap-4 mb-6">
+          <h2 class="text-2xl font-bold text-gray-900">Definitions</h2>
+          <n-button v-if="isAuthenticated" type="primary" @click="openDefinitionModal">
+            Add a definition
+          </n-button>
+        </div>
+        <h2 v-else class="text-2xl font-bold text-gray-900 mb-6">Definitions</h2>
         
         <div v-if="definitions.length > 0" class="space-y-4">
           <div
@@ -246,22 +252,13 @@
         
         <div v-else class="text-gray-400 italic text-center py-8">
           No definitions yet. Be the first to define this word!
+          <n-button v-if="isAuthenticated" type="primary" class="mt-4 not-italic" @click="openDefinitionModal">
+            Add a definition
+          </n-button>
         </div>
       </div>
 
-      <ReportDialog
-        v-if="selectedDefinitionId !== null"
-        :show="true"
-        target-type="definition"
-        :target="selectedDefinitionId"
-        :reason-options="definitionReportReasonOptions"
-        @close="selectedDefinitionId = null"
-        @success="selectedDefinitionId = null"
-      />
-
-      <!-- Add Definition Form -->
-      <div v-if="$page.props.auth.user" class="bg-white rounded-lg shadow-sm border p-6">
-        <h3 class="text-xl font-bold text-gray-900 mb-4">Add a Definition</h3>
+      <n-modal v-if="isAuthenticated" v-model:show="definitionModalOpen" preset="card" title="Add a Definition" class="max-w-lg">
         <form @submit.prevent="submitDefinition">
           <n-input
             v-model:value="definitionText"
@@ -285,13 +282,27 @@
           <p id="definition-length" class="mb-4 text-sm text-gray-500">
             {{ Array.from(definitionText).length }} / 1000 characters
           </p>
-          <n-button type="primary" :loading="submitting" @click="submitDefinition">
-            Submit Definition
-          </n-button>
+          <div class="flex justify-end gap-3">
+            <n-button @click="closeDefinitionModal">Cancel</n-button>
+            <n-button type="primary" attr-type="submit" :loading="submitting">
+              Submit Definition
+            </n-button>
+          </div>
         </form>
-      </div>
+      </n-modal>
+
+      <ReportDialog
+        v-if="selectedDefinitionId !== null"
+        :show="true"
+        target-type="definition"
+        :target="selectedDefinitionId"
+        :reason-options="definitionReportReasonOptions"
+        @close="selectedDefinitionId = null"
+        @success="selectedDefinitionId = null"
+      />
+
       <!-- Login Prompt -->
-      <div v-else class="bg-blue-50 rounded-lg border border-blue-200 p-6 text-center">
+      <div v-if="!isAuthenticated" class="bg-blue-50 rounded-lg border border-blue-200 p-6 text-center">
         <p class="text-blue-800 mb-4">Want to add a definition or vote?</p>
         <div class="flex justify-center">
           <GoogleSignInButton @click="login" />
@@ -327,6 +338,7 @@ const definitionReportReasonOptions = [
 ]
 
 const favouriteIds = computed(() => page.props.auth?.favourite_ids ?? [])
+const isAuthenticated = computed(() => Boolean(page.props.auth?.user))
 
 const favouriteIconStyle = computed(() => {
   const isFav = favouriteIds.value.includes(props.word.id)
@@ -378,6 +390,7 @@ const shareLinkedIn = () => {
 
 const definitionText = ref('')
 const partOfSpeech = ref(null)
+const definitionModalOpen = ref(false)
 const partOfSpeechOptions = [
   { label: 'Noun', value: 'noun' },
   { label: 'Verb', value: 'verb' },
@@ -385,6 +398,15 @@ const partOfSpeechOptions = [
 ]
 const definitionError = ref('')
 const submitting = ref(false)
+
+const openDefinitionModal = () => {
+  definitionError.value = ''
+  definitionModalOpen.value = true
+}
+
+const closeDefinitionModal = () => {
+  definitionModalOpen.value = false
+}
 
 const definitions = ref(props.word.definitions.map(d => ({
   ...d,
@@ -435,6 +457,8 @@ const submitDefinition = () => {
     onSuccess: () => {
       definitionText.value = ''
       partOfSpeech.value = null
+      definitionError.value = ''
+      closeDefinitionModal()
     },
     onFinish: () => {
       submitting.value = false
@@ -470,9 +494,41 @@ const login = () => {
   window.location.href = route('auth.google')
 }
 
+const targetIsEditable = (target) => {
+  if (!(target instanceof window.Element)) return false
+
+  return Boolean(target.closest('input, textarea, select, [contenteditable]'))
+}
+
+const handleShortcut = (event) => {
+  if (
+    definitionModalOpen.value ||
+    showReportDialog.value ||
+    selectedDefinitionId.value !== null ||
+    event.repeat ||
+    targetIsEditable(event.target) ||
+    event.ctrlKey ||
+    event.altKey ||
+    event.metaKey ||
+    (event.shiftKey && event.key !== '+')
+  ) return
+
+  if (event.key.toLowerCase() === 'p' && props.word.audio_url) {
+    event.preventDefault()
+    playAudio()
+  } else if (event.key === '+' && isAuthenticated.value) {
+    event.preventDefault()
+    openDefinitionModal()
+  } else if (event.key.toLowerCase() === 'l' && isAuthenticated.value) {
+    event.preventDefault()
+    toggleFavourite()
+  }
+}
+
 const echoChannels = []
 
 onMounted(() => {
+  window.addEventListener('keydown', handleShortcut)
   props.word.definitions.forEach(def => {
     const channel = window.Echo.channel(`definition.${def.id}`)
     channel.listen('.definition.voted', (e) => {
@@ -518,6 +574,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleShortcut)
   echoChannels.forEach(ch => {
     window.Echo.leaveChannel(ch.name)
   })

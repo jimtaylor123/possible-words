@@ -226,6 +226,47 @@ describe('filtering by first letter', function () {
     });
 });
 
+describe('filtering by live definitions', function () {
+    test('Given live, removed, and undefined words, with definitions returns only live definitions', function () {
+        $user = User::factory()->create();
+        $live = makeWord(['text' => 'liveword', 'slug' => 'liveword']);
+        $removed = makeWord(['text' => 'removedword', 'slug' => 'removedword']);
+        makeWord(['text' => 'undefinedword', 'slug' => 'undefinedword']);
+
+        $live->definitions()->create(['user_id' => $user->id, 'text' => 'Still defined']);
+        $definition = $removed->definitions()->create(['user_id' => $user->id, 'text' => 'No longer defined']);
+        $definition->removed_at = now();
+        $definition->save();
+
+        $this->get(route('words.index', ['definitions' => 'with']))
+            ->assertInertia(fn ($page) => $page
+                ->has('words.data', 1)
+                ->where('words.data.0.text', 'liveword')
+                ->where('filters.definitions', 'with')
+            );
+    });
+
+    test('Given live, removed, and undefined words, without definitions includes removed-only words', function () {
+        $user = User::factory()->create();
+        $live = makeWord(['text' => 'liveword', 'slug' => 'liveword']);
+        $removed = makeWord(['text' => 'removedword', 'slug' => 'removedword']);
+        makeWord(['text' => 'undefinedword', 'slug' => 'undefinedword']);
+
+        $live->definitions()->create(['user_id' => $user->id, 'text' => 'Still defined']);
+        $definition = $removed->definitions()->create(['user_id' => $user->id, 'text' => 'No longer defined']);
+        $definition->removed_at = now();
+        $definition->save();
+
+        $this->get(route('words.index', ['definitions' => 'without', 'sort' => 'alphabetical', 'direction' => 'asc']))
+            ->assertInertia(fn ($page) => $page
+                ->has('words.data', 2)
+                ->where('words.data.0.text', 'removedword')
+                ->where('words.data.1.text', 'undefinedword')
+                ->where('filters.definitions', 'without')
+            );
+    });
+});
+
 describe('sorting', function () {
     test('Given words, sorting alphabetically by name with direction asc', function () {
         makeWord(['text' => 'zorp', 'slug' => 'zorp']);

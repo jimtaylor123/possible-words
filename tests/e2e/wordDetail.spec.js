@@ -58,6 +58,26 @@ test.describe('Word detail page', () => {
         await expect(page.getByRole('button', { name: 'Report this definition' })).toHaveCount(0);
     });
 
+    test('signed-in users can use shortcuts without bypassing the add-definition modal', async ({ page }) => {
+        await login(page, `word-shortcuts-e2e-${Date.now()}@example.com`);
+        await openFirstWord(page);
+
+        const favourite = page.getByRole('button', { name: 'Add to favourites' });
+        await expect(favourite).toBeVisible();
+
+        await page.keyboard.press('Shift+Equal');
+        await expect(page.getByRole('dialog')).toBeVisible();
+
+        await page.keyboard.press('l');
+        await expect(favourite).toBeVisible();
+
+        await page.getByRole('button', { name: 'Cancel' }).click();
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+
+        await page.keyboard.press('l');
+        await expect(page.getByRole('button', { name: 'Remove from favourites' })).toBeVisible();
+    });
+
     test('a signed-in user can report an unfresh word and sees duplicate feedback', async ({ page }) => {
         await login(page, `word-report-e2e-${Date.now()}@example.com`);
         await openFirstWord(page);
@@ -95,6 +115,7 @@ test.describe('Word detail page', () => {
         await login(page, `definition-report-e2e-${Date.now()}@example.com`);
         await openFirstWord(page);
 
+        await page.getByRole('button', { name: 'Add a definition' }).click();
         await page.locator('textarea[placeholder="What does this word mean?"]').fill(definitionText);
         await page.getByRole('button', { name: 'Submit Definition' }).click();
 

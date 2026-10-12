@@ -66,6 +66,17 @@ class WordController extends Controller
             $query->where('domain_status', Word::DOMAIN_AVAILABLE);
         }
 
+        // A definition counts only while it remains live. Removed definitions stay in
+        // the word's history, but must not make it appear defined in browse results.
+        $definitionStatus = $this->queryString($request, 'definitions');
+        if ($definitionStatus === 'with') {
+            $query->whereHas('definitions', fn ($query) => $query->withoutRemoved());
+        } elseif ($definitionStatus === 'without') {
+            $query->whereDoesntHave('definitions', fn ($query) => $query->withoutRemoved());
+        } else {
+            $definitionStatus = '';
+        }
+
         $query->publishable();
 
         // Apply sorting
@@ -106,6 +117,7 @@ class WordController extends Controller
             'syllables' => $syllables > 0 ? $syllables : null,
             'length' => $length > 0 ? $length : null,
             'starts_with' => $startsWith,
+            'definitions' => $definitionStatus,
             'sort' => $sort,
             'direction' => $direction,
         ];
@@ -186,11 +198,14 @@ class WordController extends Controller
         // database engine, but applies every visibility constraint before its
         // eight-result limit.
         $domainAvailable = $this->queryString($request, 'domain_available') === '1';
+        $definitionStatus = $this->queryString($request, 'definitions');
 
         $words = Word::query()
             ->publishable()
             ->whereRaw("text LIKE ? ESCAPE '\\'", ['%'.$this->escapeLike($term).'%'])
             ->when($domainAvailable, fn ($query) => $query->where('domain_status', Word::DOMAIN_AVAILABLE))
+            ->when($definitionStatus === 'with', fn ($query) => $query->whereHas('definitions', fn ($definitions) => $definitions->withoutRemoved()))
+            ->when($definitionStatus === 'without', fn ($query) => $query->whereDoesntHave('definitions', fn ($definitions) => $definitions->withoutRemoved()))
             ->orderByDesc('id')
             ->take(8)
             ->get()

@@ -21,12 +21,18 @@ const openFirstWord = async (page) => {
     await expect(page).toHaveURL(/\/words\/.+/);
 };
 
+const openDefinitionModal = async (page) => {
+    await page.getByRole('button', { name: 'Add a definition' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+};
+
 test.describe('Adding definitions and voting', () => {
     test('a signed-in user can add a categorized definition', async ({ page }) => {
         const phrase = `E2E definition added at ${Date.now()}`;
         await login(page, 'author-e2e@example.com');
 
         await openFirstWord(page);
+        await openDefinitionModal(page);
 
         const textarea = page.locator('textarea[placeholder="What does this word mean?"]');
         await expect(page.getByText('0 / 1000 characters')).toBeVisible();
@@ -39,7 +45,7 @@ test.describe('Adding definitions and voting', () => {
         await expect(definition).toBeVisible();
         await expect(definition.getByText('Noun', { exact: true })).toBeVisible();
         await expect(definition.getByText(/1 like$/)).toBeVisible();
-        await expect(textarea).toBeEmpty();
+        await expect(page.getByRole('dialog')).toHaveCount(0);
     });
 
     test('a signed-in user can add an uncategorized definition', async ({ page }) => {
@@ -47,6 +53,7 @@ test.describe('Adding definitions and voting', () => {
         await login(page, 'uncategorized-e2e@example.com');
 
         await openFirstWord(page);
+        await openDefinitionModal(page);
 
         const textarea = page.locator('textarea[placeholder="What does this word mean?"]');
         await textarea.fill(phrase);
@@ -55,7 +62,7 @@ test.describe('Adding definitions and voting', () => {
         const definition = page.locator('.border.rounded-lg.p-4').filter({ hasText: phrase });
         await expect(definition).toBeVisible();
         await expect(definition.getByText(/^(Noun|Verb|Other)$/)).toHaveCount(0);
-        await expect(textarea).toBeEmpty();
+        await expect(page.getByRole('dialog')).toHaveCount(0);
     });
 
     test('an over-limit definition retains its draft and shows the validation error', async ({ page }) => {
@@ -63,6 +70,7 @@ test.describe('Adding definitions and voting', () => {
         await login(page, 'over-limit-e2e@example.com');
 
         await openFirstWord(page);
+        await openDefinitionModal(page);
 
         const textarea = page.locator('textarea[placeholder="What does this word mean?"]');
         await textarea.fill(definition);
@@ -79,6 +87,7 @@ test.describe('Adding definitions and voting', () => {
         await login(page, 'unicode-e2e@example.com');
 
         await openFirstWord(page);
+        await openDefinitionModal(page);
 
         const textarea = page.locator('textarea[placeholder="What does this word mean?"]');
         await textarea.fill(definition);
@@ -86,7 +95,7 @@ test.describe('Adding definitions and voting', () => {
         await page.getByRole('button', { name: 'Submit Definition' }).click();
 
         await expect(page.getByText(definition)).toBeVisible();
-        await expect(textarea).toBeEmpty();
+        await expect(page.getByRole('dialog')).toHaveCount(0);
     });
 
     test('a second user liking a definition increments its count', async ({ page }) => {
@@ -94,6 +103,7 @@ test.describe('Adding definitions and voting', () => {
         await login(page, 'author-two@example.com');
 
         await openFirstWord(page);
+        await openDefinitionModal(page);
 
         const textarea = page.locator('textarea[placeholder="What does this word mean?"]');
         await textarea.fill(phrase);
