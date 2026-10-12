@@ -32,7 +32,7 @@ return [
 
     'retry_jitter_seconds' => (int) env('DOMAIN_RETRY_JITTER_SECONDS', 15),
 
-    'max_retry_after_seconds' => (int) env('DOMAIN_MAX_RETRY_AFTER_SECONDS', 3600),
+    'max_retry_after_seconds' => (int) env('DOMAIN_MAX_RETRY_AFTER_SECONDS', 600),
 
     /*
     |--------------------------------------------------------------------------

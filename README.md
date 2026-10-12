@@ -157,7 +157,7 @@ defaults:
 | `DOMAIN_RETRY_BASE_SECONDS` | `60` | First deferred retry delay |
 | `DOMAIN_RETRY_CAP_SECONDS` | `3600` | Maximum exponential retry delay |
 | `DOMAIN_RETRY_JITTER_SECONDS` | `15` | Additional bounded retry-delay jitter |
-| `DOMAIN_MAX_RETRY_AFTER_SECONDS` | `3600` | Upper bound for provider Retry-After cooldowns |
+| `DOMAIN_MAX_RETRY_AFTER_SECONDS` | `600` | Upper bound for provider Retry-After cooldowns |
 | `DOMAIN_RUN_LOCK_TTL_SECONDS` | `720` | Lease lifetime; must cover a full Lambda run |
 
 `.env.example` sets the basics; `serverless.yml` pins

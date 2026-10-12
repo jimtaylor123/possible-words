@@ -49,7 +49,7 @@ provider:
         DOMAIN_RETRY_BASE_SECONDS: '60'
         DOMAIN_RETRY_CAP_SECONDS: '3600'
         DOMAIN_RETRY_JITTER_SECONDS: '15'
-        DOMAIN_MAX_RETRY_AFTER_SECONDS: '3600'
+        DOMAIN_MAX_RETRY_AFTER_SECONDS: '600'
         # Database-backed lease shared by all Lambda invocations. It matches
         # the Lambda ceiling so a timed-out invocation cannot overlap a retry.
         DOMAIN_RUN_LOCK_TTL_SECONDS: '720'
