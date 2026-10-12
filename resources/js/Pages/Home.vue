@@ -231,7 +231,15 @@ const props = defineProps({
   filters: { type: Object, default: () => ({}) },
 })
 
-const showAdvanced = ref(Boolean(props.filters.definitions))
+// The advanced panel holds every filter except the free-text search, so open it
+// whenever any of them is already applied. Keying off definitions alone collapsed
+// the panel on a page loaded with, say, ?starts_with=A, hiding the active filter.
+const advancedFilterKeys = ['definitions', 'syllables', 'length', 'starts_with', 'domain_available']
+const hasActiveAdvancedFilters = advancedFilterKeys.some((key) => {
+  const value = props.filters[key]
+  return value !== null && value !== undefined && value !== ''
+})
+const showAdvanced = ref(hasActiveAdvancedFilters)
 const filters = ref({ ...props.filters })
 
 const allWords = ref([])

@@ -265,6 +265,27 @@ describe('filtering by live definitions', function () {
                 ->where('filters.definitions', 'without')
             );
     });
+
+    test('Given no definitions filter, every word is returned regardless of definition status', function () {
+        $user = User::factory()->create();
+        $live = makeWord(['text' => 'liveword', 'slug' => 'liveword']);
+        $removed = makeWord(['text' => 'removedword', 'slug' => 'removedword']);
+        makeWord(['text' => 'undefinedword', 'slug' => 'undefinedword']);
+
+        $live->definitions()->create(['user_id' => $user->id, 'text' => 'Still defined']);
+        $definition = $removed->definitions()->create(['user_id' => $user->id, 'text' => 'No longer defined']);
+        $definition->removed_at = now();
+        $definition->save();
+
+        $this->get(route('words.index', ['sort' => 'alphabetical', 'direction' => 'asc']))
+            ->assertInertia(fn ($page) => $page
+                ->has('words.data', 3)
+                ->where('words.data.0.text', 'liveword')
+                ->where('words.data.1.text', 'removedword')
+                ->where('words.data.2.text', 'undefinedword')
+                ->where('filters.definitions', '')
+            );
+    });
 });
 
 describe('sorting', function () {
