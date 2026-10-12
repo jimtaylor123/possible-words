@@ -130,14 +130,19 @@ excludes words that already received an AI definition.
 ## .com domain availability checks
 
 Every word's `.com` availability is looked up against Verisign's free public RDAP endpoint — there
-is no API key anywhere in this feature. `words:check-domains` checks words whose verdict is
-missing or more than a day old, and the results drive the "free .com" filter on browse, the
-suggestions endpoint and the word detail page.
+is no API key anywhere in this feature. `words:check-domains` checks never-checked words first,
+then failed words whose durable retry time has arrived, then day-old conclusive verdicts. Only a
+definitive RDAP 404 is `available`; 200 is `taken`, while all other outcomes are unknown
+(`check_failed`). The results drive the "free .com" filter on browse, suggestions, and the word
+detail page.
 
 The command is scheduled every eleven minutes (locally by the Laravel scheduler; in production by
 the EventBridge event in `serverless.yml`). A database lease means only one invocation runs at a
 time, and the command always exits successfully so a flaky third-party API never fails the
-scheduled event — a failed lookup is recorded as `check_failed` and the word shows no link.
+scheduled event. Failed lookups are recorded as `check_failed` with a sanitized diagnostic and
+deferred exponential retry; `Retry-After` also pauses later requests to that provider. The detail
+page explicitly distinguishes available, taken, and unknown; its registration link remains
+exclusive to definitive availability.
 
 All settings live in `config/domain.php` and read these environment variables, with these
 defaults:
@@ -147,12 +152,15 @@ defaults:
 | `DOMAIN_CHECK_ENABLED` | `true` | Kill switch; `false` skips the run entirely |
 | `DOMAIN_RDAP_URL` | `https://rdap.verisign.com/com/v1/domain` | Base URL for .com lookups |
 | `DOMAIN_TIMEOUT` | `10` | Seconds to wait for each RDAP response |
-| `DOMAIN_ATTEMPTS` | `3` | Attempts per lookup before recording `check_failed` |
-| `DOMAIN_RETRY_SLEEP_MS` | `400` | Linear backoff between attempts |
-| `DOMAIN_THROTTLE` | `4` | Max RDAP requests per second during a run |
+| `DOMAIN_REQUEST_INTERVAL_MS` | `1000` | Minimum spacing before each RDAP request |
+| `DOMAIN_REQUEST_JITTER_MS` | `100` | Additional bounded request-spacing jitter |
+| `DOMAIN_RETRY_BASE_SECONDS` | `60` | First deferred retry delay |
+| `DOMAIN_RETRY_CAP_SECONDS` | `3600` | Maximum exponential retry delay |
+| `DOMAIN_RETRY_JITTER_SECONDS` | `15` | Additional bounded retry-delay jitter |
+| `DOMAIN_MAX_RETRY_AFTER_SECONDS` | `3600` | Upper bound for provider Retry-After cooldowns |
 | `DOMAIN_RUN_LOCK_TTL_SECONDS` | `720` | Lease lifetime; must cover a full Lambda run |
 
-`.env.example` sets the basics (`DOMAIN_CHECK_ENABLED`, `DOMAIN_THROTTLE`); `serverless.yml` pins
+`.env.example` sets the basics; `serverless.yml` pins
 the resilience and rate values for production, and the schedule's `--chunk=8 --limit=8` bounds
 each invocation so the worst case fits the Lambda timeout. Run a bounded batch by hand:
 
@@ -161,7 +169,7 @@ php artisan words:check-domains --chunk=8 --limit=8
 ```
 
 `--force` re-checks recently checked words, `--limit` caps how many words one run touches, and
-`--throttle` overrides `DOMAIN_THROTTLE` for that run.
+`--throttle` overrides the configured pacing for that run.
 
 ## Future Features
 
