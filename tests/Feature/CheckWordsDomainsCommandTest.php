@@ -27,8 +27,12 @@ function domainCheckableWord(string $text, array $attrs = []): Word
 }
 
 beforeEach(function () {
-    config()->set('domain.throttle_per_second', 0);
-    config()->set('domain.retry_sleep_ms', 0);
+    config()->set('domain.request_interval_ms', 0);
+    config()->set('domain.request_jitter_ms', 0);
+    config()->set('domain.retry_base_seconds', 60);
+    config()->set('domain.retry_cap_seconds', 3600);
+    config()->set('domain.retry_jitter_seconds', 0);
+    config()->set('domain.max_retry_after_seconds', 3600);
 });
 
 describe('recording a verdict for each due word', function () {
@@ -66,7 +70,10 @@ describe('recording a verdict for each due word', function () {
 
         expect($word->domain_status)->toBe(Word::DOMAIN_CHECK_FAILED)
             ->and($word->domain_status)->not->toBe(Word::DOMAIN_AVAILABLE)
-            ->and($word->domain_checked_at)->not->toBeNull();
+            ->and($word->domain_checked_at)->not->toBeNull()
+            ->and($word->domain_attempts)->toBe(1)
+            ->and($word->domain_retry_at)->not->toBeNull()
+            ->and($word->domain_failure)->toMatchArray(['kind' => 'http', 'http_status' => 500]);
     });
 
     test('Given mixed verdicts, the summary counts them', function () {
@@ -87,6 +94,134 @@ describe('recording a verdict for each due word', function () {
 });
 
 describe('choosing which words to check', function () {
+    test('Given unchecked, due failed, and stale verdicts, unchecked words are selected first', function () {
+        domainCheckableWord('stale', ['domain_status' => Word::DOMAIN_TAKEN, 'domain_checked_at' => now()->subDay()]);
+        domainCheckableWord('duefailed', ['domain_status' => Word::DOMAIN_CHECK_FAILED, 'domain_retry_at' => now()->subSecond()]);
+        domainCheckableWord('unchecked');
+        $requested = [];
+
+        Http::fake(function ($request) use (&$requested) {
+            $requested[] = $request->url();
+
+            return Http::response(null, 404);
+        });
+
+        $this->artisan('words:check-domains --limit=1')->assertExitCode(0);
+
+        expect($requested[0])->toContain('/unchecked.com');
+    });
+
+    test('Given a failed word whose retry is not due, it is excluded', function () {
+        $word = domainCheckableWord('deferred', [
+            'domain_status' => Word::DOMAIN_CHECK_FAILED,
+            'domain_retry_at' => now()->addHour(),
+            'domain_attempts' => 2,
+        ]);
+
+        Http::fake();
+
+        $this->artisan('words:check-domains')->expectsOutputToContain('No words to check')->assertExitCode(0);
+
+        expect($word->fresh()->domain_attempts)->toBe(2);
+        Http::assertNothingSent();
+    });
+
+    test('Given a permanently invalid label is due, it is excluded so it cannot consume a limited retry batch', function () {
+        $invalid = domainCheckableWord('not valid', [
+            'domain_status' => Word::DOMAIN_CHECK_FAILED,
+            'domain_retry_at' => now()->subSecond(),
+            'domain_attempts' => 1,
+            'domain_failure' => ['kind' => 'invalid_label'],
+        ]);
+        $stale = domainCheckableWord('stale', [
+            'domain_status' => Word::DOMAIN_TAKEN,
+            'domain_checked_at' => now()->subDay(),
+        ]);
+
+        Http::fake(['*stale.com' => Http::response(null, 404)]);
+
+        $this->artisan('words:check-domains --limit=1')->assertExitCode(0);
+
+        expect($invalid->fresh()->domain_attempts)->toBe(1)
+            ->and($stale->fresh()->domain_status)->toBe(Word::DOMAIN_AVAILABLE);
+        Http::assertSentCount(1);
+    });
+
+    test('Given an unchecked invalid label, it is recorded as terminal without a retry time', function () {
+        $word = domainCheckableWord('not valid');
+
+        Http::fake();
+
+        $this->artisan('words:check-domains')->assertExitCode(0);
+
+        expect($word->fresh()->domain_status)->toBe(Word::DOMAIN_CHECK_FAILED)
+            ->and($word->fresh()->domain_attempts)->toBe(1)
+            ->and($word->fresh()->domain_retry_at)->toBeNull()
+            ->and($word->fresh()->domain_failure)->toMatchArray(['kind' => 'invalid_label']);
+        Http::assertNothingSent();
+    });
+
+    test('Given a conclusive retry, it clears deferred state and resets attempts', function () {
+        $word = domainCheckableWord('recovered', [
+            'domain_status' => Word::DOMAIN_CHECK_FAILED,
+            'domain_retry_at' => now()->subSecond(),
+            'domain_attempts' => 3,
+            'domain_failure' => ['kind' => 'http'],
+        ]);
+
+        Http::fake(['*' => Http::response(null, 404)]);
+
+        $this->artisan('words:check-domains')->assertExitCode(0);
+
+        $word->refresh();
+
+        expect($word->domain_status)->toBe(Word::DOMAIN_AVAILABLE)
+            ->and($word->domain_attempts)->toBe(0)
+            ->and($word->domain_retry_at)->toBeNull()
+            ->and($word->domain_failure)->toBeNull();
+    });
+
+    test('Given a Retry-After response, it cools down the provider before the next request', function () {
+        domainCheckableWord('cooldownfirst');
+        domainCheckableWord('cooldownsecond');
+        config()->set('domain.max_retry_after_seconds', 1);
+
+        Http::fake([
+            '*cooldownfirst.com' => Http::response(null, 429, ['Retry-After' => '1']),
+            '*cooldownsecond.com' => Http::response(null, 404),
+        ]);
+
+        $startedAt = microtime(true);
+        $this->artisan('words:check-domains')->assertExitCode(0);
+
+        expect(microtime(true) - $startedAt)->toBeGreaterThan(0.8);
+        Http::assertSentCount(2);
+    });
+
+    test('Given a cooldown that cannot fit the invocation deadline, it stops without sleeping through the lease', function () {
+        domainCheckableWord('deadlinefirst');
+        domainCheckableWord('deadlinesecond');
+        config()->set('domain.max_retry_after_seconds', 2);
+        config()->set('domain.run_max_seconds', 1);
+        config()->set('domain.run_deadline_reserve_seconds', 0);
+
+        Http::fake([
+            '*deadlinefirst.com' => Http::response(null, 429, ['Retry-After' => '2']),
+            '*deadlinesecond.com' => Http::response(null, 404),
+        ]);
+
+        $startedAt = microtime(true);
+        $this->artisan('words:check-domains')
+            ->expectsOutputToContain('cooldown would exceed this invocation deadline')
+            ->assertExitCode(0);
+
+        expect(microtime(true) - $startedAt)->toBeLessThan(0.8)
+            ->and(Word::where('text', 'deadlinefirst')->first()->domain_status)->toBe(Word::DOMAIN_CHECK_FAILED)
+            ->and(Word::where('text', 'deadlinesecond')->first()->domain_status)->toBe(Word::DOMAIN_UNCHECKED)
+            ->and(DB::table('domain_check_run_locks')->count())->toBe(0);
+        Http::assertSentCount(1);
+    });
+
     test('Given a word checked 12 hours ago, it is left alone', function () {
         $word = domainCheckableWord('recent', [
             'domain_status' => Word::DOMAIN_TAKEN,
@@ -177,9 +312,8 @@ describe('chunking and time-boxing the run', function () {
 
         Http::fake(['*' => Http::response(null, 404)]);
 
-        // beforeEach sets domain.throttle_per_second to 0, so any pacing here
-        // can only come from the option: two words at one request per second
-        // sleep twice, one second after each word.
+        // beforeEach disables configured pacing, so any pacing here comes from
+        // the option: two words at one request per second wait before each request.
         $startedAt = microtime(true);
         $this->artisan('words:check-domains --throttle=1')->assertExitCode(0);
         $elapsedSeconds = microtime(true) - $startedAt;

@@ -3,9 +3,7 @@
 namespace App\Services;
 
 use App\Models\Word;
-use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
-use RuntimeException;
 use Throwable;
 
 /**
@@ -19,6 +17,8 @@ use Throwable;
  */
 class DomainAvailabilityService
 {
+    public const PROVIDER = 'verisign-com';
+
     /**
      * DNS label guard: lowercase letters, digits and inner hyphens only,
      * 1-63 chars, not starting or ending with a hyphen. Production words are
@@ -28,74 +28,72 @@ class DomainAvailabilityService
     private const LABEL_PATTERN = '/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/';
 
     /**
-     * Returns one of the Word::DOMAIN_* constants. Never throws: every
-     * failure path reports check_failed so the caller can always record a
-     * result and a timestamp.
+     * Make exactly one request. Retrying is deliberately deferred to the
+     * command so failures survive process and Lambda restarts.
      */
-    public function checkComAvailability(string $text): string
+    public function checkComAvailability(string $text): DomainAvailabilityOutcome
     {
         $label = strtolower(trim($text));
 
         if (preg_match(self::LABEL_PATTERN, $label) !== 1) {
-            return Word::DOMAIN_CHECK_FAILED;
+            return new DomainAvailabilityOutcome(
+                Word::DOMAIN_CHECK_FAILED,
+                self::PROVIDER,
+                'invalid_label',
+                'The word is not a valid domain label.',
+            );
         }
 
         $url = rtrim((string) config('domain.rdap_base_url'), '/').'/'.$label.'.com';
 
         try {
-            $response = $this->getWithRetry($url);
+            $response = Http::timeout((int) config('domain.timeout', 10))->get($url);
         } catch (Throwable) {
-            return Word::DOMAIN_CHECK_FAILED;
+            return new DomainAvailabilityOutcome(
+                Word::DOMAIN_CHECK_FAILED,
+                self::PROVIDER,
+                'transport',
+                'The RDAP provider could not be reached.',
+            );
         }
 
         if ($response->notFound()) {
             // RDAP's definitive "object does not exist" — the domain is free.
-            return Word::DOMAIN_AVAILABLE;
+            return new DomainAvailabilityOutcome(Word::DOMAIN_AVAILABLE, self::PROVIDER, httpStatus: 404);
         }
 
-        if ($response->successful()) {
-            return Word::DOMAIN_TAKEN;
+        if ($response->status() === 200) {
+            return new DomainAvailabilityOutcome(Word::DOMAIN_TAKEN, self::PROVIDER, httpStatus: 200);
         }
 
-        return Word::DOMAIN_CHECK_FAILED;
+        return new DomainAvailabilityOutcome(
+            Word::DOMAIN_CHECK_FAILED,
+            self::PROVIDER,
+            'http',
+            "The RDAP provider returned HTTP {$response->status()}.",
+            $response->status(),
+            $this->retryAfterSeconds($response->header('Retry-After')),
+        );
     }
 
-    /**
-     * GET an RDAP path, retrying transient failures.
-     *
-     * A 200 or a 404 is a real answer and is returned immediately. Any other
-     * status (403, 429, 5xx, ...) and any transport exception is retried with
-     * a linear backoff; the last failure is re-thrown so the caller records
-     * check_failed rather than a guessed verdict.
-     */
-    private function getWithRetry(string $url): Response
+    public function retryAfterSeconds(?string $value): ?int
     {
-        $attempts = max(1, (int) config('domain.attempts', 3));
-        $sleepMs = (int) config('domain.retry_sleep_ms', 400);
-        $lastError = 'unknown error';
+        $value = trim((string) $value);
 
-        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
-            try {
-                $response = Http::timeout((int) config('domain.timeout', 10))->get($url);
-
-                if ($response->successful() || $response->notFound() || $attempt === $attempts) {
-                    return $response;
-                }
-
-                $lastError = "unexpected HTTP {$response->status()}";
-            } catch (Throwable $e) {
-                $lastError = $e->getMessage();
-
-                if ($attempt === $attempts) {
-                    throw $e;
-                }
-            }
-
-            if ($sleepMs > 0) {
-                usleep($sleepMs * $attempt * 1000);
-            }
+        if ($value === '') {
+            return null;
         }
 
-        throw new RuntimeException("RDAP request failed: {$lastError}");
+        if (ctype_digit($value)) {
+            return (int) $value;
+        }
+
+        try {
+            $seconds = now()->diffInSeconds(\Carbon\CarbonImmutable::parse($value), false);
+        } catch (Throwable) {
+            return null;
+        }
+
+        return $seconds > 0 ? $seconds : null;
     }
 }

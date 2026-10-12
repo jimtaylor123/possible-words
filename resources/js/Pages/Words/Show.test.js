@@ -237,6 +237,16 @@ describe('register link for a free .com', () => {
     expect(registerLink(target)).toBeNull()
   })
 
+  it('explains taken and unknown domain states', () => {
+    let target = mountWithDomain('taken')
+    expect(target.textContent).toContain('blorg.com is already registered.')
+    app.unmount()
+    globalThis.document.body.innerHTML = ''
+
+    target = mountWithDomain('check_failed')
+    expect(target.textContent).toContain('Domain availability is currently unknown.')
+  })
+
   it('never opens a popup when the page mounts', () => {
     mountWithDomain('available')
 
