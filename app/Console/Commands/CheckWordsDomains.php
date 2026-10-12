@@ -69,6 +69,10 @@ class CheckWordsDomains extends Command
                 Word::query()->where('domain_status', Word::DOMAIN_CHECK_FAILED)
                     ->where(function (Builder $query) use ($now) {
                         $query->whereNull('domain_retry_at')->orWhere('domain_retry_at', '<=', $now);
+                    })
+                    ->where(function (Builder $query) {
+                        $query->whereNull('domain_failure')
+                            ->orWhere('domain_failure->kind', '!=', 'invalid_label');
                     }),
                 Word::query()->whereIn('domain_status', [Word::DOMAIN_AVAILABLE, Word::DOMAIN_TAKEN])
                     ->where(function (Builder $query) use ($now) {
@@ -135,12 +139,13 @@ class CheckWordsDomains extends Command
                             $attempts = $word->domain_attempts + 1;
                             $retryAfter = min(max(0, (int) ($outcome->retryAfterSeconds ?? 0)), max(0, (int) config('domain.max_retry_after_seconds', 3600)));
                             $delay = max($this->retryDelaySeconds($attempts), $retryAfter);
+                            $isInvalidLabel = $outcome->failureKind === 'invalid_label';
 
                             $word->update([
                                 'domain_status' => Word::DOMAIN_CHECK_FAILED,
                                 'domain_checked_at' => $checkedAt,
                                 'domain_provider' => $outcome->provider,
-                                'domain_retry_at' => $checkedAt->copy()->addSeconds($delay),
+                                'domain_retry_at' => $isInvalidLabel ? null : $checkedAt->copy()->addSeconds($delay),
                                 'domain_attempts' => $attempts,
                                 'domain_failure' => $outcome->failureDiagnostic(),
                             ]);

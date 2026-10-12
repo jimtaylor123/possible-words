@@ -126,6 +126,41 @@ describe('choosing which words to check', function () {
         Http::assertNothingSent();
     });
 
+    test('Given a permanently invalid label is due, it is excluded so it cannot consume a limited retry batch', function () {
+        $invalid = domainCheckableWord('not valid', [
+            'domain_status' => Word::DOMAIN_CHECK_FAILED,
+            'domain_retry_at' => now()->subSecond(),
+            'domain_attempts' => 1,
+            'domain_failure' => ['kind' => 'invalid_label'],
+        ]);
+        $stale = domainCheckableWord('stale', [
+            'domain_status' => Word::DOMAIN_TAKEN,
+            'domain_checked_at' => now()->subDay(),
+        ]);
+
+        Http::fake(['*stale.com' => Http::response(null, 404)]);
+
+        $this->artisan('words:check-domains --limit=1')->assertExitCode(0);
+
+        expect($invalid->fresh()->domain_attempts)->toBe(1)
+            ->and($stale->fresh()->domain_status)->toBe(Word::DOMAIN_AVAILABLE);
+        Http::assertSentCount(1);
+    });
+
+    test('Given an unchecked invalid label, it is recorded as terminal without a retry time', function () {
+        $word = domainCheckableWord('not valid');
+
+        Http::fake();
+
+        $this->artisan('words:check-domains')->assertExitCode(0);
+
+        expect($word->fresh()->domain_status)->toBe(Word::DOMAIN_CHECK_FAILED)
+            ->and($word->fresh()->domain_attempts)->toBe(1)
+            ->and($word->fresh()->domain_retry_at)->toBeNull()
+            ->and($word->fresh()->domain_failure)->toMatchArray(['kind' => 'invalid_label']);
+        Http::assertNothingSent();
+    });
+
     test('Given a conclusive retry, it clears deferred state and resets attempts', function () {
         $word = domainCheckableWord('recovered', [
             'domain_status' => Word::DOMAIN_CHECK_FAILED,
