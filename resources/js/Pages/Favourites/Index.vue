@@ -1,7 +1,7 @@
 <template>
   <Layout>
     <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <h1 class="text-3xl font-bold text-gray-900 mb-8">Your Favourite Words</h1>
+      <h1 class="text-3xl font-bold text-gray-900 mb-8">{{ isPopular ? 'Most Favourited Words' : 'Your Favourite Words' }}</h1>
 
       <div v-if="words.data.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <a
@@ -23,7 +23,7 @@
                         size="small"
                         quaternary
                         circle
-                        @click.stop="playAudio(word)"
+                        @click.prevent.stop="playAudio(word)"
                       >
                         <template #icon>
                           <svg viewBox="0 0 24 24" width="20" height="20" style="fill: currentColor;">
@@ -34,14 +34,14 @@
                     </template>
                     Click to hear the word
                   </n-tooltip>
-                  <n-tooltip trigger="hover">
+                  <n-tooltip v-if="$page.props.auth.user" trigger="hover">
                     <template #trigger>
                       <n-button
                         size="small"
                         quaternary
                         circle
                         :aria-label="favouriteIds.includes(word.id) ? 'Remove from favourites' : 'Add to favourites'"
-                        @click.stop="toggleFavourite(word)"
+                        @click.prevent.stop="toggleFavourite(word)"
                       >
                         <template #icon>
                           <svg viewBox="0 0 24 24" :width="20" :height="20" :style="favouriteIconStyle(word)">
@@ -60,6 +60,9 @@
               <div class="flex items-center space-x-4 text-sm text-gray-500">
                 <span>{{ word.syllables }} syllable{{ word.syllables !== 1 ? 's' : '' }}</span>
                 <span>{{ word.text.length }} letters</span>
+              </div>
+              <div v-if="isPopular" class="text-sm font-medium text-amber-600">
+                {{ word.favourites_count }} favourite{{ word.favourites_count !== 1 ? 's' : '' }}
               </div>
 
               <div v-if="word.definitions.length > 0" class="text-gray-700">
@@ -97,8 +100,8 @@
       </div>
 
       <div v-else class="text-center py-16 text-gray-400">
-        <p class="text-lg">You haven't favourited any words yet.</p>
-        <Link :href="route('home')" class="mt-4 inline-block">
+        <p class="text-lg">{{ isPopular ? 'No words have been favourited yet.' : "You haven't favourited any words yet." }}</p>
+        <Link v-if="!isPopular" :href="route('home')" class="mt-4 inline-block">
           <n-button>Browse Words</n-button>
         </Link>
       </div>
@@ -123,8 +126,9 @@ import { ref, computed } from 'vue'
 import { mdiPlay, mdiStar } from '@mdi/js'
 import Layout from '@/Components/Layout.vue'
 
-defineProps({
+const props = defineProps({
   words: { type: Object, required: true },
+  isPopular: { type: Boolean, default: false },
 })
 
 const page = usePage()
@@ -163,7 +167,7 @@ const toggleFavourite = (word) => {
 }
 
 const onPageChange = (pageNum) => {
-  router.get(route('words.favourites'), { page: pageNum }, {
+  router.get(route(props.isPopular ? 'words.popular' : 'words.favourites'), { page: pageNum }, {
     preserveScroll: true,
     preserveState: true,
   })

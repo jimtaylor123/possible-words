@@ -6,6 +6,7 @@ use App\Models\Definition;
 use App\Models\User;
 use App\Models\Vote;
 use App\Models\Word;
+use App\Services\LocalDomainAvailabilitySeeder;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -18,6 +19,9 @@ class DevDataSeeder extends Seeder
 
         $this->command->info('Loading 1000 words from fixture...');
         $words = $this->createWords();
+
+        $this->command->info('Adding demo .com availability...');
+        app(LocalDomainAvailabilitySeeder::class)->seed();
 
         $this->command->info('Creating definitions...');
         $this->createDefinitions($words, $users);
@@ -52,7 +56,7 @@ class DevDataSeeder extends Seeder
     {
         $this->call(WordFixtureSeeder::class);
 
-        return Word::all()->all();
+        return Word::orderBy('id')->get()->all();
     }
 
     private function createDefinitions(array $words, array $users): void

@@ -193,7 +193,40 @@ describe('word definition realtime updates', () => {
   })
 })
 
-describe('register link for a free .com', () => {
+describe('definition add action', () => {
+  let app
+
+  beforeEach(() => {
+    window.Echo = {
+      channel: vi.fn(() => ({ name: 'word', listen: vi.fn() })),
+      leaveChannel: vi.fn(),
+    }
+  })
+
+  afterEach(() => {
+    app?.unmount()
+    globalThis.document.body.innerHTML = ''
+    delete window.Echo
+  })
+
+  it('keeps the add action beside the heading when there are no definitions', () => {
+    const mounted = mountShow({
+      id: 42,
+      text: 'blorg',
+      slug: 'blorg',
+      syllables: 1,
+      definitions: [],
+    }, { id: 1, name: 'Author' })
+    app = mounted.app
+
+    const heading = Array.from(mounted.target.querySelectorAll('h2')).find((element) => element.textContent === 'Definitions')
+
+    expect(heading.parentElement.textContent).toContain('Add a definition')
+    expect(mounted.target.querySelector('.text-center.py-8').textContent).not.toContain('Add a definition')
+  })
+})
+
+describe('domain availability chip', () => {
   let app
   let openSpy
 
@@ -211,7 +244,7 @@ describe('register link for a free .com', () => {
     return mounted.target
   }
 
-  const registerLink = (target) => target.querySelector('a[href*="namecheap.com"]')
+  const domainLink = (target) => target.querySelector('a[href*="blorg.com"]')
 
   beforeEach(() => {
     openSpy = vi.fn()
@@ -229,38 +262,21 @@ describe('register link for a free .com', () => {
     delete window.open
   })
 
-  it('renders a static Namecheap anchor when the .com is available', () => {
-    const target = mountWithDomain('available')
+  it.each([
+    ['available', 'available', 'buy blorg.com'],
+    ['taken', 'taken', 'blorg.com already taken'],
+    ['unchecked', 'unchecked', 'visit blorg.com'],
+    ['check failed', 'check_failed', 'visit blorg.com'],
+    ['absent verdict', undefined, 'visit blorg.com'],
+  ])('renders a linked %s domain chip', (_label, domainStatus, label) => {
+    const target = mountWithDomain(domainStatus)
+    const link = domainLink(target)
 
-    const link = registerLink(target)
     expect(link).not.toBeNull()
-    expect(link.getAttribute('href')).toBe(
-      'https://www.namecheap.com/domains/registration/results/?domain=blorg.com',
-    )
+    expect(link.getAttribute('href')).toBe('https://blorg.com')
     expect(link.getAttribute('target')).toBe('_blank')
     expect(link.getAttribute('rel')).toBe('noopener noreferrer')
-    expect(link.textContent.trim()).toBe('Register blorg.com')
-  })
-
-  it.each([
-    ['taken', 'taken'],
-    ['unchecked', 'unchecked'],
-    ['check failed', 'check_failed'],
-    ['absent verdict', undefined],
-  ])('renders no register link when the domain is %s', (_label, domainStatus) => {
-    const target = mountWithDomain(domainStatus)
-
-    expect(registerLink(target)).toBeNull()
-  })
-
-  it('explains taken and unknown domain states', () => {
-    let target = mountWithDomain('taken')
-    expect(target.textContent).toContain('blorg.com is already registered.')
-    app.unmount()
-    globalThis.document.body.innerHTML = ''
-
-    target = mountWithDomain('check_failed')
-    expect(target.textContent).toContain('Domain availability is currently unknown.')
+    expect(link.textContent.trim()).toBe(label)
   })
 
   it('never opens a popup when the page mounts', () => {

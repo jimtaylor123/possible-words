@@ -59,6 +59,7 @@ class WordFixtureSeeder extends Seeder
                 'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
                 'dictionary_checked_at' => now(),
                 'dictionary_data' => ['free_dictionary' => ['found' => false]],
+                'published_at' => now(),
             ]);
 
             $created++;

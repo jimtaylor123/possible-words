@@ -56,7 +56,7 @@ test.describe('Admin area', () => {
         await login(page, `admin-queue-second-reporter-${suffix}@example.com`);
         await page.getByRole('button', { name: 'Report this word' }).click();
         await page.locator('#report-reason').click();
-        await page.getByText('This word is not fresh', { exact: true }).last().click();
+        await page.getByText('This is already a word in the English Language', { exact: true }).last().click();
         await page.getByRole('button', { name: 'Submit report' }).click();
         await expect(page.getByRole('status')).toHaveText('Report submitted.');
 

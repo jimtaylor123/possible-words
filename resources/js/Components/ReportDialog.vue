@@ -23,7 +23,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'success']);
 const page = usePage();
-const reason = ref(null);
+const reason = ref(props.reasonOptions.length === 1 ? props.reasonOptions[0].value : null);
 const explanation = ref('');
 const errors = ref({});
 const processing = ref(false);

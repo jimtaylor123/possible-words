@@ -8,9 +8,15 @@ const login = async (page, email = `fave-e2e-${Date.now()}@example.com`) => {
 };
 
 test.describe('Favourites', () => {
-    test('favourites link is hidden from guests (auth-gated)', async ({ page }) => {
+    test('Popular is public while Favourites remains auth-gated', async ({ page }) => {
         await page.goto('/');
         await expect(page.locator('nav')).not.toContainText('Favourites');
+        await expect(page.locator('nav')).toContainText('Popular');
+
+        await page.getByRole('link', { name: 'Popular' }).click();
+        await expect(page).toHaveURL(/\/popular$/);
+        await expect(page.getByRole('heading', { name: 'Most Favourited Words' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Popular' })).toHaveAttribute('aria-current', 'page');
     });
 
     test('guests browsing to the favourites route are sent to Google sign-in', async ({ page }) => {
@@ -33,6 +39,19 @@ test.describe('Favourites', () => {
         await page.goto('/favourites');
         await expect(page.getByRole('heading', { name: 'Your Favourite Words' })).toBeVisible();
         await expect(page.getByText(wordText)).toBeVisible();
+    });
+
+    test('a signed-in user can favourite a popular word without opening its detail page', async ({ page }) => {
+        await login(page);
+
+        await page.goto('/popular');
+        const card = page.locator('a[href*="/words/"]').first();
+        await card.waitFor({ state: 'visible' });
+
+        await card.getByRole('button', { name: 'Add to favourites' }).click();
+
+        await expect(page).toHaveURL(/\/popular$/);
+        await expect(card.getByRole('button', { name: 'Remove from favourites' })).toBeVisible();
     });
 
     test('a signed-in user can unfavourite a word', async ({ page }) => {

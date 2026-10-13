@@ -1,6 +1,7 @@
 <?php
 
 use App\Events\DefinitionCreated;
+use App\Models\Favourite;
 use App\Models\User;
 use App\Models\Word;
 use Illuminate\Support\Facades\Event;
@@ -251,6 +252,34 @@ describe('favouriting', function () {
                 ->component('Favourites/Index')
                 ->has('words.data', 1)
                 ->where('words.data.0.id', $word->id)
+            );
+    });
+
+    test('Given multiple users favourite words, the popular tab ranks publishable words by favourite count', function () {
+        $viewer = User::factory()->create();
+        $users = User::factory()->count(3)->create();
+        $mostFavourited = createWord();
+        $mostFavourited->update(['text' => 'mostfavourited', 'slug' => 'mostfavourited']);
+        $lessFavourited = createWord();
+        $lessFavourited->update(['text' => 'lessfavourited', 'slug' => 'lessfavourited']);
+        $unreleased = createWord();
+        $unreleased->update(['text' => 'unreleasedfavourite', 'slug' => 'unreleasedfavourite', 'published_at' => null]);
+
+        foreach ($users as $user) {
+            Favourite::create(['user_id' => $user->id, 'word_id' => $mostFavourited->id]);
+        }
+        Favourite::create(['user_id' => $users[0]->id, 'word_id' => $lessFavourited->id]);
+        Favourite::create(['user_id' => $users[0]->id, 'word_id' => $unreleased->id]);
+
+        $this->get(route('words.popular'))
+            ->assertInertia(fn ($page) => $page
+                ->component('Favourites/Index')
+                ->where('isPopular', true)
+                ->has('words.data', 2)
+                ->where('words.data.0.id', $mostFavourited->id)
+                ->where('words.data.0.favourites_count', 3)
+                ->where('words.data.1.id', $lessFavourited->id)
+                ->where('words.data.1.favourites_count', 1)
             );
     });
 

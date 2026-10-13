@@ -9,13 +9,25 @@
           </div>
 
           <div class="flex items-center gap-4 sm:gap-6">
-            <Link :href="route('about')" class="text-gray-600 hover:text-gray-900 text-sm sm:text-base">
+            <Link
+              :href="route('about')"
+              :class="navLinkClass('/about')"
+              :aria-current="isCurrentPath('/about') ? 'page' : undefined"
+            >
               About
+            </Link>
+            <Link
+              :href="route('words.popular')"
+              :class="navLinkClass('/popular')"
+              :aria-current="isCurrentPath('/popular') ? 'page' : undefined"
+            >
+              Popular
             </Link>
             <Link
               v-if="user"
               :href="route('words.favourites')"
-              class="text-gray-600 hover:text-gray-900 text-sm sm:text-base"
+              :class="navLinkClass('/favourites')"
+              :aria-current="isCurrentPath('/favourites') ? 'page' : undefined"
             >
               Favourites
             </Link>
@@ -105,6 +117,15 @@ const page = usePage()
 const flash = computed(() => page.props.flash ?? {})
 
 const user = computed(() => page.props.auth?.user ?? null)
+
+const currentPath = computed(() => page.url.split('?')[0])
+
+const isCurrentPath = (path) => currentPath.value === path
+
+const navLinkClass = (path) => [
+  'rounded-md px-2 py-1 text-sm sm:text-base',
+  isCurrentPath(path) ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-600 hover:text-gray-900',
+]
 
 const avatarSrc = computed(() => {
   const url = user.value?.avatar
