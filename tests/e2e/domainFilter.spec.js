@@ -57,18 +57,19 @@ test.describe('Free .com filter', () => {
         }
     });
 
-    test('an available word shows the register link and an unchecked word is explicit about unknown status', async ({ page }) => {
+    test('domain chips link directly to the word domain for available and unknown statuses', async ({ page }) => {
         await page.goto('/words/bloarp');
 
-        const link = page.locator('a', { hasText: 'Register bloarp.com' });
+        const link = page.locator('a', { hasText: 'buy bloarp.com' });
         await expect(link).toBeVisible();
-        await expect(link).toHaveAttribute('href', 'https://www.namecheap.com/domains/registration/results/?domain=bloarp.com');
+        await expect(link).toHaveAttribute('href', 'https://bloarp.com');
         await expect(link).toHaveAttribute('target', '_blank');
         await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
 
         await page.goto('/words/bloark');
         await expect(page.locator('h1')).toHaveText('bloark');
-        await expect(page.locator('a', { hasText: 'Register' })).toHaveCount(0);
-        await expect(page.getByText('Domain availability is currently unknown. We’ll check again later.')).toBeVisible();
+        const unknownLink = page.locator('a', { hasText: 'visit bloark.com' });
+        await expect(unknownLink).toBeVisible();
+        await expect(unknownLink).toHaveAttribute('href', 'https://bloark.com');
     });
 });

@@ -336,21 +336,42 @@ class WordController extends Controller
 
     public function favourites(Request $request)
     {
-        $query = Word::whereHas('favourites', function ($q) {
-            $q->where('user_id', Auth::id());
-        })->with([
+        $words = $this->favouriteWordsQuery()
+            ->whereHas('favourites', function ($q) {
+                $q->where('user_id', Auth::id());
+            })
+            ->paginate(20)
+            ->withQueryString();
+
+        return Inertia::render('Favourites/Index', [
+            'words' => $words,
+        ]);
+    }
+
+    public function popular()
+    {
+        $words = $this->favouriteWordsQuery()
+            ->has('favourites')
+            ->orderByDesc('favourites_count')
+            ->orderBy('text')
+            ->paginate(20)
+            ->withQueryString();
+
+        return Inertia::render('Favourites/Index', [
+            'words' => $words,
+            'isPopular' => true,
+        ]);
+    }
+
+    private function favouriteWordsQuery()
+    {
+        return Word::with([
             // Same reason as index(): a "[deleted]" teaser on a favourites card reads as
             // a broken card, so fall through to the definition that is still live.
             'definitions' => function ($q) {
                 $q->withoutRemoved()->orderBy('votes_count', 'desc')->limit(1);
             },
             'definitions.user',
-        ])->withCount('definitions')->publishable();
-
-        $words = $query->paginate(20)->withQueryString();
-
-        return Inertia::render('Favourites/Index', [
-            'words' => $words,
-        ]);
+        ])->withCount(['definitions', 'favourites'])->publishable();
     }
 }

@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [WordController::class, 'index'])->name('home');
 Route::get('/about', [AboutController::class, 'index'])->name('about');
 Route::get('/words', [WordController::class, 'index'])->name('words.index');
+Route::get('/popular', [WordController::class, 'popular'])->name('words.popular');
 Route::get('/suggestions', [WordController::class, 'suggestions'])->name('words.suggestions');
 Route::get('/words/{word}', [WordController::class, 'show'])->name('words.show');
 

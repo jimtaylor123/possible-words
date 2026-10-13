@@ -2,7 +2,7 @@
 
 /**
  * Mark two deterministic fixture words as having a free .com so the E2E
- * specs can assert on a filtered list.
+ * specs can assert on a filtered list, with every other word unchecked.
  *
  * The committed dev-data.sqlite snapshot predates this feature (every word
  * lands on "unchecked" once the migration has run), and Playwright specs only
@@ -22,6 +22,11 @@ $app = require __DIR__.'/../bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 $expected = ['bloarp', 'bloblarp'];
+
+Word::query()->update([
+    'domain_status' => Word::DOMAIN_UNCHECKED,
+    'domain_checked_at' => null,
+]);
 
 $updated = Word::query()
     ->whereIn('text', $expected)

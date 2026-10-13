@@ -38,21 +38,24 @@
           >
             {{ suggestionAnnouncement }}
           </p>
-          <n-button
-            quaternary
-            circle
-            :aria-label="showAdvanced ? 'Hide filters' : 'Show filters'"
-            @click="toggleAdvanced"
-          >
-            <template #icon>
-              <svg v-if="!showAdvanced" viewBox="0 0 24 24" width="22" height="22" style="fill: currentColor;">
-                <path :d="mdiFilter" />
-              </svg>
-              <svg v-else viewBox="0 0 24 24" width="22" height="22" style="fill: currentColor;">
-                <path :d="mdiFilterOff" />
-              </svg>
-            </template>
-          </n-button>
+          <div class="flex flex-col items-center">
+            <span class="text-xs text-gray-500 whitespace-nowrap">{{ words.total }} word{{ words.total === 1 ? '' : 's' }}</span>
+            <n-button
+              quaternary
+              circle
+              :aria-label="showAdvanced ? 'Hide filters' : 'Show filters'"
+              @click="toggleAdvanced"
+            >
+              <template #icon>
+                <svg v-if="!showAdvanced" viewBox="0 0 24 24" width="22" height="22" style="fill: currentColor;">
+                  <path :d="mdiFilter" />
+                </svg>
+                <svg v-else viewBox="0 0 24 24" width="22" height="22" style="fill: currentColor;">
+                  <path :d="mdiFilterOff" />
+                </svg>
+              </template>
+            </n-button>
+          </div>
         </div>
 
         <transition name="fade">
@@ -548,6 +551,36 @@ const toggleAdvanced = () => {
     showAdvanced.value = true
   }
 }
+
+const targetIsEditable = (target) => {
+  if (!(target instanceof window.Element)) return false
+
+  return Boolean(target.closest('input, textarea, select, [contenteditable]'))
+}
+
+const handleShortcut = (event) => {
+  if (
+    event.repeat ||
+    targetIsEditable(event.target) ||
+    event.ctrlKey ||
+    event.altKey ||
+    event.metaKey ||
+    event.shiftKey
+  ) return
+
+  if (event.key.toLowerCase() === 'f') {
+    event.preventDefault()
+    toggleAdvanced()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleShortcut)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleShortcut)
+})
 
 
 </script>

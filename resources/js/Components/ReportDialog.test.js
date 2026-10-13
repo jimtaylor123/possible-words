@@ -55,7 +55,7 @@ describe('ReportDialog', () => {
         targetType = 'word',
         targetValue = 'blorg',
         reasonOptions = [
-            { label: 'This word is not fresh', value: 'word_unfresh' },
+            { label: 'This is already a word in the English Language', value: 'word_unfresh' },
             { label: 'This word is offensive or obscene', value: 'word_offensive' },
         ],
     } = {}) {
@@ -95,7 +95,7 @@ describe('ReportDialog', () => {
             options.onFinish();
         });
 
-        expect(target.textContent).toContain('This word is not fresh');
+        expect(target.textContent).toContain('This is already a word in the English Language');
         expect(target.textContent).toContain('This word is offensive or obscene');
 
         const select = target.querySelector('select');
@@ -151,12 +151,10 @@ describe('ReportDialog', () => {
         });
 
         expect(target.textContent).toContain('This definition is offensive or obscene');
-        expect(target.textContent).not.toContain('This word is not fresh');
+        expect(target.textContent).not.toContain('This is already a word in the English Language');
 
         const select = target.querySelector('select');
-        select.value = 'definition_offensive';
-        select.dispatchEvent(new globalThis.Event('change'));
-        await nextTick();
+        expect(select.value).toBe('definition_offensive');
         target.querySelector('form').dispatchEvent(new globalThis.Event('submit'));
 
         expect(globalThis.route).toHaveBeenCalledWith('reports.store', {

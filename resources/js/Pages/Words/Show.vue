@@ -2,7 +2,7 @@
   <Layout>
     <div class="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <!-- Word Header -->
-      <div class="text-center mb-8">
+      <div class="text-center sm:mb-8">
         <div class="flex items-center justify-center gap-3 mb-4">
           <h1 class="text-4xl font-bold text-gray-900">{{ word.text }}</h1>
           <n-tooltip v-if="$page.props.auth.user" trigger="hover">
@@ -37,24 +37,6 @@
           @close="showReportDialog = false"
           @success="showReportDialog = false"
         />
-        <!-- Plain external link: no popup, no interstitial, no redirect on this
-             page. Rendered only for a definitive "available" verdict, so an
-             unchecked or failed check never reads as a free domain. -->
-        <a
-          v-if="word.domain_status === 'available'"
-          :href="domainRegisterUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="inline-block mt-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
-        >
-          Register {{ word.text }}.com
-        </a>
-        <p v-else-if="word.domain_status === 'taken'" class="mt-2 text-sm text-gray-500">
-          {{ word.text }}.com is already registered.
-        </p>
-        <p v-else class="mt-2 text-sm text-gray-500">
-          Domain availability is currently unknown. We’ll check again later.
-        </p>
         <div v-if="word.ipa || $page.props.auth.user" class="flex items-center justify-center gap-3 mt-3">
           <span v-if="word.ipa" class="text-lg text-neutral-500 font-mono">{{ word.ipa }}</span>
           <n-tooltip v-if="word.audio_url" trigger="hover">
@@ -97,67 +79,77 @@
       </div>
 
       <!-- Share Section -->
-      <div class="flex items-center justify-center gap-2 mb-8">
-        <span class="text-sm text-gray-400 mr-1">Share</span>
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-button size="small" quaternary circle @click="shareWhatsApp">
-              <template #icon>
-                <svg viewBox="0 0 24 24" width="20" height="20" style="fill: #25D366;">
-                  <path :d="mdiWhatsapp" />
-                </svg>
-              </template>
-            </n-button>
-          </template>
-          WhatsApp
-        </n-tooltip>
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-button size="small" quaternary circle @click="shareFacebook">
-              <template #icon>
-                <svg viewBox="0 0 24 24" width="20" height="20" style="fill: #1877F2;">
-                  <path :d="mdiFacebook" />
-                </svg>
-              </template>
-            </n-button>
-          </template>
-          Facebook
-        </n-tooltip>
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-button size="small" quaternary circle @click="shareTwitter">
-              <template #icon>
-                <svg viewBox="0 0 24 24" width="20" height="20" style="fill: currentColor;">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-              </template>
-            </n-button>
-          </template>
-          X / Twitter
-        </n-tooltip>
-        <n-tooltip trigger="hover">
-          <template #trigger>
-            <n-button size="small" quaternary circle @click="shareLinkedIn">
-              <template #icon>
-                <svg viewBox="0 0 24 24" width="20" height="20" style="fill: #0A66C2;">
-                  <path :d="mdiLinkedin" />
-                </svg>
-              </template>
-            </n-button>
-          </template>
-          LinkedIn
-        </n-tooltip>
+      <div class="mb-8 flex flex-col items-center gap-3 sm:relative sm:block">
+        <div class="flex items-center justify-center gap-2">
+          <span class="text-sm text-gray-400 mr-1">Share</span>
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button size="small" quaternary circle @click="shareWhatsApp">
+                <template #icon>
+                  <svg viewBox="0 0 24 24" width="20" height="20" style="fill: #25D366;">
+                    <path :d="mdiWhatsapp" />
+                  </svg>
+                </template>
+              </n-button>
+            </template>
+            WhatsApp
+          </n-tooltip>
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button size="small" quaternary circle @click="shareFacebook">
+                <template #icon>
+                  <svg viewBox="0 0 24 24" width="20" height="20" style="fill: #1877F2;">
+                    <path :d="mdiFacebook" />
+                  </svg>
+                </template>
+              </n-button>
+            </template>
+            Facebook
+          </n-tooltip>
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button size="small" quaternary circle @click="shareTwitter">
+                <template #icon>
+                  <svg viewBox="0 0 24 24" width="20" height="20" style="fill: currentColor;">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                </template>
+              </n-button>
+            </template>
+            X / Twitter
+          </n-tooltip>
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button size="small" quaternary circle @click="shareLinkedIn">
+                <template #icon>
+                  <svg viewBox="0 0 24 24" width="20" height="20" style="fill: #0A66C2;">
+                    <path :d="mdiLinkedin" />
+                  </svg>
+                </template>
+              </n-button>
+            </template>
+            LinkedIn
+          </n-tooltip>
+        </div>
+        <a
+          :href="domainUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors hover:brightness-95 sm:absolute sm:right-0 sm:top-1/2 sm:-translate-y-1/2"
+          :class="domainChip.class"
+        >
+          {{ domainChip.label }}
+        </a>
       </div>
 
       <!-- Definitions Section -->
       <div class="bg-white rounded-lg shadow-sm border p-6 mb-8">
-        <div v-if="definitions.length > 0" class="flex items-center justify-between gap-4 mb-6">
+        <div class="flex items-center justify-between gap-4 mb-6">
           <h2 class="text-2xl font-bold text-gray-900">Definitions</h2>
           <n-button v-if="isAuthenticated" type="primary" @click="openDefinitionModal">
             Add a definition
           </n-button>
         </div>
-        <h2 v-else class="text-2xl font-bold text-gray-900 mb-6">Definitions</h2>
         
         <div v-if="definitions.length > 0" class="space-y-4">
           <div
@@ -258,9 +250,6 @@
         
         <div v-else class="text-gray-400 italic text-center py-8">
           No definitions yet. Be the first to define this word!
-          <n-button v-if="isAuthenticated" type="primary" class="mt-4 not-italic" @click="openDefinitionModal">
-            Add a definition
-          </n-button>
         </div>
       </div>
 
@@ -335,7 +324,7 @@ const playing = ref(false)
 const audioPlayer = ref(null)
 const showReportDialog = ref(false)
 const reportReasonOptions = [
-  { label: 'This word is not fresh', value: 'word_unfresh' },
+  { label: 'This is already a word in the English Language', value: 'word_unfresh' },
   { label: 'This word is offensive or obscene', value: 'word_offensive' },
 ]
 const selectedDefinitionId = ref(null)
@@ -372,11 +361,19 @@ const playAudio = () => {
 const shareUrl = computed(() => window.location.href)
 const shareText = computed(() => `Check out this possible word: ${props.word.text}`)
 
-// Registrar search URL (Namecheap, no affiliate parameters). Swapping the
-// registrar is a one-line change here.
-const domainRegisterUrl = computed(() =>
-  `https://www.namecheap.com/domains/registration/results/?domain=${encodeURIComponent(props.word.text.toLowerCase() + '.com')}`,
-)
+const domainName = computed(() => `${props.word.text.toLowerCase()}.com`)
+const domainUrl = computed(() => `https://${domainName.value}`)
+const domainChip = computed(() => {
+  if (props.word.domain_status === 'available') {
+    return { label: `buy ${domainName.value}`, class: 'border-green-200 bg-green-50 text-green-700' }
+  }
+
+  if (props.word.domain_status === 'taken') {
+    return { label: `${domainName.value} already taken`, class: 'border-red-200 bg-red-50 text-red-700' }
+  }
+
+  return { label: `visit ${domainName.value}`, class: 'border-gray-200 bg-gray-50 text-gray-600' }
+})
 
 const shareWhatsApp = () => {
   window.open(`https://wa.me/?text=${encodeURIComponent(shareText.value + '\n' + shareUrl.value)}`, '_blank', 'noopener,noreferrer')
