@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
+beforeEach(fn () => config(['session.driver' => 'database']));
+
 test('account routes require authentication', function () {
     $this->get(route('account.show'))->assertRedirect(route('auth.google'));
     $this->get(route('account.export'))->assertRedirect(route('auth.google'));
@@ -30,6 +32,19 @@ test('an account export includes account activity but excludes credentials and s
         'end_at' => now()->addMonth(),
     ]);
     $report = $word->reports()->create(['reporter_id' => $user->id, 'reason' => Report::REASON_WORD_UNFRESH]);
+    $processedReport = $word->reports()->create([
+        'reason' => Report::REASON_WORD_OFFENSIVE,
+        'processed_by_user_id' => $user->id,
+        'processing_action' => Report::ACTION_REVIEWED,
+        'processing_note' => 'Processed by this user.',
+        'processed_at' => now(),
+    ]);
+    $report->update([
+        'processed_by_user_id' => $user->id,
+        'processing_action' => Report::ACTION_REVIEWED,
+        'processing_note' => 'Submitted and processed by this user.',
+        'processed_at' => now(),
+    ]);
     ReportReviewAction::create(['report_id' => $report->id, 'admin_user_id' => $user->id, 'action' => Report::ACTION_REVIEWED]);
     DB::table('sessions')->insert(['id' => 'account-export-session', 'user_id' => $user->id, 'payload' => 'sensitive', 'last_activity' => now()->timestamp]);
 
@@ -48,7 +63,8 @@ test('an account export includes account activity but excludes credentials and s
         ->and($export['votes'])->toHaveCount(1)
         ->and($export['favourites'])->toHaveCount(1)
         ->and($export['ownerships'])->toHaveCount(1)
-        ->and($export['reports'])->toHaveCount(1)
+        ->and($export['reports'])->toHaveCount(2)
+        ->and(collect($export['reports'])->pluck('id')->all())->toEqualCanonicalizing([$report->id, $processedReport->id])
         ->and($export['report_review_actions'])->toHaveCount(1)
         ->and($export)->not->toHaveKey('sessions');
 });
@@ -63,6 +79,21 @@ test('account deletion requires the literal DELETE confirmation', function () {
     $this->actingAs($user)->delete(route('account.destroy'), ['confirmation' => 'delete'])
         ->assertSessionHasErrors('confirmation');
     $this->assertDatabaseHas('users', ['id' => $user->id]);
+});
+
+test('account deletion is unavailable when sessions do not use the database driver', function () {
+    $sessionDriver = config('session.driver');
+    config(['session.driver' => 'file']);
+    $user = User::factory()->create();
+
+    try {
+        $this->actingAs($user)->delete(route('account.destroy'), ['confirmation' => 'DELETE'])
+            ->assertStatus(500);
+
+        $this->assertDatabaseHas('users', ['id' => $user->id]);
+    } finally {
+        config(['session.driver' => $sessionDriver]);
+    }
 });
 
 test('account deletion removes personal data, releases words, and retains anonymous public records', function () {
