@@ -9,9 +9,8 @@ uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
  *
  * Given visitors toggle the filter,
  * When they browse or open the word page,
- * Then only definitively available domains are shown when it is on, and the
- * entire response stays byte-for-byte identical to the pre-feature payload
- * when it is off.
+ * Then only definitively available domains are shown when it is on, and each
+ * browse card receives its safe domain-status verdict.
  */
 function domainFilterWord(array $attrs = []): Word
 {
@@ -105,15 +104,20 @@ describe('filtering the catalogue by .com availability', function () {
     });
 });
 
-describe('keeping filter-off responses byte-for-byte identical', function () {
-    test('Given the param absent, no domain key leaks into the payload', function () {
-        domainFilterFixture();
+describe('browse domain-status payload', function () {
+    test('Given the param absent, the safe domain verdict is included without internal metadata', function () {
+        domainFilterWord(['domain_status' => Word::DOMAIN_AVAILABLE]);
 
         $this->get(route('words.index'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->missing('filters.domain_available')
-                ->missing('words.data.0.domain_status')
+                ->where('words.data.0.domain_status', Word::DOMAIN_AVAILABLE)
+                ->missing('words.data.0.domain_checked_at')
+                ->missing('words.data.0.domain_failure')
+                ->missing('words.data.0.domain_provider')
+                ->missing('words.data.0.domain_attempts')
+                ->missing('words.data.0.domain_retry_at')
             );
     });
 
