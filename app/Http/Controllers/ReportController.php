@@ -68,6 +68,10 @@ class ReportController extends Controller
     /** @param array{reason: string, explanation?: string|null} $validated */
     protected function submitToActiveCase(Model $reportable, User $reporter, array $validated): void
     {
+        // SQLite's deferred transactions can fail when a separate connection
+        // dismisses this case after the lookup. Laravel recognizes its busy /
+        // locked exception as a concurrency error and restarts this complete
+        // callback, including the active-case lookup.
         DB::transaction(function () use ($reportable, $reporter, $validated): void {
             $activeKey = ReportCase::activeKey($reportable, $validated['reason']);
             // This prevents a concurrent dismissal from clearing active_key after
@@ -100,7 +104,7 @@ class ReportController extends Controller
                 // Retained for legacy audit rows; lifecycle state is owned by the case.
                 'status' => ReportCase::STATUS_OPEN,
             ]);
-        });
+        }, attempts: 3);
     }
 
     protected function lockedActiveCase(string $activeKey): ?ReportCase
