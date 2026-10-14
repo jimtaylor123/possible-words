@@ -172,19 +172,19 @@
                 "{{ word.definitions[0].text }}"
                 <div class="flex items-center gap-2 text-xs text-gray-500 mt-2">
                   <n-avatar
-                    v-if="word.definitions[0].user.avatar"
+                    v-if="word.definitions[0].user?.avatar"
                     :src="word.definitions[0].user.avatar"
                     :size="20"
                     round
                   />
                   <n-avatar
-                    v-else
+                    v-else-if="word.definitions[0].user"
                     :size="20"
                     round
                   >
                     {{ word.definitions[0].user.name.charAt(0).toUpperCase() }}
                   </n-avatar>
-                  <span>{{ word.definitions[0].user.name }}</span>
+                  <span>{{ word.definitions[0].user ? word.definitions[0].user.name : 'Deleted user' }}</span>
                   <span>&bull;</span>
                   <span>{{ word.definitions[0].votes_count }} votes</span>
                   <span v-if="word.definitions[0].part_of_speech">&bull; {{ word.definitions[0].part_of_speech }}</span>

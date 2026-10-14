@@ -50,12 +50,6 @@ class AccountController extends Controller
             'confirmation' => ['required', 'string', 'in:DELETE'],
         ]);
 
-        abort_unless(
-            config('session.driver') === 'database',
-            500,
-            'Account deletion requires the database session driver.'
-        );
-
         /** @var User $user */
         $user = $request->user();
 
@@ -71,7 +65,9 @@ class AccountController extends Controller
                 'owned_until' => null,
             ]);
 
-            DB::table(config('session.table'))->where('user_id', $user->id)->delete();
+            if (config('session.driver') === 'database') {
+                DB::table(config('session.table'))->where('user_id', $user->id)->delete();
+            }
 
             User::query()->whereKey($user->id)->delete();
 

@@ -81,16 +81,30 @@ test('account deletion requires the literal DELETE confirmation', function () {
     $this->assertDatabaseHas('users', ['id' => $user->id]);
 });
 
-test('account deletion is unavailable when sessions do not use the database driver', function () {
+test('cookie sessions cannot access an account after it is deleted', function () {
     $sessionDriver = config('session.driver');
-    config(['session.driver' => 'file']);
+    config(['session.driver' => 'cookie']);
     $user = User::factory()->create();
 
     try {
-        $this->actingAs($user)->delete(route('account.destroy'), ['confirmation' => 'DELETE'])
-            ->assertStatus(500);
+        app('session')->forgetDrivers();
+        $this->get('/');
 
-        $this->assertDatabaseHas('users', ['id' => $user->id]);
+        $sessionKey = auth()->guard()->getName();
+        $sessionResponse = $this->withSession([$sessionKey => $user->id])->get(route('account.show'));
+        $sessionCookie = $sessionResponse->getCookie(config('session.cookie'));
+
+        expect($sessionCookie)->not->toBeNull();
+
+        $this->withCookie(config('session.cookie'), $sessionCookie->getValue())
+            ->delete(route('account.destroy'), ['confirmation' => 'DELETE'])
+            ->assertRedirect('/');
+
+        $this->withCookie(config('session.cookie'), $sessionCookie->getValue())
+            ->get(route('account.show'))
+            ->assertRedirect(route('auth.google'));
+
+        $this->assertDatabaseMissing('users', ['id' => $user->id]);
     } finally {
         config(['session.driver' => $sessionDriver]);
     }
