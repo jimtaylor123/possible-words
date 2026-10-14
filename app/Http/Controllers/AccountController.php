@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Report;
 use App\Models\User;
 use App\Models\Vote;
 use App\Models\Word;
@@ -29,11 +28,8 @@ class AccountController extends Controller
             'votes' => $user->votes()->get()->map->getAttributes(),
             'favourites' => $user->favourites()->get()->map->getAttributes(),
             'ownerships' => $user->ownerships()->get()->map->getAttributes(),
-            'reports' => Report::query()
-                ->where('reporter_id', $user->id)
-                ->orWhere('processed_by_user_id', $user->id)
-                ->get()
-                ->map->getAttributes(),
+            'reports' => $user->reports()->get()->map->getAttributes(),
+            'report_cases' => $user->processedReportCases()->get()->map->getAttributes(),
             'report_review_actions' => $user->reportReviewActions()->get()->map->getAttributes(),
         ];
 

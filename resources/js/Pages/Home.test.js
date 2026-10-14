@@ -148,7 +148,6 @@ describe('domain availability ribbons', () => {
   })
 
   it('shows the ribbon only for words with an available .com', () => {
-  it('shows the ribbon only for words with an available .com', () => {
     const mounted = mountHome({
       ...words,
       data: [

@@ -3,6 +3,7 @@
 use App\Models\Favourite;
 use App\Models\Ownership;
 use App\Models\Report;
+use App\Models\ReportCase;
 use App\Models\ReportReviewAction;
 use App\Models\User;
 use App\Models\Vote;
@@ -31,21 +32,21 @@ test('an account export includes account activity but excludes credentials and s
         'start_at' => now(),
         'end_at' => now()->addMonth(),
     ]);
-    $report = $word->reports()->create(['reporter_id' => $user->id, 'reason' => Report::REASON_WORD_UNFRESH]);
-    $processedReport = $word->reports()->create([
+    $reportCase = $word->reportCases()->create([
+        'reason' => Report::REASON_WORD_UNFRESH,
+        'status' => ReportCase::STATUS_OPEN,
+        'active_key' => ReportCase::activeKey($word, Report::REASON_WORD_UNFRESH),
+    ]);
+    $report = $word->reports()->create(['report_case_id' => $reportCase->id, 'reporter_id' => $user->id, 'reason' => Report::REASON_WORD_UNFRESH]);
+    $processedReportCase = $word->reportCases()->create([
         'reason' => Report::REASON_WORD_OFFENSIVE,
+        'status' => ReportCase::STATUS_REVIEWED,
         'processed_by_user_id' => $user->id,
-        'processing_action' => Report::ACTION_REVIEWED,
+        'processing_action' => ReportCase::STATUS_REVIEWED,
         'processing_note' => 'Processed by this user.',
         'processed_at' => now(),
     ]);
-    $report->update([
-        'processed_by_user_id' => $user->id,
-        'processing_action' => Report::ACTION_REVIEWED,
-        'processing_note' => 'Submitted and processed by this user.',
-        'processed_at' => now(),
-    ]);
-    ReportReviewAction::create(['report_id' => $report->id, 'admin_user_id' => $user->id, 'action' => Report::ACTION_REVIEWED]);
+    ReportReviewAction::create(['report_case_id' => $reportCase->id, 'report_id' => $report->id, 'admin_user_id' => $user->id, 'action' => ReportCase::STATUS_REVIEWED]);
     DB::table('sessions')->insert(['id' => 'account-export-session', 'user_id' => $user->id, 'payload' => 'sensitive', 'last_activity' => now()->timestamp]);
 
     $response = $this->actingAs($user)->get(route('account.export'));
@@ -63,8 +64,10 @@ test('an account export includes account activity but excludes credentials and s
         ->and($export['votes'])->toHaveCount(1)
         ->and($export['favourites'])->toHaveCount(1)
         ->and($export['ownerships'])->toHaveCount(1)
-        ->and($export['reports'])->toHaveCount(2)
-        ->and(collect($export['reports'])->pluck('id')->all())->toEqualCanonicalizing([$report->id, $processedReport->id])
+        ->and($export['reports'])->toHaveCount(1)
+        ->and(collect($export['reports'])->pluck('id')->all())->toEqualCanonicalizing([$report->id])
+        ->and($export['report_cases'])->toHaveCount(1)
+        ->and(collect($export['report_cases'])->pluck('id')->all())->toEqualCanonicalizing([$processedReportCase->id])
         ->and($export['report_review_actions'])->toHaveCount(1)
         ->and($export)->not->toHaveKey('sessions');
 });
@@ -127,15 +130,22 @@ test('account deletion removes personal data, releases words, and retains anonym
         'end_at' => now()->addMonth(),
         'stripe_session_id' => 'cs_test_account_deletion',
     ]);
+    $reportCase = $word->reportCases()->create([
+        'reason' => Report::REASON_WORD_OFFENSIVE,
+        'status' => ReportCase::STATUS_OPEN,
+        'active_key' => ReportCase::activeKey($word, Report::REASON_WORD_OFFENSIVE),
+    ]);
     $report = $word->reports()->create([
+        'report_case_id' => $reportCase->id,
         'reporter_id' => $user->id,
         'reason' => Report::REASON_WORD_OFFENSIVE,
         'explanation' => 'Retained moderation text.',
     ]);
     $reviewAction = ReportReviewAction::create([
+        'report_case_id' => $reportCase->id,
         'report_id' => $report->id,
         'admin_user_id' => $user->id,
-        'action' => Report::ACTION_REVIEWED,
+        'action' => ReportCase::STATUS_REVIEWED,
         'note' => 'Retained review history.',
     ]);
     DB::table('sessions')->insert([
