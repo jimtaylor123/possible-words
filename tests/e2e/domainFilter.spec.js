@@ -60,7 +60,7 @@ test.describe('Free .com filter', () => {
     test('domain chips link directly to the word domain for available and unknown statuses', async ({ page }) => {
         await page.goto('/words/bloarp');
 
-        const link = page.locator('a', { hasText: 'buy bloarp.com' });
+        const link = page.locator('a', { hasText: 'bloarp.com is available' });
         await expect(link).toBeVisible();
         await expect(link).toHaveAttribute('href', 'https://bloarp.com');
         await expect(link).toHaveAttribute('target', '_blank');
