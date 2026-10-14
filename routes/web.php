@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AboutController;
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminReportController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ReportController;
@@ -23,6 +24,9 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // Protected routes
 Route::middleware('auth')->group(function () {
+    Route::get('/account', [AccountController::class, 'show'])->name('account.show');
+    Route::get('/account/export', [AccountController::class, 'export'])->name('account.export');
+    Route::delete('/account', [AccountController::class, 'destroy'])->name('account.destroy');
     Route::post('/words/{word}/definitions', [WordController::class, 'storeDefinition'])->name('words.definitions.store');
     Route::post('/definitions/{definition}/vote', [WordController::class, 'voteDefinition'])->name('definitions.vote');
     Route::post('/definitions/{definition}/remove', [WordController::class, 'removeDefinition'])->name('definitions.remove');
