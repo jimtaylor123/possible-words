@@ -23,46 +23,50 @@
       </div>
 
       <div v-if="reports.data.length" class="space-y-4">
-        <article v-for="report in reports.data" :key="report.id" class="rounded-lg border bg-white p-5 shadow-sm">
+        <article v-for="reportCase in reports.data" :key="reportCase.id" class="rounded-lg border bg-white p-5 shadow-sm">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p class="font-semibold text-gray-900">{{ reasonLabel(report.reason) }}</p>
-              <span :class="statusClass(report.status)" class="inline-block rounded-full px-2 py-1 text-xs font-medium mt-1">{{ report.status }}</span>
+              <p class="font-semibold text-gray-900">{{ reasonLabel(reportCase.reason) }}</p>
+              <span :class="statusClass(reportCase.status)" class="inline-block rounded-full px-2 py-1 text-xs font-medium mt-1">{{ reportCase.status }}</span>
             </div>
-            <n-button size="small" type="primary" @click="openAction(report)">{{ actionLabel(report) }}</n-button>
+            <n-button v-if="actionLabel(reportCase)" size="small" type="primary" @click="openAction(reportCase)">{{ actionLabel(reportCase) }}</n-button>
           </div>
 
           <div class="mt-4 space-y-2 text-sm text-gray-700">
             <p>
-              <span class="font-medium">Reported {{ report.target.type }}:</span>
-              <a v-if="report.target.url" :href="report.target.url" class="text-blue-600 hover:underline">{{ report.target.text }}</a>
-              <span v-else>{{ report.target.text || 'Deleted content' }}</span>
-              <span v-if="report.target.type === 'definition' && report.target.word_text"> (for {{ report.target.word_text }})</span>
+              <span class="font-medium">Reported {{ reportCase.target.type }}:</span>
+              <a v-if="reportCase.target.url" :href="reportCase.target.url" class="text-blue-600 hover:underline">{{ reportCase.target.text }}</a>
+              <span v-else>{{ reportCase.target.text || 'Deleted content' }}</span>
+              <span v-if="reportCase.target.type === 'definition' && reportCase.target.word_text"> (for {{ reportCase.target.word_text }})</span>
             </p>
-            <p><span class="font-medium">Reporter:</span> {{ report.reporter?.name || 'Deleted user' }}</p>
-            <p><span class="font-medium">Submitted:</span> {{ formatDate(report.submitted_at) }}</p>
-            <p><span class="font-medium">Context:</span> <span v-if="report.explanation">{{ report.explanation }}</span><em v-else>No context provided.</em></p>
-            <p v-if="report.latest_review"><span class="font-medium">Latest review:</span> {{ report.latest_review.action }} by {{ report.latest_review.admin?.name || 'Deleted user' }} on {{ formatDate(report.latest_review.processed_at) }}<span v-if="report.latest_review.note"> — {{ report.latest_review.note }}</span></p>
+            <p><span class="font-medium">Unique reporters:</span> {{ reportCase.reporter_count }}</p>
+            <p v-if="reportCase.latest_review"><span class="font-medium">Latest review:</span> {{ reportCase.latest_review.action }} by {{ reportCase.latest_review.admin?.name || 'Deleted user' }} on {{ formatDate(reportCase.latest_review.processed_at) }}<span v-if="reportCase.latest_review.note"> — {{ reportCase.latest_review.note }}</span></p>
           </div>
 
-          <section v-if="report.actions.length" class="mt-4 border-t pt-3" :aria-label="`Review history for report ${report.id}`">
+          <section class="mt-4 border-t pt-3" :aria-label="`Reports in case ${reportCase.id}`">
+            <h2 class="text-sm font-semibold text-gray-800">Submitted reports</h2>
+            <ol class="mt-2 space-y-2 text-sm text-gray-600"><li v-for="report in reportCase.reports" :key="report.id"><span class="font-medium">{{ report.reporter?.name || 'Deleted user' }}</span> on {{ formatDate(report.submitted_at) }}<span v-if="report.explanation"> — {{ report.explanation }}</span><span v-else> — <em>No context provided.</em></span></li></ol>
+          </section>
+
+          <section v-if="reportCase.actions.length" class="mt-4 border-t pt-3" :aria-label="`Review history for case ${reportCase.id}`">
             <h2 class="text-sm font-semibold text-gray-800">Review history</h2>
             <ol class="mt-2 space-y-1 text-sm text-gray-600">
-              <li v-for="action in report.actions" :key="action.id"><span class="font-medium">{{ action.action }}</span> by {{ action.admin?.name || 'Deleted user' }} on {{ formatDate(action.created_at) }}<span v-if="action.note"> — {{ action.note }}</span></li>
+              <li v-for="action in reportCase.actions" :key="action.id"><span class="font-medium">{{ action.action }}</span> by {{ action.admin?.name || 'Deleted user' }} on {{ formatDate(action.created_at) }}<span v-if="action.note"> — {{ action.note }}</span></li>
             </ol>
           </section>
+          <section v-if="reportCase.prior_dismissed.length" class="mt-4 border-t pt-3"><h2 class="text-sm font-semibold text-gray-800">Prior dismissed cases</h2><ol class="mt-2 text-sm text-gray-600"><li v-for="prior in reportCase.prior_dismissed" :key="prior.id">Case #{{ prior.id }} — {{ prior.reporter_count }} reporter{{ prior.reporter_count === 1 ? '' : 's' }}</li></ol></section>
         </article>
       </div>
-      <p v-else class="rounded-lg border border-dashed p-8 text-center text-gray-600">{{ isFiltered ? 'No reports match these filters.' : 'There are no open reports.' }}</p>
+      <p v-else class="rounded-lg border border-dashed p-8 text-center text-gray-600">{{ isFiltered ? 'No report cases match these filters.' : 'There are no open report cases.' }}</p>
 
       <div v-if="reports.last_page > 1" class="mt-6 flex justify-center">
         <n-pagination v-model:page="currentPage" :page-count="reports.last_page" @update:page="goToPage" />
       </div>
     </div>
 
-    <n-modal v-model:show="showAction" preset="card" title="Update report" class="max-w-lg" :mask-closable="!submitting">
+    <n-modal v-model:show="showAction" preset="card" title="Update report case" class="max-w-lg" :mask-closable="!submitting">
       <form @submit.prevent="submitAction">
-        <p class="mb-4 text-gray-700">Mark this report as <strong>{{ selectedAction }}</strong>. This does not change the reported content.</p>
+        <p class="mb-4 text-gray-700">Mark this report case as <strong>{{ selectedAction }}</strong>. This does not change the reported content.</p>
         <label v-if="selectedReport?.status === 'open'" class="block mb-4 text-sm font-medium text-gray-700">Action
           <n-select v-model:value="selectedAction" :options="openActionOptions" class="mt-1" aria-label="Review action" />
         </label>
@@ -106,8 +110,8 @@ const error = ref('')
 const submitting = ref(false)
 const isFiltered = computed(() => selectedReason.value || selectedStatus.value !== 'open')
 const openActionOptions = [
-  { label: 'Review', value: 'reviewed' },
   { label: 'Dismiss', value: 'dismissed' },
+  { label: 'Mute', value: 'muted' },
 ]
 
 const applyFilters = () => {
@@ -119,10 +123,10 @@ const goToPage = (page) => {
   router.get(route('admin.dashboard'), { reason: selectedReason.value || undefined, status: selectedStatus.value, page }, { preserveState: true })
 }
 
-const actionLabel = (report) => report.status === 'open' ? 'Review or dismiss' : 'Reopen'
+const actionLabel = (report) => report.status === 'open' ? 'Dismiss or mute' : report.status === 'muted' ? 'Unmute' : null
 const openAction = (report) => {
   selectedReport.value = report
-  selectedAction.value = report.status === 'open' ? 'reviewed' : 'reopened'
+  selectedAction.value = report.status === 'open' ? 'dismissed' : 'unmuted'
   note.value = ''
   error.value = ''
   showAction.value = true
@@ -140,6 +144,6 @@ const submitAction = () => {
 }
 
 const reasonLabel = (reason) => ({ word_unfresh: 'Unfresh word', word_offensive: 'Offensive word', definition_offensive: 'Offensive definition' })[reason] || reason
-const statusClass = (status) => ({ open: 'bg-amber-100 text-amber-800', reviewed: 'bg-blue-100 text-blue-800', dismissed: 'bg-gray-100 text-gray-700' })[status]
+const statusClass = (status) => ({ open: 'bg-amber-100 text-amber-800', muted: 'bg-blue-100 text-blue-800', dismissed: 'bg-gray-100 text-gray-700' })[status]
 const formatDate = (date) => date ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(date)) : 'Unknown time'
 </script>
