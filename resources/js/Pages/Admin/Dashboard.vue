@@ -144,6 +144,6 @@ const submitAction = () => {
 }
 
 const reasonLabel = (reason) => ({ word_unfresh: 'Unfresh word', word_offensive: 'Offensive word', definition_offensive: 'Offensive definition' })[reason] || reason
-const statusClass = (status) => ({ open: 'bg-amber-100 text-amber-800', muted: 'bg-blue-100 text-blue-800', dismissed: 'bg-gray-100 text-gray-700' })[status]
+const statusClass = (status) => ({ open: 'bg-amber-100 text-amber-800', muted: 'bg-blue-100 text-blue-800', reviewed: 'bg-indigo-100 text-indigo-800', dismissed: 'bg-gray-100 text-gray-700' })[status]
 const formatDate = (date) => date ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(date)) : 'Unknown time'
 </script>

@@ -11,7 +11,7 @@ uses(RefreshDatabase::class);
 function adminCase(string $status = 'open'): ReportCase
 {
     $word = Word::factory()->create();
-    $case = $word->reportCases()->create(['reason' => Report::REASON_WORD_UNFRESH, 'status' => $status, 'active_key' => $status === 'dismissed' ? null : ReportCase::activeKey($word, Report::REASON_WORD_UNFRESH)]);
+    $case = $word->reportCases()->create(['reason' => Report::REASON_WORD_UNFRESH, 'status' => $status, 'active_key' => in_array($status, ['open', 'muted'], true) ? ReportCase::activeKey($word, Report::REASON_WORD_UNFRESH) : null]);
     $word->reports()->create(['report_case_id' => $case->id, 'reporter_id' => User::factory()->create()->id, 'reason' => Report::REASON_WORD_UNFRESH, 'explanation' => 'Context']);
 
     return $case;
@@ -26,6 +26,19 @@ test('admin queue is case based and filters statuses', function () {
     foreach (['muted', 'dismissed', 'all'] as $status) {
         $this->actingAs($admin)->get(route('admin.dashboard', ['status' => $status]))->assertInertia(fn ($page) => $page->where('filters.status', $status)->has('reports.data', $status === 'all' ? 3 : 1));
     }
+});
+
+test('admin queue preserves and displays legacy reviewed cases separately from dismissals', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    adminCase('reviewed');
+    adminCase('dismissed');
+
+    $this->actingAs($admin)->get(route('admin.dashboard', ['status' => 'reviewed']))
+        ->assertInertia(fn ($page) => $page
+            ->where('filters.status', 'reviewed')
+            ->has('reports.data', 1)
+            ->where('reports.data.0.status', 'reviewed')
+            ->where('statusOptions.2', ['label' => 'Reviewed (legacy)', 'value' => 'reviewed']));
 });
 
 test('admin can mute unmute and dismiss a case with immutable actions', function () {

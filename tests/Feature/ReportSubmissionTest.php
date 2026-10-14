@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ReportController;
 use App\Models\Report;
 use App\Models\ReportCase;
 use App\Models\User;
@@ -37,20 +38,50 @@ test('allows one user to report different reasons in separate cases', function (
     expect(ReportCase::count())->toBe(2)->and(Report::count())->toBe(2);
 });
 
-test('a muted case absorbs submissions and dismissal starts a new episode', function () {
+test('a muted case absorbs submissions', function () {
     $first = User::factory()->create();
     $second = User::factory()->create();
-    $third = User::factory()->create();
     $word = Word::factory()->create();
     $this->actingAs($first)->post(reportRoute($word), ['reason' => Report::REASON_WORD_UNFRESH]);
     $case = ReportCase::first();
     $case->update(['status' => ReportCase::STATUS_MUTED]);
     $this->actingAs($second)->post(reportRoute($word), ['reason' => Report::REASON_WORD_UNFRESH]);
     expect($case->fresh()->reports)->toHaveCount(2);
+});
 
-    $case->update(['status' => ReportCase::STATUS_DISMISSED, 'active_key' => null]);
-    $this->actingAs($third)->post(reportRoute($word), ['reason' => Report::REASON_WORD_UNFRESH]);
-    expect(ReportCase::count())->toBe(2)->and(ReportCase::where('status', 'open')->first()->reports)->toHaveCount(1);
+test('a submission revalidates a case dismissed after its locked lookup', function () {
+    $first = User::factory()->create();
+    $laterReporter = User::factory()->create();
+    $word = Word::factory()->create();
+
+    $this->actingAs($first)->post(reportRoute($word), ['reason' => Report::REASON_WORD_UNFRESH]);
+    $dismissedCase = ReportCase::first();
+
+    $controller = new class extends ReportController
+    {
+        protected function lockedActiveCase(string $activeKey): ?ReportCase
+        {
+            $case = parent::lockedActiveCase($activeKey);
+
+            // Interleave the admin's status-conditional dismissal after the
+            // submission lookup. The submission must not use this stale model.
+            $case?->update(['status' => ReportCase::STATUS_DISMISSED, 'active_key' => null]);
+
+            return $case;
+        }
+
+        public function submitForTest(Word $word, User $reporter): void
+        {
+            $this->submitToActiveCase($word, $reporter, ['reason' => Report::REASON_WORD_UNFRESH]);
+        }
+    };
+    $controller->submitForTest($word, $laterReporter);
+
+    $newCase = ReportCase::where('status', ReportCase::STATUS_OPEN)->firstOrFail();
+    expect(ReportCase::count())->toBe(2)
+        ->and($dismissedCase->fresh()->reports)->toHaveCount(1)
+        ->and($newCase->reports)->toHaveCount(1)
+        ->and($newCase->reports->first()->reporter_id)->toBe($laterReporter->id);
 });
 
 test('guests and invalid target reasons are rejected', function () {

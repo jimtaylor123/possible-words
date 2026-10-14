@@ -13,6 +13,9 @@ class ReportCase extends Model
 
     public const STATUS_DISMISSED = 'dismissed';
 
+    // Retained only for immutable cases migrated from the legacy report lifecycle.
+    public const STATUS_REVIEWED = 'reviewed';
+
     public const STATUS_MUTED = 'muted';
 
     public const ACTION_DISMISSED = 'dismissed';
@@ -32,7 +35,7 @@ class ReportCase extends Model
 
     public static function statuses(): array
     {
-        return [self::STATUS_OPEN, self::STATUS_DISMISSED, self::STATUS_MUTED];
+        return [self::STATUS_OPEN, self::STATUS_DISMISSED, self::STATUS_REVIEWED, self::STATUS_MUTED];
     }
 
     public static function actionsFor(string $status): array
