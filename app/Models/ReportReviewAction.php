@@ -13,6 +13,11 @@ class ReportReviewAction extends Model
         'note',
     ];
 
+    public function reportCase(): BelongsTo
+    {
+        return $this->belongsTo(ReportCase::class);
+    }
+
     public function report(): BelongsTo
     {
         return $this->belongsTo(Report::class);

@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Definition;
 use App\Models\Report;
+use App\Models\ReportCase;
 use App\Models\Word;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -21,11 +21,11 @@ class AdminReportController extends Controller
             Report::REASON_WORD_OFFENSIVE,
             Report::REASON_DEFINITION_OFFENSIVE,
         ]);
-        $status = $this->filter($request, 'status', Report::statuses()) ?? Report::STATUS_OPEN;
+        $status = $this->filter($request, 'status', [...ReportCase::statuses(), 'all']) ?? ReportCase::STATUS_OPEN;
 
-        $reports = Report::query()
+        $reports = ReportCase::query()
             ->with([
-                'reporter',
+                'reports.reporter',
                 'processor',
                 'reviewActions.admin',
                 'reportable' => function (MorphTo $morphTo): void {
@@ -33,11 +33,11 @@ class AdminReportController extends Controller
                 },
             ])
             ->when($reason, fn ($query) => $query->where('reason', $reason))
-            ->where('status', $status)
+            ->when($status !== 'all', fn ($query) => $query->where('status', $status))
             ->latest()
             ->paginate(20)
             ->withQueryString()
-            ->through(fn (Report $report) => $this->reportPayload($report));
+            ->through(fn (ReportCase $case) => $this->casePayload($case));
 
         return inertia('Admin/Dashboard', [
             'reports' => $reports,
@@ -49,62 +49,62 @@ class AdminReportController extends Controller
                 ['label' => 'Offensive definition', 'value' => Report::REASON_DEFINITION_OFFENSIVE],
             ],
             'statusOptions' => [
-                ['label' => 'Open', 'value' => Report::STATUS_OPEN],
-                ['label' => 'Reviewed', 'value' => Report::STATUS_REVIEWED],
-                ['label' => 'Dismissed', 'value' => Report::STATUS_DISMISSED],
+                ['label' => 'Open', 'value' => ReportCase::STATUS_OPEN],
+                ['label' => 'Dismissed', 'value' => ReportCase::STATUS_DISMISSED],
+                ['label' => 'Reviewed (legacy)', 'value' => ReportCase::STATUS_REVIEWED],
+                ['label' => 'Muted', 'value' => ReportCase::STATUS_MUTED],
+                ['label' => 'All', 'value' => 'all'],
             ],
         ]);
     }
 
-    public function update(Request $request, Report $report)
+    public function update(Request $request, ReportCase $reportCase)
     {
         $validated = $request->validate([
             'action' => ['required', 'string', Rule::in([
-                Report::ACTION_REVIEWED,
-                Report::ACTION_DISMISSED,
-                Report::ACTION_REOPENED,
+                ReportCase::ACTION_DISMISSED,
+                ReportCase::ACTION_MUTED,
+                ReportCase::ACTION_UNMUTED,
             ])],
             'note' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        try {
-            DB::transaction(function () use ($request, $report, $validated): void {
-                $processedAt = now();
-                $updated = Report::query()
-                    ->whereKey($report->getKey())
-                    ->whereIn('status', Report::statusesForLifecycleAction($validated['action']))
-                    ->update([
-                        'status' => Report::statusForAction($validated['action']),
-                        'processed_by_user_id' => $request->user()->id,
-                        'processed_at' => $processedAt,
-                        'processing_action' => $validated['action'],
-                        'processing_note' => $validated['note'] ?? null,
-                        'updated_at' => $processedAt,
-                    ]);
-
-                if ($updated !== 1) {
-                    throw ValidationException::withMessages([
-                        'action' => 'This report has already been updated. Refresh the queue and try again.',
-                    ]);
-                }
-
-                $report->reviewActions()->create([
-                    'admin_user_id' => $request->user()->id,
-                    'action' => $validated['action'],
-                    'note' => $validated['note'] ?? null,
-                    'created_at' => $processedAt,
+        DB::transaction(function () use ($request, $reportCase, $validated): void {
+            $processedAt = now();
+            $expectedStatus = match ($validated['action']) {
+                ReportCase::ACTION_DISMISSED, ReportCase::ACTION_MUTED => ReportCase::STATUS_OPEN,
+                ReportCase::ACTION_UNMUTED => ReportCase::STATUS_MUTED,
+            };
+            $nextStatus = ReportCase::statusForAction($validated['action']);
+            $updated = ReportCase::query()
+                ->whereKey($reportCase->getKey())
+                ->where('status', $expectedStatus)
+                ->update([
+                    'status' => $nextStatus,
+                    'active_key' => $nextStatus === ReportCase::STATUS_DISMISSED ? null : $reportCase->active_key,
+                    'processed_by_user_id' => $request->user()->id,
+                    'processed_at' => $processedAt,
+                    'processing_action' => $validated['action'],
+                    'processing_note' => $validated['note'] ?? null,
                     'updated_at' => $processedAt,
                 ]);
-            });
-        } catch (QueryException $exception) {
-            if ($this->isDuplicateOpenReportException($exception)) {
-                return back()->with('error', 'This report cannot be reopened because the reporter already has an open report for this item.');
+
+            if ($updated !== 1) {
+                throw ValidationException::withMessages([
+                    'action' => 'This report has already been updated. Refresh the queue and try again.',
+                ]);
             }
 
-            throw $exception;
-        }
+            $reportCase->reviewActions()->create([
+                'admin_user_id' => $request->user()->id,
+                'action' => $validated['action'],
+                'note' => $validated['note'] ?? null,
+                'created_at' => $processedAt,
+                'updated_at' => $processedAt,
+            ]);
+        });
 
-        return back()->with('success', 'Report '.($validated['action'] === Report::ACTION_REOPENED ? 'reopened' : $validated['action']).'.');
+        return back()->with('success', 'Report case '.$validated['action'].'.');
     }
 
     /** @param list<string> $allowed */
@@ -115,43 +115,54 @@ class AdminReportController extends Controller
         return is_string($value) && in_array($value, $allowed, true) ? $value : null;
     }
 
-    private function isDuplicateOpenReportException(QueryException $exception): bool
-    {
-        return $exception->getCode() === '23000'
-            || str_contains(strtolower($exception->getMessage()), 'unique constraint');
-    }
-
     /** @return array<string, mixed> */
-    private function reportPayload(Report $report): array
+    private function casePayload(ReportCase $case): array
     {
-        $reportable = $report->reportable;
+        $reportable = $case->reportable;
         $word = $reportable instanceof Definition ? $reportable->word : $reportable;
+        $priorDismissed = ReportCase::query()
+            ->with('reviewActions.admin')
+            ->where('reportable_type', $case->reportable_type)
+            ->where('reportable_id', $case->reportable_id)
+            ->where('reason', $case->reason)
+            ->where('status', ReportCase::STATUS_DISMISSED)
+            ->whereKeyNot($case->id)
+            ->latest()
+            ->get();
 
         return [
-            'id' => $report->id,
-            'reason' => $report->reason,
-            'status' => $report->status,
-            'explanation' => $report->explanation,
-            'submitted_at' => $report->created_at?->toISOString(),
-            'reporter' => $report->reporter ? ['id' => $report->reporter->id, 'name' => $report->reporter->name] : null,
+            'id' => $case->id,
+            'reason' => $case->reason,
+            'status' => $case->status,
+            'reporter_count' => $case->reports->pluck('reporter_id')->filter()->unique()->count(),
             'target' => [
                 'type' => $reportable instanceof Definition ? 'definition' : 'word',
                 'text' => $reportable?->text,
                 'word_text' => $word?->text,
                 'url' => $word instanceof Word ? route('words.show', $word) : null,
             ],
-            'latest_review' => $report->processed_at ? [
-                'action' => $report->processing_action,
-                'note' => $report->processing_note,
-                'processed_at' => $report->processed_at->toISOString(),
-                'admin' => $report->processor ? ['id' => $report->processor->id, 'name' => $report->processor->name] : null,
+            'latest_review' => $case->processed_at ? [
+                'action' => $case->processing_action,
+                'note' => $case->processing_note,
+                'processed_at' => $case->processed_at->toISOString(),
+                'admin' => $case->processor ? ['id' => $case->processor->id, 'name' => $case->processor->name] : null,
             ] : null,
-            'actions' => $report->reviewActions->map(fn ($action) => [
+            'reports' => $case->reports->map(fn (Report $report) => [
+                'id' => $report->id, 'explanation' => $report->explanation,
+                'submitted_at' => $report->created_at?->toISOString(),
+                'reporter' => $report->reporter ? ['id' => $report->reporter->id, 'name' => $report->reporter->name] : null,
+            ])->values(),
+            'actions' => $case->reviewActions->map(fn ($action) => [
                 'id' => $action->id,
                 'action' => $action->action,
                 'note' => $action->note,
                 'created_at' => $action->created_at?->toISOString(),
                 'admin' => $action->admin ? ['id' => $action->admin->id, 'name' => $action->admin->name] : null,
+            ])->values(),
+            'prior_dismissed' => $priorDismissed->map(fn (ReportCase $prior) => [
+                'id' => $prior->id,
+                'reporter_count' => $prior->reports()->whereNotNull('reporter_id')->distinct('reporter_id')->count('reporter_id'),
+                'actions' => $prior->reviewActions->map(fn ($action) => ['id' => $action->id, 'action' => $action->action, 'created_at' => $action->created_at?->toISOString()])->values(),
             ])->values(),
         ];
     }

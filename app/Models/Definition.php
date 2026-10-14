@@ -75,6 +75,11 @@ class Definition extends Model
         return $this->morphMany(Report::class, 'reportable');
     }
 
+    public function reportCases(): MorphMany
+    {
+        return $this->morphMany(ReportCase::class, 'reportable');
+    }
+
     public function updateVotesCount()
     {
         $this->votes_count = $this->votes()->count();

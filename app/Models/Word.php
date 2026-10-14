@@ -188,6 +188,11 @@ class Word extends Model
         return $this->morphMany(Report::class, 'reportable');
     }
 
+    public function reportCases(): MorphMany
+    {
+        return $this->morphMany(ReportCase::class, 'reportable');
+    }
+
     public function favouritedBy()
     {
         return $this->belongsToMany(User::class, 'favourites')
