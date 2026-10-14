@@ -37,12 +37,12 @@ const words = {
   total: 1234,
 }
 
-function mountHome() {
+function mountHome(wordData = words) {
   const target = globalThis.document.createElement('div')
   globalThis.document.body.appendChild(target)
 
   const app = createApp(Home, {
-    words,
+    words: wordData,
     filters: { search: '', definitions: '', sort: 'created_at', direction: 'desc' },
   })
   app.config.globalProperties.$page = inertia.page
@@ -126,5 +126,56 @@ describe('result count', () => {
     app = mounted.app
 
     expect(mounted.target.querySelector('[aria-label="Show filters"]')?.parentElement?.textContent).toContain('1234 words')
+  })
+})
+
+describe('domain availability ribbons', () => {
+  let app
+
+  beforeEach(() => {
+    globalThis.route = vi.fn((name) => `/${name}`)
+    globalThis.IntersectionObserver = class {
+      observe() {}
+      disconnect() {}
+    }
+  })
+
+  afterEach(() => {
+    app?.unmount()
+    globalThis.document.body.innerHTML = ''
+    delete globalThis.route
+    delete globalThis.IntersectionObserver
+  })
+
+  it('shows the ribbon only for words with an available .com', () => {
+    const mounted = mountHome({
+      ...words,
+      data: [
+        { id: 1, text: 'foag', slug: 'foag', syllables: 1, definitions: [], domain_status: 'available' },
+        { id: 2, text: 'blorg', slug: 'blorg', syllables: 1, definitions: [], domain_status: 'taken' },
+      ],
+    })
+    app = mounted.app
+
+    const ribbons = mounted.target.querySelectorAll('[data-testid="domain-available-ribbon"]')
+
+    expect(ribbons).toHaveLength(1)
+    expect(ribbons[0].textContent.trim()).toBe('available .com')
+  })
+
+  it.each([
+    ['unchecked', 'unchecked'],
+    ['check failed', 'check_failed'],
+    ['absent verdict', undefined],
+  ])('does not show the ribbon for a %s .com', (_label, domainStatus) => {
+    const mounted = mountHome({
+      ...words,
+      data: [
+        { id: 1, text: 'foag', slug: 'foag', syllables: 1, definitions: [], domain_status: domainStatus },
+      ],
+    })
+    app = mounted.app
+
+    expect(mounted.target.querySelectorAll('[data-testid="domain-available-ribbon"]')).toHaveLength(0)
   })
 })

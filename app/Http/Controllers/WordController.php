@@ -110,6 +110,9 @@ class WordController extends Controller
         }
 
         $words = $query->paginate(20)->withQueryString();
+        $words->through(fn (Word $word) => array_merge($word->toArray(), [
+            'domain_status' => $word->domain_status,
+        ]));
 
         // Reflect the sanitised values back to the client, never the raw input.
         $filters = [

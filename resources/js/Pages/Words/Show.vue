@@ -365,11 +365,11 @@ const domainName = computed(() => `${props.word.text.toLowerCase()}.com`)
 const domainUrl = computed(() => `https://${domainName.value}`)
 const domainChip = computed(() => {
   if (props.word.domain_status === 'available') {
-    return { label: `buy ${domainName.value}`, class: 'border-green-200 bg-green-50 text-green-700' }
+    return { label: `${domainName.value} is available`, class: 'border-green-200 bg-green-50 text-green-700' }
   }
 
   if (props.word.domain_status === 'taken') {
-    return { label: `${domainName.value} already taken`, class: 'border-red-200 bg-red-50 text-red-700' }
+    return { label: `${domainName.value} is taken`, class: 'border-red-200 bg-red-50 text-red-700' }
   }
 
   return { label: `visit ${domainName.value}`, class: 'border-gray-200 bg-gray-50 text-gray-600' }

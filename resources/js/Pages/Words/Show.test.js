@@ -263,8 +263,8 @@ describe('domain availability chip', () => {
   })
 
   it.each([
-    ['available', 'available', 'buy blorg.com'],
-    ['taken', 'taken', 'blorg.com already taken'],
+    ['available', 'available', 'blorg.com is available'],
+    ['taken', 'taken', 'blorg.com is taken'],
     ['unchecked', 'unchecked', 'visit blorg.com'],
     ['check failed', 'check_failed', 'visit blorg.com'],
     ['absent verdict', undefined, 'visit blorg.com'],

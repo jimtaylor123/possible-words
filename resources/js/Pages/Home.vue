@@ -117,7 +117,7 @@
           @click="handleCardClick(word, $event)"
           @keydown.enter="router.visit(route('words.show', word.slug))"
         >
-          <n-card class="hover:shadow-lg transition-shadow h-full">
+          <n-card class="relative h-full overflow-hidden transition-shadow hover:shadow-lg">
             <template #header>
               <div class="flex items-center justify-between">
                 <span class="text-xl font-bold text-blue-600 group-hover:text-blue-800">
@@ -197,6 +197,14 @@
               <div v-else class="text-gray-400 italic">
                 No definitions yet
               </div>
+            </div>
+
+            <div
+              v-if="word.domain_status === 'available'"
+              data-testid="domain-available-ribbon"
+              class="pointer-events-none absolute bottom-3 right-3 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold leading-4 text-green-700"
+            >
+              available .com
             </div>
           </n-card>
         </div>
