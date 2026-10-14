@@ -61,6 +61,31 @@ class ReportController extends Controller
             throw $exception;
         } catch (QueryException $exception) {
             if ($this->isDuplicateReportException($exception)) {
+                // Another request may have created this active case between our lookup
+                // and insert. Join it when this is a different reporter; the per-case
+                // unique key still turns a same-reporter race into duplicate feedback.
+                $case = ReportCase::query()
+                    ->where('active_key', ReportCase::activeKey($reportable, $validated['reason']))
+                    ->first();
+
+                if ($case !== null && ! $case->reports()->where('reporter_id', $reporter->id)->exists()) {
+                    try {
+                        $reportable->reports()->create([
+                            'report_case_id' => $case->id,
+                            'reporter_id' => $reporter->id,
+                            'reason' => $validated['reason'],
+                            'explanation' => $validated['explanation'] ?? null,
+                            'status' => ReportCase::STATUS_OPEN,
+                        ]);
+
+                        return redirect()->back()->with('success', 'Report submitted.');
+                    } catch (QueryException $retryException) {
+                        if (! $this->isDuplicateReportException($retryException)) {
+                            throw $retryException;
+                        }
+                    }
+                }
+
                 return redirect()->back()->with('error', 'You have already reported this item.');
             }
 
