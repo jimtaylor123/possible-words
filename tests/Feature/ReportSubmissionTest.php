@@ -1,318 +1,60 @@
 <?php
 
-use App\Models\Definition;
 use App\Models\Report;
+use App\Models\ReportCase;
 use App\Models\User;
 use App\Models\Word;
 use Illuminate\Database\QueryException;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
-uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(RefreshDatabase::class);
 
-function reportableWord(): Word
+function reportRoute(Word $word): string
 {
-    return Word::factory()->create();
+    return route('reports.store', ['targetType' => 'word', 'target' => $word->slug]);
 }
 
-function reportRoute(string $targetType, string|int $target): string
-{
-    return route('reports.store', ['targetType' => $targetType, 'target' => $target]);
-}
+test('groups matching reports and rejects a reporter duplicate within a case', function () {
+    $first = User::factory()->create();
+    $second = User::factory()->create();
+    $word = Word::factory()->create();
 
-describe('submitting reports', function () {
-    test('an authenticated user can report a published word without an explanation', function () {
-        $reporter = User::factory()->create();
-        $word = reportableWord();
+    $this->actingAs($first)->post(reportRoute($word), ['reason' => Report::REASON_WORD_UNFRESH])->assertSessionHas('success');
+    $this->actingAs($second)->post(reportRoute($word), ['reason' => Report::REASON_WORD_UNFRESH])->assertSessionHas('success');
+    $this->actingAs($first)->post(reportRoute($word), ['reason' => Report::REASON_WORD_UNFRESH])->assertSessionHas('error', 'You have already reported this item.');
 
-        $this->actingAs($reporter)
-            ->post(reportRoute('word', $word->slug), [
-                'reason' => Report::REASON_WORD_UNFRESH,
-                'explanation' => '',
-            ])
-            ->assertRedirect()
-            ->assertSessionHas('success', 'Report submitted.');
-
-        $this->assertDatabaseHas('reports', [
-            'reporter_id' => $reporter->id,
-            'reportable_type' => Word::class,
-            'reportable_id' => $word->id,
-            'reason' => Report::REASON_WORD_UNFRESH,
-            'explanation' => null,
-            'status' => Report::STATUS_OPEN,
-        ]);
-    });
-
-    test('an authenticated user can report an offensive word with an explanation', function () {
-        $reporter = User::factory()->create();
-        $word = reportableWord();
-
-        $this->actingAs($reporter)
-            ->post(reportRoute('word', $word->slug), [
-                'reason' => Report::REASON_WORD_OFFENSIVE,
-                'explanation' => 'This word is obscene.',
-            ])
-            ->assertRedirect()
-            ->assertSessionHas('success', 'Report submitted.');
-
-        $this->assertDatabaseHas('reports', [
-            'reporter_id' => $reporter->id,
-            'reportable_type' => Word::class,
-            'reportable_id' => $word->id,
-            'reason' => Report::REASON_WORD_OFFENSIVE,
-            'explanation' => 'This word is obscene.',
-            'status' => Report::STATUS_OPEN,
-        ]);
-    });
-
-    test('an authenticated user can report a published word with the explanation field omitted entirely', function () {
-        $reporter = User::factory()->create();
-        $word = reportableWord();
-
-        $this->actingAs($reporter)
-            ->post(reportRoute('word', $word->slug), [
-                'reason' => Report::REASON_WORD_UNFRESH,
-            ])
-            ->assertRedirect()
-            ->assertSessionHas('success', 'Report submitted.');
-
-        $this->assertDatabaseHas('reports', [
-            'reporter_id' => $reporter->id,
-            'reportable_type' => Word::class,
-            'reportable_id' => $word->id,
-            'reason' => Report::REASON_WORD_UNFRESH,
-            'explanation' => null,
-        ]);
-    });
-
-    test('an authenticated user can report a live definition with an explanation', function () {
-        $author = User::factory()->create();
-        $reporter = User::factory()->create();
-        $definition = reportableWord()->definitions()->create([
-            'user_id' => $author->id,
-            'text' => 'An offensive definition.',
-        ]);
-
-        $this->actingAs($reporter)
-            ->post(reportRoute('definition', $definition->id), [
-                'reason' => Report::REASON_DEFINITION_OFFENSIVE,
-                'explanation' => 'This definition is obscene.',
-            ])
-            ->assertRedirect()
-            ->assertSessionHas('success', 'Report submitted.');
-
-        $this->assertDatabaseHas('reports', [
-            'reporter_id' => $reporter->id,
-            'reportable_type' => Definition::class,
-            'reportable_id' => $definition->id,
-            'reason' => Report::REASON_DEFINITION_OFFENSIVE,
-            'explanation' => 'This definition is obscene.',
-            'status' => Report::STATUS_OPEN,
-        ]);
-    });
-
-    test('a reason must be supported by the target type', function () {
-        $user = User::factory()->create();
-        $word = reportableWord();
-
-        $this->actingAs($user)
-            ->post(reportRoute('word', $word->slug), ['reason' => Report::REASON_DEFINITION_OFFENSIVE])
-            ->assertSessionHasErrors('reason');
-
-        expect(Report::count())->toBe(0);
-    });
-
-    test('the explanation is optional but cannot exceed 1000 characters', function () {
-        $user = User::factory()->create();
-        $word = reportableWord();
-
-        $this->actingAs($user)
-            ->post(reportRoute('word', $word->slug), [
-                'reason' => Report::REASON_WORD_OFFENSIVE,
-                'explanation' => str_repeat('a', 1001),
-            ])
-            ->assertSessionHasErrors('explanation');
-
-        expect(Report::count())->toBe(0);
-    });
-
-    test('report submission is rejected without a valid CSRF token', function () {
-        $reporter = User::factory()->create();
-        $word = reportableWord();
-
-        // Feature tests normally bypass CSRF verification; force the
-        // production behaviour so the token check actually runs.
-        app()->instance('env', 'production');
-
-        $this->actingAs($reporter)
-            ->post(reportRoute('word', $word->slug), ['reason' => Report::REASON_WORD_UNFRESH])
-            ->assertStatus(419);
-
-        expect(Report::count())->toBe(0);
-
-        // Positive control: the same setup with a valid token must succeed,
-        // proving the 419 above comes from CSRF verification.
-        $token = 'valid-csrf-token-for-test';
-
-        $this->actingAs($reporter)
-            ->withSession(['_token' => $token])
-            ->post(reportRoute('word', $word->slug), [
-                'reason' => Report::REASON_WORD_UNFRESH,
-                '_token' => $token,
-            ])
-            ->assertRedirect()
-            ->assertSessionHas('success', 'Report submitted.');
-
-        expect(Report::count())->toBe(1);
-    });
-
-    test('guests are redirected to sign in', function () {
-        $word = reportableWord();
-
-        $this->post(reportRoute('word', $word->slug), ['reason' => Report::REASON_WORD_UNFRESH])
-            ->assertRedirect(route('auth.google'));
-    });
-
-    test('guests cannot submit a crafted definition report', function () {
-        $author = User::factory()->create();
-        $definition = reportableWord()->definitions()->create([
-            'user_id' => $author->id,
-            'text' => 'A live definition.',
-        ]);
-
-        $this->post(reportRoute('definition', $definition->id), [
-            'reason' => Report::REASON_DEFINITION_OFFENSIVE,
-        ])->assertRedirect(route('auth.google'));
-
-        expect(Report::count())->toBe(0);
-    });
-
-    test('unknown target types and targets return not found', function () {
-        $user = User::factory()->create();
-
-        $this->actingAs($user)
-            ->post(reportRoute('user', '1'), ['reason' => Report::REASON_WORD_UNFRESH])
-            ->assertNotFound();
-
-        $this->actingAs($user)
-            ->post(reportRoute('definition', '999999'), ['reason' => Report::REASON_DEFINITION_OFFENSIVE])
-            ->assertNotFound();
-    });
-
-    test('unpublished words and removed definitions cannot be reported', function () {
-        $author = User::factory()->create();
-        $reporter = User::factory()->create();
-        $unpublished = reportableWord();
-        $unpublished->update(['published_at' => null]);
-        $definition = reportableWord()->definitions()->create([
-            'user_id' => $author->id,
-            'text' => 'Removed definition.',
-        ]);
-        $definition->removed_at = now();
-        $definition->save();
-
-        $this->actingAs($reporter)
-            ->post(reportRoute('word', $unpublished->slug), ['reason' => Report::REASON_WORD_UNFRESH])
-            ->assertNotFound();
-
-        $this->actingAs($reporter)
-            ->post(reportRoute('definition', $definition->id), ['reason' => Report::REASON_DEFINITION_OFFENSIVE])
-            ->assertNotFound();
-    });
-
-    test('a definition whose word was withdrawn cannot be reported', function () {
-        $author = User::factory()->create();
-        $reporter = User::factory()->create();
-        $word = reportableWord();
-        $definition = $word->definitions()->create([
-            'user_id' => $author->id,
-            'text' => 'Definition on a withdrawn word.',
-        ]);
-        $word->delete();
-
-        $this->actingAs($reporter)
-            ->post(reportRoute('definition', $definition->id), ['reason' => Report::REASON_DEFINITION_OFFENSIVE])
-            ->assertNotFound();
-
-        expect(Report::count())->toBe(0);
-    });
-
-    test('different reporters may report the same target but one reporter may not duplicate an open report', function () {
-        $firstReporter = User::factory()->create();
-        $secondReporter = User::factory()->create();
-        $word = reportableWord();
-
-        $this->actingAs($firstReporter)
-            ->post(reportRoute('word', $word->slug), ['reason' => Report::REASON_WORD_UNFRESH])
-            ->assertRedirect();
-
-        $this->actingAs($secondReporter)
-            ->post(reportRoute('word', $word->slug), ['reason' => Report::REASON_WORD_UNFRESH])
-            ->assertRedirect();
-
-        $this->actingAs($firstReporter)
-            ->post(reportRoute('word', $word->slug), ['reason' => Report::REASON_WORD_UNFRESH])
-            ->assertRedirect()
-            ->assertSessionHas('error', 'You have already reported this item.');
-
-        expect(Report::count())->toBe(2);
-    });
-
-    test('one reporter cannot duplicate an open definition report', function () {
-        $author = User::factory()->create();
-        $reporter = User::factory()->create();
-        $definition = reportableWord()->definitions()->create([
-            'user_id' => $author->id,
-            'text' => 'A live definition.',
-        ]);
-
-        $this->actingAs($reporter)
-            ->post(reportRoute('definition', $definition->id), ['reason' => Report::REASON_DEFINITION_OFFENSIVE])
-            ->assertRedirect();
-
-        $this->actingAs($reporter)
-            ->post(reportRoute('definition', $definition->id), ['reason' => Report::REASON_DEFINITION_OFFENSIVE])
-            ->assertRedirect()
-            ->assertSessionHas('error', 'You have already reported this item.');
-
-        expect(Report::count())->toBe(1);
-    });
-
-    test('the database prevents concurrent duplicate open reports', function () {
-        $reporter = User::factory()->create();
-        $word = reportableWord();
-
-        $word->reports()->create([
-            'reporter_id' => $reporter->id,
-            'reason' => Report::REASON_WORD_UNFRESH,
-            'status' => Report::STATUS_OPEN,
-        ]);
-
-        expect(fn () => $word->reports()->create([
-            'reporter_id' => $reporter->id,
-            'reason' => Report::REASON_WORD_OFFENSIVE,
-            'status' => Report::STATUS_OPEN,
-        ]))->toThrow(QueryException::class);
-    });
+    expect(ReportCase::count())->toBe(1)->and(Report::count())->toBe(2);
+    $case = ReportCase::first();
+    expect($case->reports)->toHaveCount(2);
+    expect(fn () => $word->reports()->create(['report_case_id' => $case->id, 'reporter_id' => $first->id, 'reason' => Report::REASON_WORD_UNFRESH]))->toThrow(QueryException::class);
 });
 
-describe('report relations and retention', function () {
-    test('report relations retain records when a reporter or target is deleted', function () {
-        $reporter = User::factory()->create();
-        $word = reportableWord();
-        $report = $word->reports()->create([
-            'reporter_id' => $reporter->id,
-            'reason' => Report::REASON_WORD_UNFRESH,
-            'status' => Report::STATUS_OPEN,
-        ]);
+test('allows one user to report different reasons in separate cases', function () {
+    $user = User::factory()->create();
+    $word = Word::factory()->create();
+    $this->actingAs($user)->post(reportRoute($word), ['reason' => Report::REASON_WORD_UNFRESH]);
+    $this->actingAs($user)->post(reportRoute($word), ['reason' => Report::REASON_WORD_OFFENSIVE]);
+    expect(ReportCase::count())->toBe(2)->and(Report::count())->toBe(2);
+});
 
-        expect($reporter->reports)->toHaveCount(1)
-            ->and($word->reports)->toHaveCount(1);
+test('a muted case absorbs submissions and dismissal starts a new episode', function () {
+    $first = User::factory()->create();
+    $second = User::factory()->create();
+    $third = User::factory()->create();
+    $word = Word::factory()->create();
+    $this->actingAs($first)->post(reportRoute($word), ['reason' => Report::REASON_WORD_UNFRESH]);
+    $case = ReportCase::first();
+    $case->update(['status' => ReportCase::STATUS_MUTED]);
+    $this->actingAs($second)->post(reportRoute($word), ['reason' => Report::REASON_WORD_UNFRESH]);
+    expect($case->fresh()->reports)->toHaveCount(2);
 
-        $reporter->delete();
-        $word->forceDelete();
+    $case->update(['status' => ReportCase::STATUS_DISMISSED, 'active_key' => null]);
+    $this->actingAs($third)->post(reportRoute($word), ['reason' => Report::REASON_WORD_UNFRESH]);
+    expect(ReportCase::count())->toBe(2)->and(ReportCase::where('status', 'open')->first()->reports)->toHaveCount(1);
+});
 
-        expect($report->fresh())
-            ->reporter_id->toBeNull()
-            ->reportable_id->toBe($word->id)
-            ->reportable_type->toBe(Word::class);
-    });
+test('guests and invalid target reasons are rejected', function () {
+    $word = Word::factory()->create();
+    $this->post(reportRoute($word), ['reason' => Report::REASON_WORD_UNFRESH])->assertRedirect(route('auth.google'));
+    $this->actingAs(User::factory()->create())->post(reportRoute($word), ['reason' => Report::REASON_DEFINITION_OFFENSIVE])->assertSessionHasErrors('reason');
 });

@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Definition;
 use App\Models\Report;
+use App\Models\ReportCase;
 use App\Models\Word;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class ReportController extends Controller
@@ -25,24 +27,38 @@ class ReportController extends Controller
 
         $reporter = $request->user();
 
-        $existingReport = Report::query()
-            ->where('reporter_id', $reporter->id)
-            ->where('reportable_type', $reportable::class)
-            ->where('reportable_id', $reportable->getKey())
-            ->where('status', Report::STATUS_OPEN)
-            ->exists();
-
-        if ($existingReport) {
-            return redirect()->back()->with('error', 'You have already reported this item.');
-        }
-
         try {
-            $reportable->reports()->create([
-                'reporter_id' => $reporter->id,
-                'reason' => $validated['reason'],
-                'explanation' => $validated['explanation'] ?? null,
-                'status' => Report::STATUS_OPEN,
-            ]);
+            DB::transaction(function () use ($reportable, $reporter, $validated): void {
+                $activeKey = ReportCase::activeKey($reportable, $validated['reason']);
+                $case = ReportCase::query()->where('active_key', $activeKey)->first();
+
+                if ($case === null) {
+                    $case = $reportable->reportCases()->create([
+                        'reason' => $validated['reason'],
+                        'status' => ReportCase::STATUS_OPEN,
+                        'active_key' => $activeKey,
+                    ]);
+                }
+
+                if ($case->reports()->where('reporter_id', $reporter->id)->exists()) {
+                    throw new \RuntimeException('duplicate-report');
+                }
+
+                $reportable->reports()->create([
+                    'report_case_id' => $case->id,
+                    'reporter_id' => $reporter->id,
+                    'reason' => $validated['reason'],
+                    'explanation' => $validated['explanation'] ?? null,
+                    // Retained for legacy audit rows; lifecycle state is owned by the case.
+                    'status' => ReportCase::STATUS_OPEN,
+                ]);
+            });
+        } catch (\RuntimeException $exception) {
+            if ($exception->getMessage() === 'duplicate-report') {
+                return redirect()->back()->with('error', 'You have already reported this item.');
+            }
+
+            throw $exception;
         } catch (QueryException $exception) {
             if ($this->isDuplicateReportException($exception)) {
                 return redirect()->back()->with('error', 'You have already reported this item.');
