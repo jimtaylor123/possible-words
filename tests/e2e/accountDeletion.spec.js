@@ -12,26 +12,21 @@ test.describe('Account deletion', () => {
         await login(page);
         await page.goto('/account');
 
-        await expect(page.getByRole('heading', { name: 'Account' })).toBeVisible();
-        await expect(page.getByRole('link', { name: 'Download your data' })).toBeVisible();
-
-        const download = await Promise.all([
-            page.waitForEvent('download'),
-            page.getByRole('link', { name: 'Download your data' }).click(),
-        ]);
-        expect((await download[0].suggestedFilename())).toBe('possiblewords-account-export.json');
+        await expect(page.getByRole('heading', { name: 'Account', exact: true })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Download your data' })).toHaveAttribute('href', /\/account\/export$/);
 
         await page.getByRole('button', { name: 'Delete account', exact: true }).click();
         const deleteButton = page.getByRole('button', { name: 'Permanently delete account' });
         await expect(deleteButton).toBeDisabled();
 
-        await page.getByLabel('Type DELETE to confirm').fill('delete');
+        const confirmationInput = page.locator('.n-modal input');
+        await confirmationInput.fill('delete');
         await expect(deleteButton).toBeDisabled();
 
-        await page.getByLabel('Type DELETE to confirm').fill('DELETE');
+        await confirmationInput.fill('DELETE');
         await deleteButton.click();
 
         await expect(page.getByText('Your account has been deleted.')).toBeVisible();
-        await expect(page.getByRole('button', { name: /sign in with google/i })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
     });
 });

@@ -62,7 +62,7 @@ class AccountController extends Controller
 
             DB::table(config('session.table'))->where('user_id', $user->id)->delete();
 
-            $user->delete();
+            User::query()->whereKey($user->id)->delete();
 
             Vote::query()
                 ->select('definition_id', DB::raw('count(*) as votes_count'))

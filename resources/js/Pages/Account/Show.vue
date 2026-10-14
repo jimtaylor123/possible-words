@@ -63,7 +63,8 @@ const deleteAccount = () => {
   confirmationError.value = ''
   deleting.value = true
 
-  router.delete(route('account.destroy'), { confirmation: confirmation.value }, {
+  router.delete(route('account.destroy'), {
+    data: { confirmation: confirmation.value },
     onError: (errors) => {
       confirmationError.value = errors.confirmation
     },

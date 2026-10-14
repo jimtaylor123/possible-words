@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Definition;
 use App\Models\Favourite;
 use App\Models\Ownership;
 use App\Models\Report;
