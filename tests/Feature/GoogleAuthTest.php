@@ -77,6 +77,24 @@ describe('google sign-in', function () {
         $this->assertAuthenticatedAs($existing);
     });
 
+    test('Given a deleted account, the same Google identity creates a new user', function () {
+        Mail::fake();
+        $deletedUser = User::factory()->create(['email' => 'jane@example.com']);
+        $deletedUser->delete();
+        Http::fake(['googleapis.com/*' => Http::response([
+            'name' => 'Jane Doe',
+            'email' => 'jane@example.com',
+            'picture' => 'https://lh3.googleusercontent.com/photo',
+        ])]);
+        Socialite::shouldReceive('driver->user')->andReturn(fakeGoogleUser());
+
+        $this->get(route('auth.google.callback'))->assertRedirect('/');
+
+        $newUser = User::where('email', 'jane@example.com')->firstOrFail();
+        expect($newUser->id)->not->toBe($deletedUser->id);
+        $this->assertAuthenticatedAs($newUser);
+    });
+
     test('Given Google returns a different avatar, the OpenID userinfo picture is used', function () {
         Http::fake(['googleapis.com/*' => Http::response([
             'name' => 'Jane Doe',

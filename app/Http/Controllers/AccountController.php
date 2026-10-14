@@ -23,7 +23,7 @@ class AccountController extends Controller
         $user = $request->user();
 
         $export = [
-            'profile' => $user->only(['id', 'name', 'email', 'provider', 'provider_id', 'avatar', 'created_at', 'updated_at']),
+            'profile' => $user->only(['id', 'name', 'email', 'email_verified_at', 'provider', 'provider_id', 'avatar', 'is_admin', 'created_at', 'updated_at']),
             'definitions' => $user->definitions()->get()->map->getAttributes(),
             'votes' => $user->votes()->get()->map->getAttributes(),
             'favourites' => $user->favourites()->get()->map->getAttributes(),
