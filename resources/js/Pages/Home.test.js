@@ -162,4 +162,20 @@ describe('domain availability ribbons', () => {
     expect(ribbons).toHaveLength(1)
     expect(ribbons[0].textContent.trim()).toBe('available .com')
   })
+
+  it.each([
+    ['unchecked', 'unchecked'],
+    ['check failed', 'check_failed'],
+    ['absent verdict', undefined],
+  ])('does not show the ribbon for a %s .com', (_label, domainStatus) => {
+    const mounted = mountHome({
+      ...words,
+      data: [
+        { id: 1, text: 'foag', slug: 'foag', syllables: 1, definitions: [], domain_status: domainStatus },
+      ],
+    })
+    app = mounted.app
+
+    expect(mounted.target.querySelectorAll('[data-testid="domain-available-ribbon"]')).toHaveLength(0)
+  })
 })
