@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Vote;
 use App\Models\Word;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -22,15 +23,22 @@ class AccountController extends Controller
         /** @var User $user */
         $user = $request->user();
 
+        // Internal foreign keys are stripped from nested records so the export never
+        // exposes identifiers that link activity back to an account.
+        $identityColumns = ['user_id', 'reporter_id', 'processed_by_user_id', 'admin_user_id'];
+        $scrub = fn ($records) => $records->map->getAttributes()
+            ->map(fn (array $attributes) => Arr::except($attributes, $identityColumns))
+            ->values();
+
         $export = [
             'profile' => $user->only(['id', 'name', 'email', 'email_verified_at', 'provider', 'provider_id', 'avatar', 'is_admin', 'created_at', 'updated_at']),
-            'definitions' => $user->definitions()->get()->map->getAttributes(),
-            'votes' => $user->votes()->get()->map->getAttributes(),
-            'favourites' => $user->favourites()->get()->map->getAttributes(),
-            'ownerships' => $user->ownerships()->get()->map->getAttributes(),
-            'reports' => $user->reports()->get()->map->getAttributes(),
-            'report_cases' => $user->processedReportCases()->get()->map->getAttributes(),
-            'report_review_actions' => $user->reportReviewActions()->get()->map->getAttributes(),
+            'definitions' => $scrub($user->definitions()->get()),
+            'votes' => $scrub($user->votes()->get()),
+            'favourites' => $scrub($user->favourites()->get()),
+            'ownerships' => $scrub($user->ownerships()->get()),
+            'reports' => $scrub($user->reports()->get()),
+            'report_cases' => $scrub($user->processedReportCases()->get()),
+            'report_review_actions' => $scrub($user->reportReviewActions()->get()),
         ];
 
         return response()->streamDownload(

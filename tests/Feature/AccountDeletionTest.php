@@ -69,6 +69,13 @@ test('an account export includes account activity but excludes credentials and s
         ->and($export['report_cases'])->toHaveCount(1)
         ->and(collect($export['report_cases'])->pluck('id')->all())->toEqualCanonicalizing([$processedReportCase->id])
         ->and($export['report_review_actions'])->toHaveCount(1)
+        ->and($export['definitions'][0])->not->toHaveKey('user_id')
+        ->and($export['votes'][0])->not->toHaveKey('user_id')
+        ->and($export['favourites'][0])->not->toHaveKey('user_id')
+        ->and($export['ownerships'][0])->not->toHaveKey('user_id')
+        ->and($export['reports'][0])->not->toHaveKey('reporter_id')
+        ->and($export['report_cases'][0])->not->toHaveKey('processed_by_user_id')
+        ->and($export['report_review_actions'][0])->not->toHaveKey('admin_user_id')
         ->and($export)->not->toHaveKey('sessions');
 });
 
