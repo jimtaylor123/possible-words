@@ -13,14 +13,13 @@ return [
     |
     */
 
-    'assets' => array_merge([
+    // Serve Vite output through routes/web.php, which maps extensions explicitly.
+    // finfo misidentifies some generated JavaScript chunks as text/x-java.
+    'assets' => [
         'build/manifest.json',
         'favicon.svg',
         'favicon.ico',
-    ], array_map(
-        fn (string $path) => 'build/assets/'.basename($path),
-        glob(public_path('build/assets/*')) ?: [],
-    )),
+    ],
 
     /*
     |--------------------------------------------------------------------------
