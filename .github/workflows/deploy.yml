@@ -91,6 +91,27 @@ jobs:
           done
           [ -n "$ok" ] || exit 1
 
+      - name: Verify Vite JavaScript MIME types (blocking)
+        run: |
+          set -euo pipefail
+          endpoint=$(aws apigatewayv2 get-apis --region "$AWS_DEFAULT_REGION" \
+            --query "Items[?contains(Name, \`possiblewords\`)].ApiEndpoint | [0]" \
+            --output text)
+          [ -n "$endpoint" ] && [ "$endpoint" != "None" ] || { echo "API endpoint not found"; exit 1; }
+          manifest=$(curl -fsS --max-time 30 "$endpoint/build/manifest.json")
+
+          while IFS= read -r asset; do
+            content_type=$(curl -fsSI --max-time 30 "$endpoint/build/$asset" \
+              | tr '[:upper:]' '[:lower:]' \
+              | grep -E '^content-type:' \
+              | tail -n 1 \
+              | tr -d '\r')
+            case "$content_type" in
+              content-type:\ text/javascript*|content-type:\ application/javascript*) ;;
+              *) echo "::error::$asset was served as ${content_type:-no content type}"; exit 1 ;;
+            esac
+          done < <(printf '%s' "$manifest" | jq -r '.[] | select(.file | endswith(".js")) | .file')
+
       - name: Public domain check (non-blocking)
         run: |
           set +e
