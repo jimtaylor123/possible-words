@@ -21,7 +21,7 @@
         <p class="mt-2 text-red-800">
           This permanently deletes your account and personal activity. Public definitions and moderation history are retained anonymously.
         </p>
-        <n-button class="mt-4" type="error" @click="showDeleteModal = true">Delete account</n-button>
+        <n-button class="mt-6" type="error" @click="showDeleteModal = true">Delete account</n-button>
       </section>
     </div>
 
