@@ -13,21 +13,23 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::create('report_cases', function (Blueprint $table) {
-            $table->id();
-            $table->string('reportable_type');
-            $table->unsignedBigInteger('reportable_id');
-            $table->string('reason');
-            $table->string('status')->default('open');
-            $table->string('active_key')->nullable()->unique();
-            $table->foreignId('processed_by_user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamp('processed_at')->nullable();
-            $table->string('processing_action')->nullable();
-            $table->text('processing_note')->nullable();
-            $table->timestamps();
+        if (! Schema::hasTable('report_cases')) {
+            Schema::create('report_cases', function (Blueprint $table) {
+                $table->id();
+                $table->string('reportable_type');
+                $table->unsignedBigInteger('reportable_id');
+                $table->string('reason');
+                $table->string('status')->default('open');
+                $table->string('active_key')->nullable()->unique();
+                $table->foreignId('processed_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+                $table->timestamp('processed_at')->nullable();
+                $table->string('processing_action')->nullable();
+                $table->text('processing_note')->nullable();
+                $table->timestamps();
 
-            $table->index(['reportable_type', 'reportable_id', 'reason', 'status']);
-        });
+                $table->index(['reportable_type', 'reportable_id', 'reason', 'status']);
+            });
+        }
 
         // SQLite rebuilds the referenced reports table for this alteration and
         // applies report_review_actions.report_id's nullOnDelete rule. Retain
