@@ -67,11 +67,16 @@ jobs:
             | grep -q 'storage/app/dictionary/banned-words.json' \
             || { echo '::error::storage/app/dictionary/banned-words.json is missing from the deployment package'; exit 1; }
 
-      - name: Deploy with Serverless
-        run: npx serverless@$SERVERLESS_VERSION deploy --package /tmp/sls-package
+      # Update the migration runner first. This ensures new schema is available
+      # before the web Lambda can receive code that queries it.
+      - name: Deploy migration runner
+        run: npx serverless@$SERVERLESS_VERSION deploy function -f artisan --package /tmp/sls-package
 
       - name: Run production migrations
         run: npx serverless@$SERVERLESS_VERSION invoke -f artisan --data '{"cli":"migrate --force"}'
+
+      - name: Deploy with Serverless
+        run: npx serverless@$SERVERLESS_VERSION deploy --package /tmp/sls-package
 
       - name: Smoke-test API endpoint (blocking)
         run: |
