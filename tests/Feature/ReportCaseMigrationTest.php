@@ -133,3 +133,29 @@ test('resumes when report cases were created before the migration failed', funct
         ->and(DB::table('report_cases')->where('id', $reviewedCase)->value('status'))->toBe('reviewed')
         ->and(DB::table('report_review_actions')->where('report_id', $reviewedReportId)->value('report_case_id'))->toBe($reviewedCase);
 });
+
+test('rejects an existing report cases table missing the active key unique constraint', function () {
+    $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
+    $migration->down();
+
+    Schema::create('report_cases', function (Blueprint $table) {
+        $table->id();
+        $table->string('reportable_type');
+        $table->unsignedBigInteger('reportable_id');
+        $table->string('reason');
+        $table->string('status')->default('open');
+        $table->string('active_key')->nullable();
+        $table->foreignId('processed_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+        $table->timestamp('processed_at')->nullable();
+        $table->string('processing_action')->nullable();
+        $table->text('processing_note')->nullable();
+        $table->timestamps();
+
+        $table->index(['reportable_type', 'reportable_id', 'reason', 'status']);
+    });
+
+    expect(fn () => $migration->up())
+        ->toThrow(\RuntimeException::class, 'it does not have exactly the active_key unique constraint and report lookup index')
+        ->and(Schema::hasColumn('reports', 'report_case_id'))->toBeFalse()
+        ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeFalse();
+});

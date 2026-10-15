@@ -11,6 +11,21 @@ return new class extends Migration
 
     private const LEGACY_STATUS_REVIEWED = 'reviewed';
 
+    private const REPORT_CASE_COLUMNS = [
+        'id',
+        'reportable_type',
+        'reportable_id',
+        'reason',
+        'status',
+        'active_key',
+        'processed_by_user_id',
+        'processed_at',
+        'processing_action',
+        'processing_note',
+        'created_at',
+        'updated_at',
+    ];
+
     public function up(): void
     {
         if (! Schema::hasTable('report_cases')) {
@@ -29,6 +44,8 @@ return new class extends Migration
 
                 $table->index(['reportable_type', 'reportable_id', 'reason', 'status']);
             });
+        } else {
+            $this->assertExistingReportCasesTableMatchesFirstPhase();
         }
 
         // SQLite rebuilds the referenced reports table for this alteration and
@@ -110,5 +127,53 @@ return new class extends Migration
         });
 
         Schema::dropIfExists('report_cases');
+    }
+
+    private function assertExistingReportCasesTableMatchesFirstPhase(): void
+    {
+        $problems = [];
+
+        if (Schema::getColumnListing('report_cases') !== self::REPORT_CASE_COLUMNS) {
+            $problems[] = 'its columns differ from the first-phase table';
+        }
+
+        $indexes = array_values(array_filter(
+            Schema::getIndexes('report_cases'),
+            fn (array $index): bool => ! $index['primary'],
+        ));
+
+        $hasActiveKeyUnique = count(array_filter(
+            $indexes,
+            fn (array $index): bool => $index['unique'] && $index['columns'] === ['active_key'],
+        )) === 1;
+        $hasLookupIndex = count(array_filter(
+            $indexes,
+            fn (array $index): bool => ! $index['unique'] && $index['columns'] === ['reportable_type', 'reportable_id', 'reason', 'status'],
+        )) === 1;
+
+        if (count($indexes) !== 2 || ! $hasActiveKeyUnique || ! $hasLookupIndex) {
+            $problems[] = 'it does not have exactly the active_key unique constraint and report lookup index';
+        }
+
+        $foreignKeys = Schema::getForeignKeys('report_cases');
+        $hasProcessedByUserForeignKey = count(array_filter(
+            $foreignKeys,
+            fn (array $foreignKey): bool => $foreignKey['columns'] === ['processed_by_user_id']
+                && $foreignKey['foreign_table'] === 'users'
+                && $foreignKey['foreign_columns'] === ['id']
+                && $foreignKey['on_delete'] === 'set null',
+        )) === 1;
+
+        if (count($foreignKeys) !== 1 || ! $hasProcessedByUserForeignKey) {
+            $problems[] = 'it does not have the processed_by_user_id foreign key to users with ON DELETE SET NULL';
+        }
+
+        if ($problems !== []) {
+            throw new \RuntimeException(
+                'Existing report_cases table does not match the expected first-phase recovery schema: '
+                .implode('; ', $problems)
+                .'. Inspect and repair the table before rerunning this migration.'
+            );
+        }
     }
 };
