@@ -49,7 +49,11 @@ return new class extends Migration
             $this->assertExistingReportCasesTableMatchesFirstPhase();
         }
 
-        $this->assertDownstreamTablesAreInLegacyState();
+        $reportsHaveCheckpointColumn = $this->assertDownstreamTablesAreInLegacyState();
+
+        if ($reportCasesTableAlreadyExists) {
+            $this->assertExistingActiveCasesAreCompatibleWithLegacyReports();
+        }
 
         if (! $reportCasesTableAlreadyExists) {
             // Deliberately not re-checking here: if another process created the
@@ -77,19 +81,32 @@ return new class extends Migration
         // the legacy link explicitly so the backfill is lossless everywhere.
         $reviewActionReports = DB::table('report_review_actions')->pluck('report_id', 'id');
 
-        Schema::table('reports', function (Blueprint $table) {
-            $table->foreignId('report_case_id')->nullable()->after('id')->constrained()->nullOnDelete();
-            $table->dropUnique('reports_reporter_id_reportable_type_reportable_id_status_unique');
-            $table->unique(['report_case_id', 'reporter_id']);
-            $table->index(['report_case_id', 'created_at']);
-        });
+        if ($reportsHaveCheckpointColumn) {
+            Schema::table('reports', function (Blueprint $table) {
+                $table->foreign('report_case_id')->references('id')->on('report_cases')->nullOnDelete();
+                $table->dropUnique('reports_reporter_id_reportable_type_reportable_id_status_unique');
+                $table->unique(['report_case_id', 'reporter_id']);
+                $table->index(['report_case_id', 'created_at']);
+            });
+        } else {
+            Schema::table('reports', function (Blueprint $table) {
+                $table->foreignId('report_case_id')->nullable()->after('id')->constrained()->nullOnDelete();
+                $table->dropUnique('reports_reporter_id_reportable_type_reportable_id_status_unique');
+                $table->unique(['report_case_id', 'reporter_id']);
+                $table->index(['report_case_id', 'created_at']);
+            });
+        }
 
         Schema::table('report_review_actions', function (Blueprint $table) {
             $table->foreignId('report_case_id')->nullable()->after('id')->constrained()->nullOnDelete();
             $table->index(['report_case_id', 'created_at', 'id']);
         });
 
-        $openCases = [];
+        $openCases = DB::table('report_cases')
+            ->where('status', self::LEGACY_STATUS_OPEN)
+            ->whereNotNull('active_key')
+            ->pluck('id', 'active_key')
+            ->all();
         DB::table('reports')->orderBy('id')->each(function (object $report) use (&$openCases): void {
             $isOpen = $report->status === self::LEGACY_STATUS_OPEN;
             $key = implode('|', [$report->reportable_type, $report->reportable_id, $report->reason]);
@@ -238,12 +255,13 @@ return new class extends Migration
         }
     }
 
-    private function assertDownstreamTablesAreInLegacyState(): void
+    private function assertDownstreamTablesAreInLegacyState(): bool
     {
         $artifacts = [];
+        $reportsHaveCheckpointColumn = Schema::hasColumn('reports', 'report_case_id');
 
         foreach (['reports', 'report_review_actions'] as $table) {
-            if (Schema::hasColumn($table, 'report_case_id')) {
+            if ($table === 'report_review_actions' && Schema::hasColumn($table, 'report_case_id')) {
                 $artifacts[] = "$table.report_case_id column";
             }
 
@@ -260,6 +278,22 @@ return new class extends Migration
             }
         }
 
+        if ($reportsHaveCheckpointColumn) {
+            $reportCaseColumn = collect(Schema::getColumns('reports'))->firstWhere('name', 'report_case_id');
+
+            if ($reportCaseColumn['type_name'] !== 'integer' || ! $reportCaseColumn['nullable'] || $reportCaseColumn['default'] !== null || $reportCaseColumn['auto_increment']) {
+                $artifacts[] = 'reports.report_case_id is not the expected nullable foreign-id column';
+            }
+
+            if (DB::table('reports')->whereNotNull('report_case_id')->exists()) {
+                $artifacts[] = 'reports.report_case_id contains linked reports';
+            }
+        }
+
+        if (! Schema::hasIndex('reports', ['reporter_id', 'reportable_type', 'reportable_id', 'status'], 'unique')) {
+            $artifacts[] = 'reports legacy uniqueness constraint is missing';
+        }
+
         if ($artifacts !== []) {
             throw new \RuntimeException(
                 'Cannot resume the report case migration because downstream partial-recovery artifacts were found ('
@@ -267,5 +301,32 @@ return new class extends Migration
                 .'). Inspect and repair the schema before rerunning this migration; no changes were made.'
             );
         }
+
+        return $reportsHaveCheckpointColumn;
+    }
+
+    private function assertExistingActiveCasesAreCompatibleWithLegacyReports(): void
+    {
+        $existingCases = DB::table('report_cases')
+            ->whereNotNull('active_key')
+            ->get()
+            ->keyBy('active_key');
+
+        DB::table('reports')->where('status', self::LEGACY_STATUS_OPEN)->orderBy('id')->each(function (object $report) use ($existingCases): void {
+            $key = implode('|', [$report->reportable_type, $report->reportable_id, $report->reason]);
+            $case = $existingCases->get($key);
+
+            if ($case !== null && (
+                $case->status !== self::LEGACY_STATUS_OPEN
+                || $case->reportable_type !== $report->reportable_type
+                || $case->reportable_id !== $report->reportable_id
+                || $case->reason !== $report->reason
+            )) {
+                throw new \RuntimeException(
+                    'Cannot resume the report case migration because an existing active case is incompatible with a legacy report. '
+                    .'Inspect and repair the data before rerunning this migration; no changes were made.'
+                );
+            }
+        });
     }
 };
