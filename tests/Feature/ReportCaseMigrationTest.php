@@ -189,3 +189,17 @@ test('rejects downstream partial-recovery artifacts before altering the schema',
         ->and(Schema::hasTable('report_cases'))->toBeFalse()
         ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeFalse();
 });
+
+test('rejects downstream foreign keys referencing report cases', function () {
+    $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
+    $migration->down();
+
+    createFirstPhaseReportCasesTable();
+    Schema::table('reports', function (Blueprint $table) {
+        $table->foreignId('report_case_id')->nullable()->constrained()->nullOnDelete();
+    });
+
+    expect(fn () => $migration->up())
+        ->toThrow(\RuntimeException::class, 'downstream partial-recovery artifacts were found (reports.report_case_id column, reports foreign key (report_case_id) referencing report_cases)')
+        ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeFalse();
+});

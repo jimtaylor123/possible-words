@@ -43,13 +43,18 @@ return new class extends Migration
 
     public function up(): void
     {
-        if (Schema::hasTable('report_cases')) {
+        $reportCasesTableAlreadyExists = Schema::hasTable('report_cases');
+
+        if ($reportCasesTableAlreadyExists) {
             $this->assertExistingReportCasesTableMatchesFirstPhase();
         }
 
         $this->assertDownstreamTablesAreInLegacyState();
 
-        if (! Schema::hasTable('report_cases')) {
+        if (! $reportCasesTableAlreadyExists) {
+            // Deliberately not re-checking here: if another process created the
+            // table since the check above, Schema::create fails loudly instead
+            // of silently skipping creation with an unvalidated table.
             Schema::create('report_cases', function (Blueprint $table) {
                 $table->id();
                 $table->string('reportable_type');
@@ -152,18 +157,34 @@ return new class extends Migration
     {
         $problems = [];
 
+        // Compare by column name rather than the order the driver happens to
+        // return, so column ordering alone cannot reject an otherwise-correct
+        // first-phase table.
         $columns = Schema::getColumns('report_cases');
+        usort($columns, fn (array $a, array $b): int => $a['name'] <=> $b['name']);
 
-        if (array_column($columns, 'name') !== self::REPORT_CASE_COLUMNS) {
+        $columnNames = array_column($columns, 'name');
+        $expectedColumnNames = self::REPORT_CASE_COLUMNS;
+        sort($expectedColumnNames);
+
+        if ($columnNames !== $expectedColumnNames) {
             $problems[] = 'its columns differ from the first-phase table';
         }
 
-        $columnDefinitions = array_map(
-            fn (array $column): array => array_intersect_key($column, array_flip(['name', 'type_name', 'type', 'collation', 'nullable', 'default', 'auto_increment', 'comment', 'generation'])),
-            $columns,
-        );
+        $columnDefinitions = array_map(function (array $column): array {
+            $definition = array_intersect_key($column, array_flip(['name', 'type_name', 'type', 'collation', 'nullable', 'default', 'auto_increment', 'comment', 'generation']));
+            ksort($definition);
 
-        if ($columnDefinitions !== self::REPORT_CASE_COLUMN_DEFINITIONS) {
+            return $definition;
+        }, $columns);
+
+        $expectedColumnDefinitions = self::REPORT_CASE_COLUMN_DEFINITIONS;
+        foreach ($expectedColumnDefinitions as $index => $definition) {
+            ksort($expectedColumnDefinitions[$index]);
+        }
+        usort($expectedColumnDefinitions, fn (array $a, array $b): int => $a['name'] <=> $b['name']);
+
+        if ($columnDefinitions !== $expectedColumnDefinitions) {
             $problems[] = 'its column metadata differs from the first-phase table';
         }
 
@@ -229,6 +250,12 @@ return new class extends Migration
             foreach (Schema::getIndexes($table) as $index) {
                 if (in_array('report_case_id', $index['columns'], true)) {
                     $artifacts[] = "$table index (".implode(', ', $index['columns']).')';
+                }
+            }
+
+            foreach (Schema::getForeignKeys($table) as $foreignKey) {
+                if ($foreignKey['foreign_table'] === 'report_cases') {
+                    $artifacts[] = "$table foreign key (".implode(', ', $foreignKey['columns']).') referencing report_cases';
                 }
             }
         }
