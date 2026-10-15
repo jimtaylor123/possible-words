@@ -233,6 +233,7 @@
             </div>
             <div class="text-sm text-gray-500 flex items-center gap-1.5">
               <n-avatar
+                v-if="definition.user"
                 round
                 size="small"
                 :src="definition.user.avatar || undefined"
@@ -243,7 +244,7 @@
                   {{ definition.user.name.charAt(0).toUpperCase() }}
                 </template>
               </n-avatar>
-              {{ definition.user.name }}
+              {{ definition.user ? definition.user.name : 'Deleted user' }}
             </div>
           </div>
         </div>

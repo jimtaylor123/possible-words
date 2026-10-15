@@ -38,13 +38,13 @@ const paginationStub = {
   },
 }
 
-function mountFavourites(isPopular = false) {
+function mountFavourites(isPopular = false, definitions = []) {
   const target = globalThis.document.createElement('div')
   globalThis.document.body.appendChild(target)
   const app = createApp(Favourites, {
     isPopular,
     words: {
-      data: [{ id: 1, text: 'blorg', slug: 'blorg', syllables: 1, definitions: [], definitions_count: 0, favourites_count: 3 }],
+      data: [{ id: 1, text: 'blorg', slug: 'blorg', syllables: 1, definitions, definitions_count: definitions.length, favourites_count: 3 }],
       current_page: 1,
       last_page: 2,
     },
@@ -108,5 +108,12 @@ describe('favourites lists', () => {
       preserveScroll: true,
       preserveState: true,
     }))
+  })
+
+  it('renders a deleted-user fallback for anonymous definitions', () => {
+    const mounted = mountFavourites(true, [{ text: 'A retained definition.', user: null, votes_count: 0 }])
+    app = mounted.app
+
+    expect(mounted.target.textContent).toContain('Deleted user')
   })
 })

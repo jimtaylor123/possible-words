@@ -178,4 +178,21 @@ describe('domain availability ribbons', () => {
 
     expect(mounted.target.querySelectorAll('[data-testid="domain-available-ribbon"]')).toHaveLength(0)
   })
+
+  it('renders a deleted-user fallback for anonymous definitions', () => {
+    const mounted = mountHome({
+      ...words,
+      data: [{
+        id: 1,
+        text: 'blorg',
+        slug: 'blorg',
+        syllables: 1,
+        definitions: [{ text: 'A retained definition.', user: null, votes_count: 0 }],
+        definitions_count: 1,
+      }],
+    })
+    app = mounted.app
+
+    expect(mounted.target.textContent).toContain('Deleted user')
+  })
 })
