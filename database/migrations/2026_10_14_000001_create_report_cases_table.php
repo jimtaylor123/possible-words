@@ -222,7 +222,7 @@ return new class extends Migration
             fn (array $foreignKey): bool => $foreignKey['columns'] === ['processed_by_user_id']
                 && $foreignKey['foreign_table'] === 'users'
                 && $foreignKey['foreign_columns'] === ['id']
-                && $foreignKey['on_delete'] === 'set null',
+                && strtolower((string) $foreignKey['on_delete']) === 'set null',
         )) === 1;
 
         if (count($foreignKeys) !== 1 || ! $hasProcessedByUserForeignKey) {

@@ -9,14 +9,14 @@ use Illuminate\Support\Facades\Schema;
 
 uses(RefreshDatabase::class);
 
-function createFirstPhaseReportCasesTable(?Closure $defineId = null, ?Closure $defineReportableId = null): void
+function createFirstPhaseReportCasesTable(?Closure $defineId = null, ?Closure $defineReportableId = null, ?Closure $defineStatus = null): void
 {
-    Schema::create('report_cases', function (Blueprint $table) use ($defineId, $defineReportableId) {
+    Schema::create('report_cases', function (Blueprint $table) use ($defineId, $defineReportableId, $defineStatus) {
         ($defineId ?? fn (Blueprint $table) => $table->id())($table);
         $table->string('reportable_type');
         ($defineReportableId ?? fn (Blueprint $table) => $table->unsignedBigInteger('reportable_id'))($table);
         $table->string('reason');
-        $table->string('status')->default('open');
+        ($defineStatus ?? fn (Blueprint $table) => $table->string('status')->default('open'))($table);
         $table->string('active_key')->nullable()->unique();
         $table->foreignId('processed_by_user_id')->nullable()->constrained('users')->nullOnDelete();
         $table->timestamp('processed_at')->nullable();
@@ -201,5 +201,31 @@ test('rejects downstream foreign keys referencing report cases', function () {
 
     expect(fn () => $migration->up())
         ->toThrow(\RuntimeException::class, 'downstream partial-recovery artifacts were found (reports.report_case_id column, reports foreign key (report_case_id) referencing report_cases)')
+        ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeFalse();
+});
+
+test('rejects downstream foreign keys on report review actions referencing report cases', function () {
+    $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
+    $migration->down();
+
+    createFirstPhaseReportCasesTable();
+    Schema::table('report_review_actions', function (Blueprint $table) {
+        $table->foreignId('report_case_id')->nullable()->constrained()->nullOnDelete();
+    });
+
+    expect(fn () => $migration->up())
+        ->toThrow(\RuntimeException::class, 'downstream partial-recovery artifacts were found (report_review_actions.report_case_id column, report_review_actions foreign key (report_case_id) referencing report_cases)')
+        ->and(Schema::hasColumn('reports', 'report_case_id'))->toBeFalse();
+});
+
+test('rejects an existing report cases table with a changed status default', function () {
+    $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
+    $migration->down();
+
+    createFirstPhaseReportCasesTable(null, null, fn (Blueprint $table) => $table->string('status')->default('dismissed'));
+
+    expect(fn () => $migration->up())
+        ->toThrow(\RuntimeException::class, 'its column metadata differs from the first-phase table')
+        ->and(Schema::hasColumn('reports', 'report_case_id'))->toBeFalse()
         ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeFalse();
 });
