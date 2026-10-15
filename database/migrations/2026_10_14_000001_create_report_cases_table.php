@@ -26,8 +26,29 @@ return new class extends Migration
         'updated_at',
     ];
 
+    private const REPORT_CASE_COLUMN_DEFINITIONS = [
+        ['name' => 'id', 'type_name' => 'integer', 'type' => 'integer', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => true, 'comment' => null, 'generation' => null],
+        ['name' => 'reportable_type', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+        ['name' => 'reportable_id', 'type_name' => 'integer', 'type' => 'integer', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+        ['name' => 'reason', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+        ['name' => 'status', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => "'open'", 'auto_increment' => false, 'comment' => null, 'generation' => null],
+        ['name' => 'active_key', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => true, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+        ['name' => 'processed_by_user_id', 'type_name' => 'integer', 'type' => 'integer', 'collation' => null, 'nullable' => true, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+        ['name' => 'processed_at', 'type_name' => 'datetime', 'type' => 'datetime', 'collation' => null, 'nullable' => true, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+        ['name' => 'processing_action', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => true, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+        ['name' => 'processing_note', 'type_name' => 'text', 'type' => 'text', 'collation' => null, 'nullable' => true, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+        ['name' => 'created_at', 'type_name' => 'datetime', 'type' => 'datetime', 'collation' => null, 'nullable' => true, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+        ['name' => 'updated_at', 'type_name' => 'datetime', 'type' => 'datetime', 'collation' => null, 'nullable' => true, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+    ];
+
     public function up(): void
     {
+        if (Schema::hasTable('report_cases')) {
+            $this->assertExistingReportCasesTableMatchesFirstPhase();
+        }
+
+        $this->assertDownstreamTablesAreInLegacyState();
+
         if (! Schema::hasTable('report_cases')) {
             Schema::create('report_cases', function (Blueprint $table) {
                 $table->id();
@@ -44,8 +65,6 @@ return new class extends Migration
 
                 $table->index(['reportable_type', 'reportable_id', 'reason', 'status']);
             });
-        } else {
-            $this->assertExistingReportCasesTableMatchesFirstPhase();
         }
 
         // SQLite rebuilds the referenced reports table for this alteration and
@@ -133,12 +152,33 @@ return new class extends Migration
     {
         $problems = [];
 
-        if (Schema::getColumnListing('report_cases') !== self::REPORT_CASE_COLUMNS) {
+        $columns = Schema::getColumns('report_cases');
+
+        if (array_column($columns, 'name') !== self::REPORT_CASE_COLUMNS) {
             $problems[] = 'its columns differ from the first-phase table';
         }
 
+        $columnDefinitions = array_map(
+            fn (array $column): array => array_intersect_key($column, array_flip(['name', 'type_name', 'type', 'collation', 'nullable', 'default', 'auto_increment', 'comment', 'generation'])),
+            $columns,
+        );
+
+        if ($columnDefinitions !== self::REPORT_CASE_COLUMN_DEFINITIONS) {
+            $problems[] = 'its column metadata differs from the first-phase table';
+        }
+
+        $allIndexes = Schema::getIndexes('report_cases');
+        $primaryIndexes = array_values(array_filter(
+            $allIndexes,
+            fn (array $index): bool => $index['primary'],
+        ));
+
+        if (count($primaryIndexes) !== 1 || $primaryIndexes[0]['columns'] !== ['id']) {
+            $problems[] = 'it does not have an id primary key';
+        }
+
         $indexes = array_values(array_filter(
-            Schema::getIndexes('report_cases'),
+            $allIndexes,
             fn (array $index): bool => ! $index['primary'],
         ));
 
@@ -173,6 +213,31 @@ return new class extends Migration
                 'Existing report_cases table does not match the expected first-phase recovery schema: '
                 .implode('; ', $problems)
                 .'. Inspect and repair the table before rerunning this migration.'
+            );
+        }
+    }
+
+    private function assertDownstreamTablesAreInLegacyState(): void
+    {
+        $artifacts = [];
+
+        foreach (['reports', 'report_review_actions'] as $table) {
+            if (Schema::hasColumn($table, 'report_case_id')) {
+                $artifacts[] = "$table.report_case_id column";
+            }
+
+            foreach (Schema::getIndexes($table) as $index) {
+                if (in_array('report_case_id', $index['columns'], true)) {
+                    $artifacts[] = "$table index (".implode(', ', $index['columns']).')';
+                }
+            }
+        }
+
+        if ($artifacts !== []) {
+            throw new \RuntimeException(
+                'Cannot resume the report case migration because downstream partial-recovery artifacts were found ('
+                .implode(', ', $artifacts)
+                .'). Inspect and repair the schema before rerunning this migration; no changes were made.'
             );
         }
     }
