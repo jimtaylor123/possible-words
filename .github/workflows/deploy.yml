@@ -70,7 +70,7 @@ jobs:
       # Update the migration runner first. This ensures new schema is available
       # before the web Lambda can receive code that queries it.
       - name: Deploy migration runner
-        run: npx serverless@$SERVERLESS_VERSION deploy function -f artisan --package /tmp/sls-package
+        run: npx serverless@$SERVERLESS_VERSION deploy function -f artisan
 
       - name: Run production migrations
         run: npx serverless@$SERVERLESS_VERSION invoke -f artisan --data '{"cli":"migrate --force"}'
