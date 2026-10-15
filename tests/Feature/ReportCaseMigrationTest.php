@@ -277,7 +277,7 @@ test('rejects downstream partial-recovery artifacts before altering the schema',
     });
 
     expect(fn () => $migration->up())
-        ->toThrow(\RuntimeException::class, 'downstream partial-recovery artifacts were found (reports index (report_case_id, created_at))')
+        ->toThrow(\RuntimeException::class, 'reports.report_case_id exists without the validated first-phase report_cases table')
         ->and(Schema::hasTable('report_cases'))->toBeFalse()
         ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeFalse();
 });
@@ -311,11 +311,70 @@ test('rejects a populated checkpoint column before mutating schema or data', fun
     DB::table('reports')->where('id', $reportId)->update(['report_case_id' => $caseId]);
 
     expect(fn () => $migration->up())
-        ->toThrow(\RuntimeException::class, 'reports.report_case_id contains linked reports')
+        ->toThrow(\RuntimeException::class, 'reports.report_case_id contains linked reports before the reports DDL phase completed')
         ->and(DB::table('reports')->where('id', $reportId)->value('report_case_id'))->toBe($caseId)
         ->and(DB::table('report_cases')->count())->toBe(1)
         ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeFalse()
         ->and(Schema::hasIndex('reports', ['reporter_id', 'reportable_type', 'reportable_id', 'status'], 'unique'))->toBeTrue();
+});
+
+test('rejects a nullable empty checkpoint column without the first-phase report cases table', function () {
+    $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
+    $migration->down();
+
+    Schema::table('reports', fn (Blueprint $table) => $table->foreignId('report_case_id')->nullable()->after('id'));
+
+    expect(fn () => $migration->up())
+        ->toThrow(\RuntimeException::class, 'reports.report_case_id exists without the validated first-phase report_cases table')
+        ->and(Schema::hasTable('report_cases'))->toBeFalse()
+        ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeFalse()
+        ->and(Schema::hasIndex('reports', ['reporter_id', 'reportable_type', 'reportable_id', 'status'], 'unique'))->toBeTrue();
+});
+
+test('retries an exact post-DDL partial-backfill checkpoint without duplicating or losing links', function () {
+    $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
+    $migration->down();
+
+    $word = Word::factory()->create();
+    $admin = User::factory()->create(['is_admin' => true]);
+    $timestamps = ['created_at' => now(), 'updated_at' => now()];
+    $firstReportId = DB::table('reports')->insertGetId([
+        'reporter_id' => User::factory()->create()->id,
+        'reportable_type' => Word::class,
+        'reportable_id' => $word->id,
+        'reason' => 'word_unfresh',
+        'status' => 'open',
+        ...$timestamps,
+    ]);
+    $secondReportId = DB::table('reports')->insertGetId([
+        'reporter_id' => User::factory()->create()->id,
+        'reportable_type' => Word::class,
+        'reportable_id' => $word->id,
+        'reason' => 'word_unfresh',
+        'status' => 'open',
+        ...$timestamps,
+    ]);
+    $actionId = DB::table('report_review_actions')->insertGetId([
+        'report_id' => $secondReportId,
+        'admin_user_id' => $admin->id,
+        'action' => 'reviewed',
+        ...$timestamps,
+    ]);
+
+    $migration->up();
+    $caseId = DB::table('reports')->where('id', $firstReportId)->value('report_case_id');
+
+    // This is the durable checkpoint after both DDL operations when a later
+    // backfill fails: completed links remain valid and null links are pending.
+    DB::table('reports')->where('id', $secondReportId)->update(['report_case_id' => null]);
+    DB::table('report_review_actions')->where('id', $actionId)->update(['report_case_id' => null]);
+
+    $migration->up();
+
+    expect(DB::table('report_cases')->count())->toBe(1)
+        ->and(DB::table('reports')->where('id', $firstReportId)->value('report_case_id'))->toBe($caseId)
+        ->and(DB::table('reports')->where('id', $secondReportId)->value('report_case_id'))->toBe($caseId)
+        ->and(DB::table('report_review_actions')->where('id', $actionId)->value('report_case_id'))->toBe($caseId);
 });
 
 test('rejects an incompatible existing active key before mutating schema or data', function () {
@@ -351,7 +410,7 @@ test('rejects an incompatible existing active key before mutating schema or data
         ->and(DB::table('reports')->count())->toBe(1);
 });
 
-test('rejects downstream foreign keys referencing report cases', function () {
+test('resumes when the reports foreign key was persisted before its other constraints', function () {
     $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
     $migration->down();
 
@@ -360,12 +419,14 @@ test('rejects downstream foreign keys referencing report cases', function () {
         $table->foreignId('report_case_id')->nullable()->constrained()->nullOnDelete();
     });
 
-    expect(fn () => $migration->up())
-        ->toThrow(\RuntimeException::class, 'downstream partial-recovery artifacts were found (reports foreign key (report_case_id) referencing report_cases)')
-        ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeFalse();
+    $migration->up();
+
+    expect(Schema::hasIndex('reports', ['report_case_id', 'reporter_id'], 'unique'))->toBeTrue()
+        ->and(Schema::hasIndex('reports', ['report_case_id', 'created_at']))->toBeTrue()
+        ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeTrue();
 });
 
-test('rejects downstream foreign keys on report review actions referencing report cases', function () {
+test('resumes when the report review action foreign key was persisted before its index', function () {
     $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
     $migration->down();
 
@@ -374,9 +435,10 @@ test('rejects downstream foreign keys on report review actions referencing repor
         $table->foreignId('report_case_id')->nullable()->constrained()->nullOnDelete();
     });
 
-    expect(fn () => $migration->up())
-        ->toThrow(\RuntimeException::class, 'downstream partial-recovery artifacts were found (report_review_actions.report_case_id column, report_review_actions foreign key (report_case_id) referencing report_cases)')
-        ->and(Schema::hasColumn('reports', 'report_case_id'))->toBeFalse();
+    $migration->up();
+
+    expect(Schema::hasColumn('reports', 'report_case_id'))->toBeTrue()
+        ->and(Schema::hasIndex('report_review_actions', ['report_case_id', 'created_at', 'id']))->toBeTrue();
 });
 
 test('rejects an existing report cases table with a changed status default', function () {

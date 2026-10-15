@@ -49,7 +49,14 @@ return new class extends Migration
             $this->assertExistingReportCasesTableMatchesFirstPhase();
         }
 
-        $reportsHaveCheckpointColumn = $this->assertDownstreamTablesAreInLegacyState();
+        if (! $reportCasesTableAlreadyExists && Schema::hasColumn('reports', 'report_case_id')) {
+            throw new \RuntimeException(
+                'Cannot resume the report case migration because reports.report_case_id exists without the validated first-phase report_cases table. '
+                .'Inspect and repair the schema before rerunning this migration; no changes were made.'
+            );
+        }
+
+        $phases = $this->detectDownstreamPhases();
 
         if ($reportCasesTableAlreadyExists) {
             $this->assertExistingActiveCasesAreCompatibleWithLegacyReports();
@@ -81,76 +88,109 @@ return new class extends Migration
         // the legacy link explicitly so the backfill is lossless everywhere.
         $reviewActionReports = DB::table('report_review_actions')->pluck('report_id', 'id');
 
-        if ($reportsHaveCheckpointColumn) {
-            Schema::table('reports', function (Blueprint $table) {
-                $table->foreign('report_case_id')->references('id')->on('report_cases')->nullOnDelete();
-                $table->dropUnique('reports_reporter_id_reportable_type_reportable_id_status_unique');
-                $table->unique(['report_case_id', 'reporter_id']);
-                $table->index(['report_case_id', 'created_at']);
-            });
-        } else {
-            Schema::table('reports', function (Blueprint $table) {
-                $table->foreignId('report_case_id')->nullable()->after('id')->constrained()->nullOnDelete();
-                $table->dropUnique('reports_reporter_id_reportable_type_reportable_id_status_unique');
-                $table->unique(['report_case_id', 'reporter_id']);
-                $table->index(['report_case_id', 'created_at']);
+        if ($phases['reports'] !== 'complete') {
+            $reportsHaveColumn = Schema::hasColumn('reports', 'report_case_id');
+            $reportsHaveForeignKey = $this->hasReportCaseForeignKey('reports');
+            $reportsHaveLegacyUnique = Schema::hasIndex('reports', ['reporter_id', 'reportable_type', 'reportable_id', 'status'], 'unique');
+            $reportsHaveCaseReporterUnique = Schema::hasIndex('reports', ['report_case_id', 'reporter_id'], 'unique');
+            $reportsHaveCaseCreatedAtIndex = Schema::hasIndex('reports', ['report_case_id', 'created_at']);
+
+            Schema::table('reports', function (Blueprint $table) use ($reportsHaveColumn, $reportsHaveForeignKey, $reportsHaveLegacyUnique, $reportsHaveCaseReporterUnique, $reportsHaveCaseCreatedAtIndex) {
+                if (! $reportsHaveColumn) {
+                    $table->foreignId('report_case_id')->nullable()->after('id');
+                }
+
+                if (! $reportsHaveForeignKey) {
+                    $table->foreign('report_case_id')->references('id')->on('report_cases')->nullOnDelete();
+                }
+
+                if ($reportsHaveLegacyUnique) {
+                    $table->dropUnique('reports_reporter_id_reportable_type_reportable_id_status_unique');
+                }
+
+                if (! $reportsHaveCaseReporterUnique) {
+                    $table->unique(['report_case_id', 'reporter_id']);
+                }
+
+                if (! $reportsHaveCaseCreatedAtIndex) {
+                    $table->index(['report_case_id', 'created_at']);
+                }
             });
         }
 
-        Schema::table('report_review_actions', function (Blueprint $table) {
-            $table->foreignId('report_case_id')->nullable()->after('id')->constrained()->nullOnDelete();
-            $table->index(['report_case_id', 'created_at', 'id']);
+        if ($phases['actions'] !== 'complete') {
+            $actionsHaveColumn = Schema::hasColumn('report_review_actions', 'report_case_id');
+            $actionsHaveForeignKey = $this->hasReportCaseForeignKey('report_review_actions');
+            $actionsHaveCaseCreatedAtIndex = Schema::hasIndex('report_review_actions', ['report_case_id', 'created_at', 'id']);
+
+            Schema::table('report_review_actions', function (Blueprint $table) use ($actionsHaveColumn, $actionsHaveForeignKey, $actionsHaveCaseCreatedAtIndex) {
+                if (! $actionsHaveColumn) {
+                    $table->foreignId('report_case_id')->nullable()->after('id');
+                }
+
+                if (! $actionsHaveForeignKey) {
+                    $table->foreign('report_case_id')->references('id')->on('report_cases')->nullOnDelete();
+                }
+
+                if (! $actionsHaveCaseCreatedAtIndex) {
+                    $table->index(['report_case_id', 'created_at', 'id']);
+                }
+            });
+        }
+
+        DB::transaction(function (): void {
+            $openCases = DB::table('report_cases')
+                ->where('status', self::LEGACY_STATUS_OPEN)
+                ->whereNotNull('active_key')
+                ->pluck('id', 'active_key')
+                ->all();
+            DB::table('reports')->whereNull('report_case_id')->orderBy('id')->each(function (object $report) use (&$openCases): void {
+                $isOpen = $report->status === self::LEGACY_STATUS_OPEN;
+                $key = $this->activeKey($report);
+
+                if ($isOpen && isset($openCases[$key])) {
+                    $caseId = $openCases[$key];
+                } else {
+                    $caseId = DB::table('report_cases')->insertGetId([
+                        'reportable_type' => $report->reportable_type,
+                        'reportable_id' => $report->reportable_id,
+                        'reason' => $report->reason,
+                        // Reviewed was a distinct legacy terminal state. Keep it
+                        // distinct in case history rather than presenting it as a
+                        // dismissal in the new dashboard.
+                        'status' => $isOpen
+                            ? self::LEGACY_STATUS_OPEN
+                            : ($report->status === self::LEGACY_STATUS_REVIEWED ? self::LEGACY_STATUS_REVIEWED : 'dismissed'),
+                        'active_key' => $isOpen ? $key : null,
+                        'processed_by_user_id' => $report->processed_by_user_id,
+                        'processed_at' => $report->processed_at,
+                        'processing_action' => $report->processing_action,
+                        'processing_note' => $report->processing_note,
+                        'created_at' => $report->created_at,
+                        'updated_at' => $report->updated_at,
+                    ]);
+
+                    if ($isOpen) {
+                        $openCases[$key] = $caseId;
+                    }
+                }
+
+                DB::table('reports')->where('id', $report->id)->update(['report_case_id' => $caseId]);
+            });
         });
 
-        $openCases = DB::table('report_cases')
-            ->where('status', self::LEGACY_STATUS_OPEN)
-            ->whereNotNull('active_key')
-            ->pluck('id', 'active_key')
-            ->all();
-        DB::table('reports')->orderBy('id')->each(function (object $report) use (&$openCases): void {
-            $isOpen = $report->status === self::LEGACY_STATUS_OPEN;
-            $key = implode('|', [$report->reportable_type, $report->reportable_id, $report->reason]);
+        DB::transaction(function () use ($reviewActionReports): void {
+            foreach ($reviewActionReports as $actionId => $reportId) {
+                $caseId = DB::table('reports')->where('id', $reportId)->value('report_case_id');
 
-            if ($isOpen && isset($openCases[$key])) {
-                $caseId = $openCases[$key];
-            } else {
-                $caseId = DB::table('report_cases')->insertGetId([
-                    'reportable_type' => $report->reportable_type,
-                    'reportable_id' => $report->reportable_id,
-                    'reason' => $report->reason,
-                    // Reviewed was a distinct legacy terminal state. Keep it
-                    // distinct in case history rather than presenting it as a
-                    // dismissal in the new dashboard.
-                    'status' => $isOpen
-                        ? self::LEGACY_STATUS_OPEN
-                        : ($report->status === self::LEGACY_STATUS_REVIEWED ? self::LEGACY_STATUS_REVIEWED : 'dismissed'),
-                    'active_key' => $isOpen ? $key : null,
-                    'processed_by_user_id' => $report->processed_by_user_id,
-                    'processed_at' => $report->processed_at,
-                    'processing_action' => $report->processing_action,
-                    'processing_note' => $report->processing_note,
-                    'created_at' => $report->created_at,
-                    'updated_at' => $report->updated_at,
-                ]);
-
-                if ($isOpen) {
-                    $openCases[$key] = $caseId;
+                if ($caseId !== null) {
+                    DB::table('report_review_actions')->where('id', $actionId)->whereNull('report_case_id')->update([
+                        'report_id' => $reportId,
+                        'report_case_id' => $caseId,
+                    ]);
                 }
             }
-
-            DB::table('reports')->where('id', $report->id)->update(['report_case_id' => $caseId]);
         });
-
-        foreach ($reviewActionReports as $actionId => $reportId) {
-            $caseId = DB::table('reports')->where('id', $reportId)->value('report_case_id');
-
-            if ($caseId !== null) {
-                DB::table('report_review_actions')->where('id', $actionId)->update([
-                    'report_id' => $reportId,
-                    'report_case_id' => $caseId,
-                ]);
-            }
-        }
     }
 
     public function down(): void
@@ -255,43 +295,58 @@ return new class extends Migration
         }
     }
 
-    private function assertDownstreamTablesAreInLegacyState(): bool
+    /**
+     * @return array{reports: 'legacy'|'column'|'complete', actions: 'legacy'|'complete'}
+     */
+    private function detectDownstreamPhases(): array
     {
         $artifacts = [];
-        $reportsHaveCheckpointColumn = Schema::hasColumn('reports', 'report_case_id');
+        $reportsHaveColumn = Schema::hasColumn('reports', 'report_case_id');
+        $reportsHaveForeignKey = $this->hasReportCaseForeignKey('reports');
+        $reportsHaveUnique = Schema::hasIndex('reports', ['report_case_id', 'reporter_id'], 'unique');
+        $reportsHaveLookupIndex = Schema::hasIndex('reports', ['report_case_id', 'created_at']);
+        $reportsHaveLegacyUnique = Schema::hasIndex('reports', ['reporter_id', 'reportable_type', 'reportable_id', 'status'], 'unique');
 
-        foreach (['reports', 'report_review_actions'] as $table) {
-            if ($table === 'report_review_actions' && Schema::hasColumn($table, 'report_case_id')) {
-                $artifacts[] = "$table.report_case_id column";
-            }
-
-            foreach (Schema::getIndexes($table) as $index) {
-                if (in_array('report_case_id', $index['columns'], true)) {
-                    $artifacts[] = "$table index (".implode(', ', $index['columns']).')';
-                }
-            }
-
-            foreach (Schema::getForeignKeys($table) as $foreignKey) {
-                if ($foreignKey['foreign_table'] === 'report_cases') {
-                    $artifacts[] = "$table foreign key (".implode(', ', $foreignKey['columns']).') referencing report_cases';
-                }
-            }
-        }
-
-        if ($reportsHaveCheckpointColumn) {
+        if ($reportsHaveColumn) {
             $reportCaseColumn = collect(Schema::getColumns('reports'))->firstWhere('name', 'report_case_id');
 
             if ($reportCaseColumn['type_name'] !== 'integer' || ! $reportCaseColumn['nullable'] || $reportCaseColumn['default'] !== null || $reportCaseColumn['auto_increment']) {
                 $artifacts[] = 'reports.report_case_id is not the expected nullable foreign-id column';
             }
 
-            if (DB::table('reports')->whereNotNull('report_case_id')->exists()) {
-                $artifacts[] = 'reports.report_case_id contains linked reports';
+            if (! $reportsHaveForeignKey && DB::table('reports')->whereNotNull('report_case_id')->exists()) {
+                $artifacts[] = 'reports.report_case_id contains linked reports before the reports DDL phase completed';
             }
         }
 
-        if (! Schema::hasIndex('reports', ['reporter_id', 'reportable_type', 'reportable_id', 'status'], 'unique')) {
-            $artifacts[] = 'reports legacy uniqueness constraint is missing';
+        $reportsPhase = match (true) {
+            ! $reportsHaveColumn && ! $reportsHaveForeignKey && ! $reportsHaveUnique && ! $reportsHaveLookupIndex && $reportsHaveLegacyUnique => 'legacy',
+            $reportsHaveColumn && $reportsHaveForeignKey && $reportsHaveUnique && $reportsHaveLookupIndex && ! $reportsHaveLegacyUnique => 'complete',
+            $reportsHaveColumn => 'column',
+            default => null,
+        };
+
+        if ($reportsPhase === null) {
+            $artifacts[] = 'reports schema is not an exact legacy, column-only, or completed migration phase';
+        }
+
+        $actionsHaveColumn = Schema::hasColumn('report_review_actions', 'report_case_id');
+        $actionsHaveForeignKey = $this->hasReportCaseForeignKey('report_review_actions');
+        $actionsHaveLookupIndex = Schema::hasIndex('report_review_actions', ['report_case_id', 'created_at', 'id']);
+        $actionsPhase = match (true) {
+            ! $actionsHaveColumn && ! $actionsHaveForeignKey && ! $actionsHaveLookupIndex => 'legacy',
+            $actionsHaveColumn && $actionsHaveForeignKey && $actionsHaveLookupIndex => 'complete',
+            $actionsHaveColumn => 'column',
+            default => null,
+        };
+
+        if ($actionsPhase === null || ($actionsPhase === 'complete' && $reportsPhase !== 'complete')) {
+            $artifacts[] = 'report_review_actions schema is not an exact completed migration phase';
+        }
+
+        if ($reportsPhase === 'complete' && $actionsPhase === 'complete') {
+            $this->assertExistingReportLinksAreValid();
+            $this->assertExistingActionLinksAreValid();
         }
 
         if ($artifacts !== []) {
@@ -302,7 +357,60 @@ return new class extends Migration
             );
         }
 
-        return $reportsHaveCheckpointColumn;
+        return ['reports' => $reportsPhase, 'actions' => $actionsPhase];
+    }
+
+    private function hasReportCaseForeignKey(string $table): bool
+    {
+        return count(array_filter(
+            Schema::getForeignKeys($table),
+            fn (array $foreignKey): bool => $foreignKey['columns'] === ['report_case_id']
+                && $foreignKey['foreign_table'] === 'report_cases'
+                && $foreignKey['foreign_columns'] === ['id']
+                && strtolower((string) $foreignKey['on_delete']) === 'set null',
+        )) === 1;
+    }
+
+    private function assertExistingReportLinksAreValid(): void
+    {
+        DB::table('reports')->whereNotNull('report_case_id')->orderBy('id')->each(function (object $report): void {
+            $case = DB::table('report_cases')->find($report->report_case_id);
+            $expectedStatus = $report->status === self::LEGACY_STATUS_OPEN
+                ? self::LEGACY_STATUS_OPEN
+                : ($report->status === self::LEGACY_STATUS_REVIEWED ? self::LEGACY_STATUS_REVIEWED : 'dismissed');
+
+            if ($case === null
+                || $case->reportable_type !== $report->reportable_type
+                || $case->reportable_id !== $report->reportable_id
+                || $case->reason !== $report->reason
+                || $case->status !== $expectedStatus
+                || ($expectedStatus === self::LEGACY_STATUS_OPEN && $case->active_key !== $this->activeKey($report))
+                || ($expectedStatus !== self::LEGACY_STATUS_OPEN && $case->active_key !== null)) {
+                throw new \RuntimeException(
+                    'Cannot resume the report case migration because an existing report_case_id link is incompatible with its legacy report. '
+                    .'Inspect and repair the data before rerunning this migration; no changes were made.'
+                );
+            }
+        });
+    }
+
+    private function assertExistingActionLinksAreValid(): void
+    {
+        DB::table('report_review_actions')->whereNotNull('report_case_id')->orderBy('id')->each(function (object $action): void {
+            $reportCaseId = $action->report_id === null ? null : DB::table('reports')->where('id', $action->report_id)->value('report_case_id');
+
+            if ($reportCaseId === null || (int) $reportCaseId !== (int) $action->report_case_id) {
+                throw new \RuntimeException(
+                    'Cannot resume the report case migration because an existing report review action case link is incompatible with its report. '
+                    .'Inspect and repair the data before rerunning this migration; no changes were made.'
+                );
+            }
+        });
+    }
+
+    private function activeKey(object $report): string
+    {
+        return implode('|', [$report->reportable_type, $report->reportable_id, $report->reason]);
     }
 
     private function assertExistingActiveCasesAreCompatibleWithLegacyReports(): void
