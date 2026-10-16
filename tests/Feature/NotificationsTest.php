@@ -66,6 +66,17 @@ test('a failed digest releases its durable claim', function () {
 
 });
 
+test('daily notification digests are sent by the scheduled command', function () {
+    $user = User::factory()->create(['notification_email_mode' => 'daily']);
+    app(NotificationService::class)->notify($user, ['title' => 'Hello', 'body' => 'Body', 'url' => '/']);
+
+    Mail::fake();
+    $this->artisan('notifications:send-digests')->assertSuccessful();
+
+    expect($user->notifications()->first()->email_sent_at)->not->toBeNull();
+    Mail::assertSent(NotificationMail::class);
+});
+
 test('a user can mark individual notifications read, read all, and clear read notifications', function () {
     $user = User::factory()->create();
     $service = app(NotificationService::class);
