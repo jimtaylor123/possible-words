@@ -95,6 +95,24 @@ test('notification responses are bounded to fifteen visible items', function () 
         ->assertJsonPath('unread_count', 16);
 });
 
+test('notification responses expose only presentation-safe data', function () {
+    $user = User::factory()->create();
+    app(NotificationService::class)->notify($user, [
+        'title' => 'Hello',
+        'body' => 'Body',
+        'url' => '/',
+        'subject_id' => 123,
+        'internal_secret' => 'do not expose',
+    ]);
+
+    $this->actingAs($user)->get(route('notifications.index'))->assertOk()
+        ->assertJsonPath('notifications.0.data.title', 'Hello')
+        ->assertJsonPath('notifications.0.data.body', 'Body')
+        ->assertJsonPath('notifications.0.data.url', '/')
+        ->assertJsonMissing(['internal_secret' => 'do not expose'])
+        ->assertJsonMissing(['subject_id' => 123]);
+});
+
 test('notification pruning keeps recent notifications and removes expired read and unread notifications', function () {
     $user = User::factory()->create();
     $service = app(NotificationService::class);
@@ -146,6 +164,21 @@ test('admin removal removes a word and informs only case reporters', function ()
         ->and($reporter->notifications()->first()->data['title'])->toBe('Reported content removed')
         ->and($reporter->notifications()->first()->data['body'])->toBe("The word you reported, “{$word->text}”, has been removed.")
         ->and($reporter->notifications()->first()->data['url'])->toBeNull();
+});
+
+test('admin removal does not notify reporters when the definition was already removed', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $reporter = User::factory()->create();
+    $word = Word::factory()->create();
+    $definition = $word->definitions()->create(['user_id' => User::factory()->create()->id, 'text' => 'Removed definition']);
+    $definition->removed_at = now()->subMinute();
+    $definition->save();
+    $case = $definition->reportCases()->create(['reason' => Report::REASON_DEFINITION_OFFENSIVE, 'status' => 'open', 'active_key' => ReportCase::activeKey($definition, Report::REASON_DEFINITION_OFFENSIVE)]);
+    $definition->reports()->create(['report_case_id' => $case->id, 'reporter_id' => $reporter->id, 'reason' => Report::REASON_DEFINITION_OFFENSIVE]);
+
+    $this->actingAs($admin)->patch(route('admin.reports.update', $case), ['action' => 'removed'])->assertRedirect();
+
+    expect($reporter->notifications()->count())->toBe(0);
 });
 
 test('admin dismissal includes the provided reason in the reporter notification', function () {

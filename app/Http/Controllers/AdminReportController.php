@@ -76,7 +76,9 @@ class AdminReportController extends Controller
         $word = $reportable instanceof Definition ? $reportable->word : $reportable;
         $reporterUrl = $validated['action'] === ReportCase::ACTION_REMOVED ? null : ($word instanceof Word && $word->isPublishable() ? route('words.show', $word) : null);
 
-        DB::transaction(function () use ($request, $reportCase, $validated): void {
+        $contentRemoved = false;
+
+        DB::transaction(function () use ($request, $reportCase, $validated, &$contentRemoved): void {
             $processedAt = now();
             $expectedStatus = match ($validated['action']) {
                 ReportCase::ACTION_DISMISSED, ReportCase::ACTION_REMOVED, ReportCase::ACTION_MUTED => ReportCase::STATUS_OPEN,
@@ -112,16 +114,19 @@ class AdminReportController extends Controller
             if ($validated['action'] === ReportCase::ACTION_REMOVED) {
                 $target = $reportCase->reportable;
                 if ($target instanceof Word) {
+                    $contentRemoved = ! $target->trashed();
                     $target->delete();
                 }
                 if ($target instanceof Definition && ! $target->isRemoved()) {
+                    $contentRemoved = true;
                     $target->removed_at = $processedAt;
                     $target->save();
                 }
             }
         });
 
-        if (in_array($validated['action'], [ReportCase::ACTION_DISMISSED, ReportCase::ACTION_REMOVED], true)) {
+        if (in_array($validated['action'], [ReportCase::ACTION_DISMISSED, ReportCase::ACTION_REMOVED], true)
+            && ($validated['action'] !== ReportCase::ACTION_REMOVED || $contentRemoved)) {
             try {
                 $reportCase->reports()->with('reporter')->get()->pluck('reporter')->filter()->unique('id')->each(function ($reporter) use ($notifications, $validated, $reportCase, $reporterUrl, $reportable, $word): void {
                     $reportedContent = $reportable instanceof Word ? 'word' : 'definition';

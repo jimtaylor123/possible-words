@@ -43,7 +43,11 @@ class NotificationController extends Controller
             'items' => $visible->latest()->limit(15)->get()->map(fn (DatabaseNotification $notification) => [
                 'id' => $notification->id,
                 'kind' => $notification->kind,
-                'data' => $notification->data,
+                'data' => array_filter([
+                    'title' => $notification->data['title'] ?? null,
+                    'body' => $notification->data['body'] ?? null,
+                    'url' => $notification->data['url'] ?? null,
+                ], static fn ($value) => $value !== null),
                 'read_at' => $notification->read_at?->toISOString(),
                 'created_at' => $notification->created_at->toISOString(),
             ]),
