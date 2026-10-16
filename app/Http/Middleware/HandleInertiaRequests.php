@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Http\Controllers\NotificationController;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -44,8 +45,11 @@ class HandleInertiaRequests extends Middleware
                     'email' => $request->user()->email,
                     'avatar' => $request->user()->avatar,
                     'is_admin' => $request->user()->is_admin,
+                    'notification_email_mode' => $request->user()->notification_email_mode,
+                    'admin_report_email_mode' => $request->user()->admin_report_email_mode,
                 ] : null,
                 'favourite_ids' => $request->user()?->favourites()->pluck('word_id') ?? [],
+                'notifications' => fn () => $request->user() ? NotificationController::forUser($request->user()) : null,
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

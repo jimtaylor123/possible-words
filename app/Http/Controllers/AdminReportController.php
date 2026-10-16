@@ -6,9 +6,11 @@ use App\Models\Definition;
 use App\Models\Report;
 use App\Models\ReportCase;
 use App\Models\Word;
+use App\Services\NotificationService;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -58,21 +60,28 @@ class AdminReportController extends Controller
         ]);
     }
 
-    public function update(Request $request, ReportCase $reportCase)
+    public function update(Request $request, ReportCase $reportCase, NotificationService $notifications)
     {
         $validated = $request->validate([
             'action' => ['required', 'string', Rule::in([
                 ReportCase::ACTION_DISMISSED,
                 ReportCase::ACTION_MUTED,
                 ReportCase::ACTION_UNMUTED,
+                ReportCase::ACTION_REMOVED,
             ])],
-            'note' => ['nullable', 'string', 'max:1000'],
+            'note' => ['nullable', 'string', 'max:1000', Rule::requiredIf($request->input('action') === ReportCase::ACTION_DISMISSED)],
         ]);
 
-        DB::transaction(function () use ($request, $reportCase, $validated): void {
+        $reportable = $reportCase->reportable;
+        $word = $reportable instanceof Definition ? $reportable->word : $reportable;
+        $reporterUrl = $validated['action'] === ReportCase::ACTION_REMOVED ? null : ($word instanceof Word && $word->isPublishable() ? route('words.show', $word) : null);
+
+        $contentRemoved = false;
+
+        DB::transaction(function () use ($request, $reportCase, $validated, &$contentRemoved): void {
             $processedAt = now();
             $expectedStatus = match ($validated['action']) {
-                ReportCase::ACTION_DISMISSED, ReportCase::ACTION_MUTED => ReportCase::STATUS_OPEN,
+                ReportCase::ACTION_DISMISSED, ReportCase::ACTION_REMOVED, ReportCase::ACTION_MUTED => ReportCase::STATUS_OPEN,
                 ReportCase::ACTION_UNMUTED => ReportCase::STATUS_MUTED,
             };
             $nextStatus = ReportCase::statusForAction($validated['action']);
@@ -102,7 +111,44 @@ class AdminReportController extends Controller
                 'created_at' => $processedAt,
                 'updated_at' => $processedAt,
             ]);
+            if ($validated['action'] === ReportCase::ACTION_REMOVED) {
+                $target = $reportCase->reportable;
+                if ($target instanceof Word) {
+                    $contentRemoved = ! $target->trashed();
+                    $target->delete();
+                }
+                if ($target instanceof Definition && ! $target->isRemoved()) {
+                    $contentRemoved = true;
+                    $target->removed_at = $processedAt;
+                    $target->save();
+                }
+            }
         });
+
+        if (in_array($validated['action'], [ReportCase::ACTION_DISMISSED, ReportCase::ACTION_REMOVED], true)
+            && ($validated['action'] !== ReportCase::ACTION_REMOVED || $contentRemoved)) {
+            try {
+                $reportCase->reports()->with('reporter')->get()->pluck('reporter')->filter()->unique('id')->each(function ($reporter) use ($notifications, $validated, $reportCase, $reporterUrl, $reportable, $word): void {
+                    $reportedContent = $reportable instanceof Word ? 'word' : 'definition';
+                    $reportedText = $word?->text ?? 'this content';
+                    $sent = $notifications->notify($reporter, [
+                        'kind' => $validated['action'] === ReportCase::ACTION_REMOVED ? 'report_content_removed' : 'report_dismissed',
+                        'title' => $validated['action'] === ReportCase::ACTION_REMOVED ? 'Reported content removed' : 'Report dismissed',
+                        'body' => $validated['action'] === ReportCase::ACTION_REMOVED
+                            ? "The {$reportedContent} you reported, “{$reportedText}”, has been removed."
+                            : "Your report about “{$reportedText}” was dismissed. Reason: {$validated['note']}",
+                        'url' => $reporterUrl,
+                        'subject_type' => $word?->getMorphClass(),
+                        'subject_id' => $word?->getKey(),
+                    ], false, "report-case:{$reportCase->id}:{$validated['action']}:reporter:{$reporter->id}");
+                    if (! $sent) {
+                        Log::warning('Could not notify reporter about moderation outcome.', ['report_case_id' => $reportCase->id, 'reporter_id' => $reporter->id]);
+                    }
+                });
+            } catch (\Throwable $exception) {
+                Log::warning('Could not notify reporters about moderation outcome.', ['report_case_id' => $reportCase->id, 'exception' => $exception]);
+            }
+        }
 
         return back()->with('success', 'Report case '.$validated['action'].'.');
     }

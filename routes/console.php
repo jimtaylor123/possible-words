@@ -11,3 +11,6 @@ Artisan::command('inspire', function () {
 Schedule::command('words:generate', ['--count' => 20])->daily();
 Schedule::command('words:release')->everySixHours()->withoutOverlapping();
 Schedule::command('words:check-domains --chunk=8 --limit=8')->cron('*/11 * * * *');
+Schedule::command('notifications:send-digests')->dailyAt('08:00')->timezone('UTC')->withoutOverlapping();
+Schedule::command('notifications:retry-immediate')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('notifications:prune')->dailyAt('08:30')->timezone('UTC')->withoutOverlapping();

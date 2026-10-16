@@ -44,7 +44,7 @@ test.describe('Admin area', () => {
     });
 
     test('matching reports are grouped and an admin can mute and unmute a case', async ({ page }) => {
-        const suffix = Date.now();
+        const suffix = `${Date.now()}-${test.info().parallelIndex}-${test.info().repeatEachIndex}`;
         await login(page, `admin-queue-reporter-${suffix}@example.com`);
         await openFirstWord(page);
         await page.getByRole('button', { name: 'Report this word' }).click();
@@ -65,16 +65,15 @@ test.describe('Admin area', () => {
         await page.getByLabel('Report type').click();
         await page.locator('.n-base-select-option').filter({ hasText: 'Offensive word' }).click();
         await expect(page.getByText('Unique reporters: 2')).toBeVisible();
-        await page.getByRole('button', { name: 'Dismiss or mute' }).click();
-        await page.getByLabel('Review action').click();
-        await page.locator('.n-base-select-option').filter({ hasText: 'Mute' }).click();
-        await page.getByRole('button', { name: 'muted' }).click();
+        await page.getByRole('button', { name: 'Review' }).click();
+        await page.getByRole('button', { name: 'Mute' }).click();
+        await page.getByRole('button', { name: 'Save' }).click();
         await expect(page.locator('main').getByRole('status')).toHaveText('Report case muted.');
 
         await page.getByLabel('Lifecycle status').click();
         await page.locator('.n-base-select-option').filter({ hasText: 'Muted' }).click();
         await page.getByRole('button', { name: 'Unmute' }).click();
-        await page.getByRole('button', { name: 'unmuted' }).click();
+        await page.getByRole('button', { name: 'Save' }).click();
         await expect(page.locator('main').getByRole('status')).toHaveText('Report case unmuted.');
     });
 

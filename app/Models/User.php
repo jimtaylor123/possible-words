@@ -26,6 +26,8 @@ class User extends Authenticatable
         'provider_id',
         'avatar',
         'is_admin',
+        'notification_email_mode',
+        'admin_report_email_mode',
     ];
 
     /**

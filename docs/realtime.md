@@ -1,68 +1,59 @@
-# Real-time (WebSockets) — how it works, how to verify, how to debug
+# Real-time WebSockets
 
-PossibleWords uses **Pusher** for real-time updates: when one user adds a definition or likes one, other users on the same word page see it appear/update without reloading.
+PossibleWords uses Pusher-compatible WebSockets for live updates. Production
+uses **Pusher**; local development uses the free, self-hosted **Laravel Reverb**
+server. This includes private in-app notification broadcasts.
 
-## Architecture
+## Configuration
 
-```
-Browser (Echo + pusher-js)
-   │  wss://ws-<cluster>.pusher.com   (public channels)
-   ▼
-Pusher Channels
-   ▲
-   │  REST api-<cluster>.pusher.com  (triggered by queued broadcast job)
-   │
-Lambda web function (Laravel)
-   │  WordController → broadcast(new DefinitionCreated/Voted)->toOthers()
-   ▼
-QUEUE_CONNECTION=sync (production) → runs inline in the same request
-```
+- `config/broadcasting.php` selects `BROADCAST_CONNECTION`. Production continues
+  to set it to `pusher` in `serverless.yml`; local `.env.example` sets `reverb`.
+- `resources/js/bootstrap.js` chooses Reverb from `VITE_REVERB_*` values, using
+  its host, port, and scheme. Without those values it preserves Pusher's
+  production cluster/TLS configuration from `VITE_PUSHER_*`.
+- Definition channels remain public. Notification broadcasts subscribe to the
+  private `App.Models.User.{id}` channel. Echo sends an authenticated request to
+  `/broadcasting/auth`; `routes/channels.php` allows only the matching user.
+- `QUEUE_CONNECTION=sync` sends broadcasts in the current request. It is the
+  required local setting and remains the production deployment setting.
 
-Key config:
+## Local development
 
-- `config/broadcasting.php` → default driver `env('BROADCAST_CONNECTION', 'null')`; prod sets `BROADCAST_CONNECTION=pusher` in `serverless.yml`.
-- `resources/js/bootstrap.js` → Echo configured with `broadcaster: 'pusher'`, `key: VITE_PUSHER_APP_KEY`, `cluster: VITE_PUSHER_APP_CLUSTER`, `forceTLS: true`. These `VITE_*` values are baked into the frontend at build time.
-- `app/Events/DefinitionCreated.php` → public channel `word.{id}.definitions`, event `definition.created`.
-- `app/Events/DefinitionVoted.php` → public channel `definition.{id}`, event `definition.voted`.
-- `app/Http/Controllers/WordController.php` → `storeDefinition()` and `voteDefinition()` call `broadcast(...)->toOthers()`.
-- `routes/channels.php` → the channels are **public** (`Broadcast::channel` returning `true`); no private-channel auth (`broadcasting/auth`) is involved.
-
-Note: `broadcast()` enqueues a `BroadcastEvent` job. Locally `QUEUE_CONNECTION=database` needs a worker (`make dev` runs `queue:listen`). In production `QUEUE_CONNECTION=sync` runs the broadcast inline, so no worker is required on Lambda.
-
-## How to verify end-to-end
-
-1. Two browsers open the same word page (e.g. `https://possiblewords.jimtaylor.space/w/<slug>`), both logged in as different users.
-2. In browser A, like a definition (or add a definition).
-3. Browser B should show the vote count / new definition update immediately, with no reload.
-4. Optional: in the Pusher debug console (`https://dashboard.pusher.com/apps/<app_id>/console`), you should see the `definition.voted` / `definition.created` events land.
-
-Quick API check (server → Pusher connectivity and creds):
+Copy `.env.example` (or update an existing ignored `.env`) and run:
 
 ```bash
-php -r '
-require "vendor/autoload.php";
-$e = parse_ini_file(".env");
-$p = new Pusher\Pusher($e["PUSHER_APP_KEY"], $e["PUSHER_APP_SECRET"], $e["PUSHER_APP_ID"], ["cluster" => $e["PUSHER_APP_CLUSTER"]]);
-print_r($p->get_channels());
-'
+composer install
+npm install
+make realtime
+# equivalent: composer run dev:realtime
 ```
 
-If it prints channels (including live `word.*`/`definition.*` channels), the backend can reach Pusher and the credentials are valid.
+This starts Laravel at `http://localhost:8011`, Vite, and Reverb at
+`ws://localhost:8080`; it does not need a queue worker. After changing an
+existing `.env`, run `php artisan config:clear` and restart Vite, because Vite
+embeds `VITE_*` settings into the browser bundle.
 
-Browser-side check (client → Pusher connectivity):
+## Verify notifications end-to-end
 
-```js
-// node with pusher-js installed
-const { Pusher } = require('pusher-js');
-const p = new Pusher('APP_KEY', { cluster: 'eu', forceTLS: true });
-p.connection.bind('connected', () => console.log('connected', p.connection.socket_id));
-p.subscribe('test-channel').bind('test-event', d => console.log('received', d));
-```
+1. Start `make realtime` and log in at `http://localhost:8011`.
+2. In DevTools → Network, confirm a WebSocket to `ws://localhost:8080`.
+3. Trigger an in-app notification for the logged-in user. Confirm a successful
+   `POST /broadcasting/auth` and subscription to
+   `private-App.Models.User.{id}`; the bell should update without reloading.
+4. Click or tap the page once to permit audio, then trigger another
+   notification. The bell rings for about three seconds and plays a short Web
+   Audio ping.
+5. In production, use the Pusher debug console to observe Pusher events.
 
-## How to debug
+## Troubleshooting
 
-- **"WebSocket connection failed" / no live updates locally**: check `.env` has `BROADCAST_CONNECTION=pusher`, valid `PUSHER_*` values, and `VITE_PUSHER_APP_KEY`/`VITE_PUSHER_APP_CLUSTER` (then re-run `npm run build` — Vite vars are compile-time).
-- **Events not arriving but WS connects**: the queue worker must be running locally (`make dev`) for the `BroadcastEvent` job to fire. On Lambda, confirm `QUEUE_CONNECTION=sync`.
-- **Only some clients get updates**: broadcasts use `->toOthers()` — the acting user is deliberately excluded (their own UI updates via the redirect response).
-- **Check Lambda env**: `aws lambda get-function-configuration --function-name possiblewords-prod-web --query Environment.Variables` and compare `PUSHER_APP_KEY`/`PUSHER_APP_SECRET`/`PUSHER_APP_CLUSTER` with the Pusher dashboard / local `.env`.
-- **Pusher error codes**: `4004` channel/event name invalid, `4010` bad signature (wrong secret), `4001` bad app key. The event names (`definition.voted`) and channel names (`definition.{id}`, `word.{id}.definitions`) follow Pusher's charset rules.
+- **WebSocket fails locally:** ensure Reverb is running on port 8080 and that
+  `BROADCAST_CONNECTION=reverb`, `REVERB_SCHEME=http`, and the matching
+  `REVERB_*`/`VITE_REVERB_*` values are present. Restart Vite after changes.
+- **Private notification will not subscribe:** inspect `/broadcasting/auth`.
+  It must use the same authenticated session as the browser and may only
+  authorize its own user-channel ID.
+- **Socket connects but no event arrives:** confirm `QUEUE_CONNECTION=sync` and
+  check the Laravel/Reverb logs for broadcast errors.
+- **No sound:** browser autoplay policy requires one prior page interaction.
+  The visual notification always remains available even if audio is blocked.

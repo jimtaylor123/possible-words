@@ -77,6 +77,13 @@ provider:
 
         QUEUE_CONNECTION: sync
         CACHE_STORE: array
+        MAIL_MAILER: smtp
+        MAIL_SCHEME: smtps
+        MAIL_HOST: smtp.resend.com
+        MAIL_PORT: 465
+        MAIL_USERNAME: resend
+        MAIL_PASSWORD: ${env:RESEND_SMTP_PASSWORD}
+        MAIL_FROM_ADDRESS: notifications@possiblewords.jimtaylor.space
 
         FILESYSTEM_DISK: s3
         AWS_BUCKET: possiblewords-prod-audio
@@ -130,6 +137,18 @@ functions:
                   rate: ${env:WORD_RELEASE_SCHEDULE, 'cron(0 */6 * * ? *)'}
                   input:
                       cli: 'words:release'
+            - schedule:
+                  rate: cron(0 8 * * ? *)
+                  input:
+                      cli: 'notifications:send-digests'
+            - schedule:
+                  rate: rate(5 minutes)
+                  input:
+                      cli: 'notifications:retry-immediate'
+            - schedule:
+                  rate: cron(30 8 * * ? *)
+                  input:
+                      cli: 'notifications:prune'
 
 package:
     patterns:
