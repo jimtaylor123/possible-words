@@ -139,6 +139,98 @@ test('resumes when report cases were created before the migration failed', funct
         ->and(DB::table('report_review_actions')->where('report_id', $reviewedReportId)->value('report_case_id'))->toBe($reviewedCase);
 });
 
+test('resumes the production checkpoint without duplicating its compatible active case', function () {
+    $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
+    $migration->down();
+
+    $admin = User::factory()->create(['is_admin' => true]);
+    $word = Word::factory()->create();
+    $timestamps = ['created_at' => now()->subDay(), 'updated_at' => now()];
+    $openReason = 'word_unfresh';
+    $activeKey = implode('|', [Word::class, $word->id, $openReason]);
+
+    createFirstPhaseReportCasesTable();
+    $preservedCaseId = DB::table('report_cases')->insertGetId([
+        'reportable_type' => Word::class,
+        'reportable_id' => $word->id,
+        'reason' => $openReason,
+        'status' => 'open',
+        'active_key' => $activeKey,
+        'processing_note' => 'Preserve this first-phase row.',
+        ...$timestamps,
+    ]);
+
+    $openReportId = DB::table('reports')->insertGetId([
+        'reporter_id' => User::factory()->create()->id,
+        'reportable_type' => Word::class,
+        'reportable_id' => $word->id,
+        'reason' => $openReason,
+        'status' => 'open',
+        ...$timestamps,
+    ]);
+    $secondOpenReportId = DB::table('reports')->insertGetId([
+        'reporter_id' => User::factory()->create()->id,
+        'reportable_type' => Word::class,
+        'reportable_id' => $word->id,
+        'reason' => $openReason,
+        'status' => 'open',
+        ...$timestamps,
+    ]);
+    $reviewedReportId = DB::table('reports')->insertGetId([
+        'reporter_id' => User::factory()->create()->id,
+        'reportable_type' => Word::class,
+        'reportable_id' => $word->id,
+        'reason' => 'word_offensive',
+        'status' => 'reviewed',
+        'processed_by_user_id' => $admin->id,
+        'processed_at' => now(),
+        'processing_action' => 'reviewed',
+        ...$timestamps,
+    ]);
+    $dismissedReportId = DB::table('reports')->insertGetId([
+        'reporter_id' => User::factory()->create()->id,
+        'reportable_type' => Word::class,
+        'reportable_id' => $word->id,
+        'reason' => 'word_offensive',
+        'status' => 'dismissed',
+        'processed_by_user_id' => $admin->id,
+        'processed_at' => now(),
+        'processing_action' => 'dismissed',
+        ...$timestamps,
+    ]);
+    DB::table('report_review_actions')->insert([
+        ['report_id' => $openReportId, 'admin_user_id' => $admin->id, 'action' => 'reviewed', ...$timestamps],
+        ['report_id' => $reviewedReportId, 'admin_user_id' => $admin->id, 'action' => 'reviewed', ...$timestamps],
+    ]);
+
+    Schema::table('reports', fn (Blueprint $table) => $table->foreignId('report_case_id')->nullable()->after('id'));
+
+    $migration->up();
+
+    $reportCaseIds = DB::table('reports')->orderBy('id')->pluck('report_case_id', 'id');
+    $reportCaseForeignKeys = array_values(array_filter(
+        Schema::getForeignKeys('reports'),
+        fn (array $foreignKey): bool => $foreignKey['columns'] === ['report_case_id'],
+    ));
+
+    expect(DB::table('report_cases')->count())->toBe(3)
+        ->and(DB::table('report_cases')->where('id', $preservedCaseId)->value('processing_note'))->toBe('Preserve this first-phase row.')
+        ->and($reportCaseIds[$openReportId])->toBe($preservedCaseId)
+        ->and($reportCaseIds[$secondOpenReportId])->toBe($preservedCaseId)
+        ->and($reportCaseIds[$reviewedReportId])->not->toBe($preservedCaseId)
+        ->and($reportCaseIds[$dismissedReportId])->not->toBe($preservedCaseId)
+        ->and($reportCaseIds[$reviewedReportId])->not->toBe($reportCaseIds[$dismissedReportId])
+        ->and(DB::table('report_review_actions')->whereNotNull('report_case_id')->count())->toBe(2)
+        ->and(DB::table('report_review_actions')->where('report_id', $openReportId)->value('report_case_id'))->toBe($preservedCaseId)
+        ->and(DB::table('report_review_actions')->where('report_id', $reviewedReportId)->value('report_case_id'))->toBe($reportCaseIds[$reviewedReportId])
+        ->and(Schema::hasIndex('reports', ['reporter_id', 'reportable_type', 'reportable_id', 'status'], 'unique'))->toBeFalse()
+        ->and(Schema::hasIndex('reports', ['report_case_id', 'reporter_id'], 'unique'))->toBeTrue()
+        ->and(Schema::hasIndex('reports', ['report_case_id', 'created_at']))->toBeTrue()
+        ->and(count($reportCaseForeignKeys))->toBe(1)
+        ->and($reportCaseForeignKeys[0]['foreign_table'])->toBe('report_cases')
+        ->and($reportCaseForeignKeys[0]['on_delete'])->toBe('set null');
+});
+
 test('rejects an existing report cases table missing the active key unique constraint', function () {
     $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
     $migration->down();
@@ -185,12 +277,140 @@ test('rejects downstream partial-recovery artifacts before altering the schema',
     });
 
     expect(fn () => $migration->up())
-        ->toThrow(\RuntimeException::class, 'downstream partial-recovery artifacts were found (reports.report_case_id column, reports index (report_case_id, created_at))')
+        ->toThrow(\RuntimeException::class, 'reports.report_case_id exists without the validated first-phase report_cases table')
         ->and(Schema::hasTable('report_cases'))->toBeFalse()
         ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeFalse();
 });
 
-test('rejects downstream foreign keys referencing report cases', function () {
+test('rejects a populated checkpoint column before mutating schema or data', function () {
+    $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
+    $migration->down();
+
+    $reporter = User::factory()->create();
+    $word = Word::factory()->create();
+    $timestamps = ['created_at' => now(), 'updated_at' => now()];
+    $reportId = DB::table('reports')->insertGetId([
+        'reporter_id' => $reporter->id,
+        'reportable_type' => Word::class,
+        'reportable_id' => $word->id,
+        'reason' => 'word_unfresh',
+        'status' => 'open',
+        ...$timestamps,
+    ]);
+
+    createFirstPhaseReportCasesTable();
+    $caseId = DB::table('report_cases')->insertGetId([
+        'reportable_type' => Word::class,
+        'reportable_id' => $word->id,
+        'reason' => 'word_unfresh',
+        'status' => 'open',
+        'active_key' => implode('|', [Word::class, $word->id, 'word_unfresh']),
+        ...$timestamps,
+    ]);
+    Schema::table('reports', fn (Blueprint $table) => $table->foreignId('report_case_id')->nullable()->after('id'));
+    DB::table('reports')->where('id', $reportId)->update(['report_case_id' => $caseId]);
+
+    expect(fn () => $migration->up())
+        ->toThrow(\RuntimeException::class, 'reports.report_case_id contains linked reports before the reports DDL phase completed')
+        ->and(DB::table('reports')->where('id', $reportId)->value('report_case_id'))->toBe($caseId)
+        ->and(DB::table('report_cases')->count())->toBe(1)
+        ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeFalse()
+        ->and(Schema::hasIndex('reports', ['reporter_id', 'reportable_type', 'reportable_id', 'status'], 'unique'))->toBeTrue();
+});
+
+test('rejects a nullable empty checkpoint column without the first-phase report cases table', function () {
+    $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
+    $migration->down();
+
+    Schema::table('reports', fn (Blueprint $table) => $table->foreignId('report_case_id')->nullable()->after('id'));
+
+    expect(fn () => $migration->up())
+        ->toThrow(\RuntimeException::class, 'reports.report_case_id exists without the validated first-phase report_cases table')
+        ->and(Schema::hasTable('report_cases'))->toBeFalse()
+        ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeFalse()
+        ->and(Schema::hasIndex('reports', ['reporter_id', 'reportable_type', 'reportable_id', 'status'], 'unique'))->toBeTrue();
+});
+
+test('retries an exact post-DDL partial-backfill checkpoint without duplicating or losing links', function () {
+    $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
+    $migration->down();
+
+    $word = Word::factory()->create();
+    $admin = User::factory()->create(['is_admin' => true]);
+    $timestamps = ['created_at' => now(), 'updated_at' => now()];
+    $firstReportId = DB::table('reports')->insertGetId([
+        'reporter_id' => User::factory()->create()->id,
+        'reportable_type' => Word::class,
+        'reportable_id' => $word->id,
+        'reason' => 'word_unfresh',
+        'status' => 'open',
+        ...$timestamps,
+    ]);
+    $secondReportId = DB::table('reports')->insertGetId([
+        'reporter_id' => User::factory()->create()->id,
+        'reportable_type' => Word::class,
+        'reportable_id' => $word->id,
+        'reason' => 'word_unfresh',
+        'status' => 'open',
+        ...$timestamps,
+    ]);
+    $actionId = DB::table('report_review_actions')->insertGetId([
+        'report_id' => $secondReportId,
+        'admin_user_id' => $admin->id,
+        'action' => 'reviewed',
+        ...$timestamps,
+    ]);
+
+    $migration->up();
+    $caseId = DB::table('reports')->where('id', $firstReportId)->value('report_case_id');
+
+    // This is the durable checkpoint after both DDL operations when a later
+    // backfill fails: completed links remain valid and null links are pending.
+    DB::table('reports')->where('id', $secondReportId)->update(['report_case_id' => null]);
+    DB::table('report_review_actions')->where('id', $actionId)->update(['report_case_id' => null]);
+
+    $migration->up();
+
+    expect(DB::table('report_cases')->count())->toBe(1)
+        ->and(DB::table('reports')->where('id', $firstReportId)->value('report_case_id'))->toBe($caseId)
+        ->and(DB::table('reports')->where('id', $secondReportId)->value('report_case_id'))->toBe($caseId)
+        ->and(DB::table('report_review_actions')->where('id', $actionId)->value('report_case_id'))->toBe($caseId);
+});
+
+test('rejects an incompatible existing active key before mutating schema or data', function () {
+    $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
+    $migration->down();
+
+    $reporter = User::factory()->create();
+    $word = Word::factory()->create();
+    $timestamps = ['created_at' => now(), 'updated_at' => now()];
+    DB::table('reports')->insert([
+        'reporter_id' => $reporter->id,
+        'reportable_type' => Word::class,
+        'reportable_id' => $word->id,
+        'reason' => 'word_unfresh',
+        'status' => 'open',
+        ...$timestamps,
+    ]);
+
+    createFirstPhaseReportCasesTable();
+    DB::table('report_cases')->insert([
+        'reportable_type' => Word::class,
+        'reportable_id' => $word->id,
+        'reason' => 'word_unfresh',
+        'status' => 'reviewed',
+        'active_key' => implode('|', [Word::class, $word->id, 'word_unfresh']),
+        ...$timestamps,
+    ]);
+
+    expect(fn () => $migration->up())
+        ->toThrow(\RuntimeException::class, 'an existing active case is incompatible with a legacy report')
+        ->and(Schema::hasColumn('reports', 'report_case_id'))->toBeFalse()
+        ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeFalse()
+        ->and(DB::table('reports')->count())->toBe(1);
+});
+
+test('resumes when the reports foreign key was persisted before its other constraints', function () {
     $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
     $migration->down();
 
@@ -199,12 +419,14 @@ test('rejects downstream foreign keys referencing report cases', function () {
         $table->foreignId('report_case_id')->nullable()->constrained()->nullOnDelete();
     });
 
-    expect(fn () => $migration->up())
-        ->toThrow(\RuntimeException::class, 'downstream partial-recovery artifacts were found (reports.report_case_id column, reports foreign key (report_case_id) referencing report_cases)')
-        ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeFalse();
+    $migration->up();
+
+    expect(Schema::hasIndex('reports', ['report_case_id', 'reporter_id'], 'unique'))->toBeTrue()
+        ->and(Schema::hasIndex('reports', ['report_case_id', 'created_at']))->toBeTrue()
+        ->and(Schema::hasColumn('report_review_actions', 'report_case_id'))->toBeTrue();
 });
 
-test('rejects downstream foreign keys on report review actions referencing report cases', function () {
+test('resumes when the report review action foreign key was persisted before its index', function () {
     $migration = require database_path('migrations/2026_10_14_000001_create_report_cases_table.php');
     $migration->down();
 
@@ -213,9 +435,10 @@ test('rejects downstream foreign keys on report review actions referencing repor
         $table->foreignId('report_case_id')->nullable()->constrained()->nullOnDelete();
     });
 
-    expect(fn () => $migration->up())
-        ->toThrow(\RuntimeException::class, 'downstream partial-recovery artifacts were found (report_review_actions.report_case_id column, report_review_actions foreign key (report_case_id) referencing report_cases)')
-        ->and(Schema::hasColumn('reports', 'report_case_id'))->toBeFalse();
+    $migration->up();
+
+    expect(Schema::hasColumn('reports', 'report_case_id'))->toBeTrue()
+        ->and(Schema::hasIndex('report_review_actions', ['report_case_id', 'created_at', 'id']))->toBeTrue();
 });
 
 test('rejects an existing report cases table with a changed status default', function () {
