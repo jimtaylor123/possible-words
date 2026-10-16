@@ -20,11 +20,15 @@ class AccountController extends Controller
 
     public function updateNotifications(Request $request)
     {
-        $validated = $request->validate([
-            'notification_email_mode' => ['required', 'in:daily,immediate,off'],
-            'admin_report_email_mode' => ['nullable', 'in:daily,immediate,off'],
-        ]);
         $user = $request->user();
+        $rules = [
+            'notification_email_mode' => ['required', 'in:daily,immediate,off'],
+        ];
+        if ($user->is_admin) {
+            $rules['admin_report_email_mode'] = ['nullable', 'in:daily,immediate,off'];
+        }
+        $validated = $request->validate($rules);
+
         $user->notification_email_mode = $validated['notification_email_mode'];
         if ($user->is_admin && array_key_exists('admin_report_email_mode', $validated)) {
             $user->admin_report_email_mode = $validated['admin_report_email_mode'];
