@@ -24,6 +24,8 @@ class ReportCase extends Model
 
     public const ACTION_UNMUTED = 'unmuted';
 
+    public const ACTION_REMOVED = 'removed';
+
     protected $fillable = ['reason', 'status', 'active_key', 'processed_by_user_id', 'processed_at', 'processing_action', 'processing_note'];
 
     protected $casts = ['processed_at' => 'datetime'];
@@ -41,7 +43,7 @@ class ReportCase extends Model
     public static function actionsFor(string $status): array
     {
         return match ($status) {
-            self::STATUS_OPEN => [self::ACTION_DISMISSED, self::ACTION_MUTED],
+            self::STATUS_OPEN => [self::ACTION_DISMISSED, self::ACTION_REMOVED, self::ACTION_MUTED],
             self::STATUS_MUTED => [self::ACTION_UNMUTED],
             default => [],
         };
@@ -51,6 +53,7 @@ class ReportCase extends Model
     {
         return match ($action) {
             self::ACTION_DISMISSED => self::STATUS_DISMISSED,
+            self::ACTION_REMOVED => self::STATUS_DISMISSED,
             self::ACTION_MUTED => self::STATUS_MUTED,
             self::ACTION_UNMUTED => self::STATUS_OPEN,
         };

@@ -33,6 +33,7 @@ jobs:
       PUSHER_APP_CLUSTER: ${{ secrets.PUSHER_APP_CLUSTER }}
       GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
       GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      RESEND_SMTP_PASSWORD: ${{ secrets.RESEND_SMTP_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 

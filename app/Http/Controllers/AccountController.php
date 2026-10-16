@@ -18,6 +18,22 @@ class AccountController extends Controller
         return Inertia::render('Account/Show');
     }
 
+    public function updateNotifications(Request $request)
+    {
+        $validated = $request->validate([
+            'notification_email_mode' => ['required', 'in:daily,immediate,off'],
+            'admin_report_email_mode' => ['nullable', 'in:daily,immediate,off'],
+        ]);
+        $user = $request->user();
+        $user->notification_email_mode = $validated['notification_email_mode'];
+        if ($user->is_admin && array_key_exists('admin_report_email_mode', $validated)) {
+            $user->admin_report_email_mode = $validated['admin_report_email_mode'];
+        }
+        $user->save();
+
+        return back()->with('success', 'Notification preferences updated.');
+    }
+
     public function export(Request $request)
     {
         /** @var User $user */
@@ -39,6 +55,11 @@ class AccountController extends Controller
             'reports' => $scrub($user->reports()->get()),
             'report_cases' => $scrub($user->processedReportCases()->get()),
             'report_review_actions' => $scrub($user->reportReviewActions()->get()),
+            'notifications' => $user->notifications()
+                ->where('kind', '!=', 'admin_report_created')
+                ->get()
+                ->map(fn ($notification) => Arr::except($notification->getAttributes(), ['notifiable_type', 'notifiable_id', 'subject_type', 'subject_id']))
+                ->values(),
         ];
 
         return response()->streamDownload(
@@ -62,6 +83,7 @@ class AccountController extends Controller
 
             $user->votes()->delete();
             $user->favourites()->delete();
+            $user->notifications()->delete();
 
             Word::where('owner_user_id', $user->id)->update([
                 'status' => 'available',

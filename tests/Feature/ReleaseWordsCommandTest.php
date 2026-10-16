@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Word;
+use App\Services\NotificationService;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
@@ -57,5 +58,26 @@ describe('releasing words via artisan', function () {
         $this->artisan('words:release')
             ->expectsOutputToContain('Released 0 of 10 word(s).')
             ->assertExitCode(0);
+    });
+
+    test('Given notification delivery fails, it leaves the word pending for a retry', function () {
+        $word = releasableWord('pending-notification', ['domain_status' => Word::DOMAIN_AVAILABLE]);
+        $notifications = Mockery::mock(NotificationService::class);
+        $notifications->shouldReceive('notifyNewWord')->once()->with(Mockery::on(fn (Word $candidate) => $candidate->is($word)))->andReturnFalse();
+        app()->instance(NotificationService::class, $notifications);
+
+        $this->artisan('words:release')->assertExitCode(0);
+
+        expect($word->fresh()->published_at)->not->toBeNull()
+            ->and($word->fresh()->notification_sent_at)->toBeNull();
+    });
+
+    test('Given a previously published word, it does not notify users after notification support is deployed', function () {
+        releasableWord('already-published', ['domain_status' => Word::DOMAIN_AVAILABLE, 'published_at' => now()->subDay(), 'notification_sent_at' => now()]);
+        $notifications = Mockery::mock(NotificationService::class);
+        $notifications->shouldNotReceive('notifyNewWord');
+        app()->instance(NotificationService::class, $notifications);
+
+        $this->artisan('words:release')->assertExitCode(0);
     });
 });

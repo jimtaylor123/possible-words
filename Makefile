@@ -1,4 +1,4 @@
-.PHONY: start setup install migrate seed audio build dev snapshot reset fresh reseed-words zip-audio restore-audio test test-load
+.PHONY: start setup install migrate seed audio build dev realtime snapshot reset fresh reseed-words zip-audio restore-audio test test-load
 
 start: reset dev
 
@@ -27,6 +27,9 @@ build:
 
 dev:
 	@composer dev
+
+realtime:
+	@composer run dev:realtime
 
 test:
 	@composer test

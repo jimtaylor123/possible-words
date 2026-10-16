@@ -34,6 +34,7 @@
         "larastan/larastan": "^3.10",
         "laravel/pail": "^1.2.2",
         "laravel/pint": "^1.24",
+        "laravel/reverb": "^1.12",
         "laravel/sail": "^1.41",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
@@ -72,6 +73,10 @@
         "dev": [
             "Composer\\Config::disableProcessTimeout",
             "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74,#34d399\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=server,queue,logs,vite --kill-others"
+        ],
+        "dev:realtime": [
+            "Composer\\Config::disableProcessTimeout",
+            "npx concurrently -c \"#93c5fd,#fb7185,#34d399\" \"php artisan serve --host=127.0.0.1 --port=8011 --no-reload\" \"php artisan reverb:start\" \"npm run dev -- --host=127.0.0.1 --port=5174 --strictPort\" --names=server,reverb,vite --kill-others"
         ],
         "test": [
             "@php artisan config:clear --ansi",

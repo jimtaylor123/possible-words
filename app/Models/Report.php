@@ -46,6 +46,15 @@ class Report extends Model
         return self::REASONS_BY_REPORTABLE[$reportable::class] ?? [];
     }
 
+    public static function reasonLabel(string $reason): string
+    {
+        return match ($reason) {
+            self::REASON_WORD_UNFRESH => 'not fresh',
+            self::REASON_WORD_OFFENSIVE, self::REASON_DEFINITION_OFFENSIVE => 'offensive',
+            default => 'inappropriate',
+        };
+    }
+
     public function reportable(): MorphTo
     {
         return $this->morphTo();

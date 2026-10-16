@@ -15,7 +15,7 @@ describe('Admin Dashboard', () => {
         const target = globalThis.document.body.appendChild(globalThis.document.createElement('div'));
         app = createApp(Dashboard, { reports: { data, current_page: 1, last_page: 1 }, filters: { reason: null, status: 'open' }, reasonOptions: [{ label: 'All types', value: null }], statusOptions: [{ label: 'Open', value: 'open' }, { label: 'Dismissed', value: 'dismissed' }, { label: 'Muted', value: 'muted' }, { label: 'All', value: 'all' }] });
         app.config.globalProperties.$page = { props: { flash: {} } };
-        app.component('NSelect', stub); app.component('NPagination', stub); app.component('NModal', slotStub); app.component('NButton', slotStub); app.component('NInput', slotStub);
+        app.component('NSelect', stub); app.component('NPagination', stub); app.component('NModal', slotStub); app.component('NButton', slotStub); app.component('NButtonGroup', slotStub); app.component('NInput', slotStub);
         app.mount(target); return target;
     };
     afterEach(() => { app?.unmount(); globalThis.document.body.innerHTML = ''; inertia.router.get.mockReset(); vi.unstubAllGlobals(); });

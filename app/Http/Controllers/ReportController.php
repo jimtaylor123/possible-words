@@ -7,15 +7,17 @@ use App\Models\Report;
 use App\Models\ReportCase;
 use App\Models\User;
 use App\Models\Word;
+use App\Services\NotificationService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class ReportController extends Controller
 {
-    public function store(Request $request, string $targetType, string $target)
+    public function store(Request $request, string $targetType, string $target, NotificationService $notifications)
     {
         $reportable = $this->resolveReportable($targetType, $target);
 
@@ -30,7 +32,7 @@ class ReportController extends Controller
         $reporter = $request->user();
 
         try {
-            $this->submitToActiveCase($reportable, $reporter, $validated);
+            $report = $this->submitToActiveCase($reportable, $reporter, $validated);
         } catch (\RuntimeException $exception) {
             if ($exception->getMessage() === 'duplicate-report') {
                 return redirect()->back()->with('error', 'You have already reported this item.');
@@ -43,7 +45,9 @@ class ReportController extends Controller
                     // A competing submitter may have inserted the active case.
                     // Repeat the entire locked lookup: it also observes a dismissal
                     // that occurred before this retry and starts a new episode.
-                    $this->submitToActiveCase($reportable, $reporter, $validated);
+                    $report = $this->submitToActiveCase($reportable, $reporter, $validated);
+
+                    $this->notifyAdmins($notifications, $targetType, $report);
 
                     return redirect()->back()->with('success', 'Report submitted.');
                 } catch (QueryException $retryException) {
@@ -62,17 +66,19 @@ class ReportController extends Controller
             throw $exception;
         }
 
+        $this->notifyAdmins($notifications, $targetType, $report);
+
         return redirect()->back()->with('success', 'Report submitted.');
     }
 
     /** @param array{reason: string, explanation?: string|null} $validated */
-    protected function submitToActiveCase(Model $reportable, User $reporter, array $validated): void
+    protected function submitToActiveCase(Model $reportable, User $reporter, array $validated): Report
     {
         // SQLite's deferred transactions can fail when a separate connection
         // dismisses this case after the lookup. Laravel recognizes its busy /
         // locked exception as a concurrency error and restarts this complete
         // callback, including the active-case lookup.
-        DB::transaction(function () use ($reportable, $reporter, $validated): void {
+        return DB::transaction(function () use ($reportable, $reporter, $validated): Report {
             $activeKey = ReportCase::activeKey($reportable, $validated['reason']);
             // This prevents a concurrent dismissal from clearing active_key after
             // the lookup but before the report is attached to this case.
@@ -96,7 +102,7 @@ class ReportController extends Controller
                 throw new \RuntimeException('duplicate-report');
             }
 
-            $reportable->reports()->create([
+            return $reportable->reports()->create([
                 'report_case_id' => $case->id,
                 'reporter_id' => $reporter->id,
                 'reason' => $validated['reason'],
@@ -105,6 +111,29 @@ class ReportController extends Controller
                 'status' => ReportCase::STATUS_OPEN,
             ]);
         }, attempts: 3);
+    }
+
+    private function notifyAdmins(NotificationService $notifications, string $targetType, Report $report): void
+    {
+        User::query()->where('is_admin', true)->each(function (User $admin) use ($notifications, $targetType, $report): void {
+            $reportable = $report->reportable;
+            $label = $reportable instanceof Definition ? $reportable->word?->text : $reportable?->text;
+            $reason = Report::reasonLabel($report->reason);
+            $reporter = $report->reporter?->name ?? 'A user';
+            $body = $reportable instanceof Definition
+                ? $reporter.' reported one of the definitions of “'.($label ?? $targetType).'” as '.$reason.'.'
+                : $reporter.' reported “'.($label ?? $targetType).'” as '.$reason.'.';
+            if (! $notifications->notify($admin, [
+                'kind' => 'admin_report_created',
+                'title' => 'New report received',
+                'body' => $body,
+                'url' => route('admin.dashboard'),
+                'subject_type' => $reportable?->getMorphClass(),
+                'subject_id' => $reportable?->getKey(),
+            ], true, "report:{$report->id}:admin:{$admin->id}")) {
+                Log::warning('Could not notify admin about new report.', ['admin_id' => $admin->id, 'report_id' => $report->id]);
+            }
+        });
     }
 
     protected function lockedActiveCase(string $activeKey): ?ReportCase

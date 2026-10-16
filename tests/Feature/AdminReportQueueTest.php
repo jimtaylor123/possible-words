@@ -46,7 +46,8 @@ test('admin can mute unmute and dismiss a case with immutable actions', function
     $case = adminCase();
     $this->actingAs($admin)->patch(route('admin.reports.update', $case), ['action' => 'muted', 'note' => 'Noise'])->assertRedirect();
     $this->actingAs($admin)->patch(route('admin.reports.update', $case), ['action' => 'unmuted'])->assertRedirect();
-    $this->actingAs($admin)->patch(route('admin.reports.update', $case), ['action' => 'dismissed'])->assertRedirect();
+    $this->actingAs($admin)->patch(route('admin.reports.update', $case), ['action' => 'dismissed'])->assertSessionHasErrors('note');
+    $this->actingAs($admin)->patch(route('admin.reports.update', $case), ['action' => 'dismissed', 'note' => 'The word is allowed.'])->assertRedirect();
     expect($case->fresh()->status)->toBe('dismissed')->and($case->reviewActions()->pluck('action')->all())->toBe(['muted', 'unmuted', 'dismissed']);
     $this->actingAs($admin)->patch(route('admin.reports.update', $case), ['action' => 'unmuted'])->assertSessionHasErrors('action');
 });
