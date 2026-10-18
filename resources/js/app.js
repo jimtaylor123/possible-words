@@ -10,6 +10,7 @@ import {
     NAutoComplete,
     NAvatar,
     NButton,
+    NButtonGroup,
     NCard,
     NDropdown,
     NInput,
@@ -17,6 +18,7 @@ import {
     NSelect,
     NPagination,
     NPopconfirm,
+    NPopover,
     NTooltip,
 } from 'naive-ui';
 
@@ -25,6 +27,7 @@ const naive = create({
         NAutoComplete,
         NAvatar,
         NButton,
+        NButtonGroup,
         NCard,
         NDropdown,
         NInput,
@@ -32,6 +35,7 @@ const naive = create({
         NSelect,
         NPagination,
         NPopconfirm,
+        NPopover,
         NTooltip,
     ]
 });

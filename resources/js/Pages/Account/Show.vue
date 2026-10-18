@@ -15,13 +15,14 @@
           Download your data
         </a>
       </section>
+      <section class="mt-6 bg-white rounded-lg border shadow-sm p-6"><h2 class="text-xl font-semibold text-gray-900">Notification emails</h2><label class="block mt-4 text-sm font-medium">General notifications<n-select v-model:value="notificationEmailMode" class="mt-1" :options="emailOptions" /></label><label v-if="user?.is_admin" class="block mt-4 text-sm font-medium">Admin report alerts<n-select v-model:value="adminReportEmailMode" class="mt-1" :options="emailOptions" /></label><div class="mt-6"><n-button type="primary" :loading="savingPreferences" @click="savePreferences">Save preferences</n-button></div></section>
 
       <section class="mt-6 bg-red-50 rounded-lg border border-red-200 p-6">
         <h2 class="text-xl font-semibold text-red-900">Delete account</h2>
         <p class="mt-2 text-red-800">
           This permanently deletes your account and personal activity. Public definitions and moderation history are retained anonymously.
         </p>
-        <n-button class="mt-6" type="error" @click="showDeleteModal = true">Delete account</n-button>
+        <div class="mt-[22px]"><n-button type="error" @click="showDeleteModal = true">Delete account</n-button></div>
       </section>
     </div>
 
@@ -45,13 +46,19 @@
 
 <script setup>
 import { ref } from 'vue'
-import { router } from '@inertiajs/vue3'
+import { router, usePage } from '@inertiajs/vue3'
 import Layout from '@/Components/Layout.vue'
 
 const showDeleteModal = ref(false)
 const confirmation = ref('')
 const confirmationError = ref('')
 const deleting = ref(false)
+const user = usePage().props.auth?.user
+const notificationEmailMode = ref(user?.notification_email_mode || 'daily')
+const adminReportEmailMode = ref(user?.admin_report_email_mode || 'daily')
+const savingPreferences = ref(false)
+const emailOptions = [{ label: 'Daily digest', value: 'daily' }, { label: 'Immediate', value: 'immediate' }, { label: 'Off', value: 'off' }]
+const savePreferences = () => { savingPreferences.value = true; router.patch(route('account.notifications.update'), { notification_email_mode: notificationEmailMode.value, admin_report_email_mode: adminReportEmailMode.value }, { onFinish: () => { savingPreferences.value = false } }) }
 
 const closeDeleteModal = () => {
   showDeleteModal.value = false

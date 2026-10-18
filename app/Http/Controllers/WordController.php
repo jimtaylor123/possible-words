@@ -8,6 +8,7 @@ use App\Models\Definition;
 use App\Models\Favourite;
 use App\Models\Vote;
 use App\Models\Word;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -251,7 +252,7 @@ class WordController extends Controller
         return redirect()->to(route('words.show', $word))->with('success', 'Definition added successfully!');
     }
 
-    public function voteDefinition(Definition $definition)
+    public function voteDefinition(Definition $definition, NotificationService $notifications)
     {
         abort_unless($definition->word->isPublishable(), 404);
 
@@ -278,6 +279,17 @@ class WordController extends Controller
                 'user_id' => Auth::id(),
             ]);
             $liked = true;
+            if ($definition->user_id !== Auth::id() && $definition->user) {
+                $actor = Auth::user();
+                $notifications->notify($definition->user, [
+                    'kind' => 'definition_liked',
+                    'title' => 'Your definition was liked',
+                    'body' => ($actor?->name ?? 'Someone').' liked your definition of “'.$definition->word->text.'”.',
+                    'url' => route('words.show', $definition->word).'#definition-'.$definition->id,
+                    'subject_type' => $definition->getMorphClass(),
+                    'subject_id' => $definition->id,
+                ]);
+            }
         }
 
         $definition->updateVotesCount();

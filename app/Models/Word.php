@@ -94,6 +94,7 @@ class Word extends Model
         'ai_definition_status',
         'ai_definition_attempted_at',
         'ai_definition_error',
+        'notification_sent_at',
     ];
 
     protected $casts = [
@@ -108,6 +109,7 @@ class Word extends Model
         'published_at' => 'datetime',
         'ai_definition_attempted_at' => 'datetime',
         'deleted_at' => 'datetime',
+        'notification_sent_at' => 'datetime',
     ];
 
     /**

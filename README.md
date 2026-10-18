@@ -28,8 +28,28 @@ A Laravel application that generates and discovers available words that aren't i
    npm install
    php artisan migrate
    php artisan db:seed
-   npm run build
-   ```
+    npm run build
+    ```
+
+## Local Email
+
+Local email is delivered to [Mailpit](https://mailpit.axllent.org/), not to real
+inboxes. Start it in a separate terminal before starting the application:
+
+```bash
+docker run --rm --name possiblewords-mailpit -p 1025:1025 -p 8025:8025 axllent/mailpit
+```
+
+The default mail settings in `.env.example` connect Laravel to Mailpit. After
+copying or changing those settings, run `php artisan config:clear` and restart
+the application. View captured email at <http://localhost:8025>.
+
+Immediate notification emails appear as soon as their event occurs. To test a
+daily digest locally, set the relevant email preference to Daily and run:
+
+```bash
+php artisan notifications:send-digests
+```
 
 ## Dev Data
 
