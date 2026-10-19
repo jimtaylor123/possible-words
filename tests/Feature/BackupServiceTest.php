@@ -33,7 +33,7 @@ function successfulTurso(array $tables = ['example' => 0]): TursoCli
     $turso = mock(TursoCli::class);
     $turso->shouldReceive('dump')->once()->with('production')->andReturn('CREATE TABLE example (id INTEGER);');
     $turso->shouldReceive('createFromDump')->once();
-    $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $database !== 'production' && $sql === 'PRAGMA integrity_check;')->andReturn('ok');
+    $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $database !== 'production' && $sql === 'PRAGMA integrity_check;')->andReturn("integrity_check\n---------------\nok\n");
     $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $database !== 'production' && str_starts_with($sql, 'SELECT COUNT(*)'))->andReturnUsing(function ($database, $sql) use ($tables): string {
         preg_match('/FROM "(.+)"/', $sql, $matches);
 
