@@ -23,7 +23,7 @@ class ProcessTursoCli implements TursoCli
 
     public function dump(string $database): string
     {
-        return $this->run(['db', 'shell', $database], '.dump')->getOutput();
+        return $this->run(['db', 'shell', $database, '.dump'])->getOutput();
     }
 
     public function createFromDump(string $database, string $dumpPath): void
@@ -33,7 +33,7 @@ class ProcessTursoCli implements TursoCli
 
     public function query(string $database, string $sql): string
     {
-        return $this->run(['db', 'shell', $database], $sql)->getOutput();
+        return $this->run(['db', 'shell', $database, $sql])->getOutput();
     }
 
     public function delete(string $database): void
@@ -41,9 +41,9 @@ class ProcessTursoCli implements TursoCli
         $this->run(['db', 'destroy', $database, '--yes']);
     }
 
-    private function run(array $arguments, ?string $input = null): Process
+    private function run(array $arguments): Process
     {
-        $process = new Process([$this->path, ...$arguments], null, $this->environment, $input, 600);
+        $process = new Process([$this->path, ...$arguments], null, $this->environment, null, 600);
         $process->run();
 
         if (! $process->isSuccessful()) {

@@ -28,6 +28,9 @@ class BackupService
         try {
             $tables = $this->productionTableCounts();
             $dump = $this->turso->dump(config('backups.production_database'));
+            if (trim($dump) === '') {
+                throw new RuntimeException('Turso export produced an empty dump.');
+            }
             $destination->put("$runPrefix/database.sql", $dump);
 
             $objects = $this->copyObjects($source, $destination, $runPrefix);

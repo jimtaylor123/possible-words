@@ -229,20 +229,26 @@ resources:
                           Statement:
                               - Effect: Allow
                                 Action:
-                                    - s3:GetObject
                                     - s3:ListBucket
                                 Resource:
                                     - arn:aws:s3:::possiblewords-prod-audio
-                                    - arn:aws:s3:::possiblewords-prod-audio/*
+                              - Effect: Allow
+                                Action: s3:GetObject
+                                Resource: arn:aws:s3:::possiblewords-prod-audio/*
                               - Effect: Allow
                                 Action:
                                     - s3:GetObject
                                     - s3:PutObject
                                     - s3:DeleteObject
-                                    - s3:ListBucket
                                 Resource:
-                                    - Fn::GetAtt: [BackupBucket, Arn]
-                                    - Fn::Join: ['', [Fn::GetAtt: [BackupBucket, Arn], '/*']]
+                                    Fn::Join:
+                                        - ''
+                                        - - Fn::GetAtt: [BackupBucket, Arn]
+                                          - '/*'
+                              - Effect: Allow
+                                Action: s3:ListBucket
+                                Resource:
+                                    Fn::GetAtt: [BackupBucket, Arn]
                               - Effect: Allow
                                 Action: cloudwatch:PutMetricData
                                 Resource: '*'
