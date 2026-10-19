@@ -104,7 +104,8 @@ class BackupService
         $tokenResponse = $this->platformRequest(
             $platformToken,
             'post',
-            $databasePath.'/auth/tokens?expiration=5m&authorization=read-only',
+            $databasePath.'/auth/tokens',
+            ['expiration' => '5m', 'authorization' => 'read-only'],
         );
         $sqlToken = $tokenResponse->json('jwt');
         if (! is_string($sqlToken) || trim($sqlToken) === '') {
@@ -135,13 +136,17 @@ class BackupService
         return $counts;
     }
 
-    private function platformRequest(string $token, string $method, string $path): Response
+    /** @param array<string, string> $data */
+    private function platformRequest(string $token, string $method, string $path, array $data = []): Response
     {
         try {
-            $response = Http::timeout(15)
+            $request = Http::timeout(15)
                 ->acceptJson()
-                ->withToken($token)
-                ->{$method}(rtrim($this->requiredConfiguration('turso_platform_api_url'), '/').'/'.$path);
+                ->withToken($token);
+            $url = rtrim($this->requiredConfiguration('turso_platform_api_url'), '/').'/'.$path;
+            $response = $method === 'get'
+                ? $request->get($url)
+                : $request->post($url, $data);
         } catch (Throwable) {
             throw new RuntimeException('Unable to contact the Turso Platform API.');
         }
