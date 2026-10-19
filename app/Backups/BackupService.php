@@ -294,7 +294,8 @@ class BackupService
     /** @param array<string, int> $expected */
     private function verifyDatabase(string $database, array $expected): void
     {
-        if (strtolower(trim($this->turso->query($database, 'PRAGMA integrity_check;'))) !== 'ok') {
+        $integrityCheck = $this->turso->query($database, 'PRAGMA integrity_check;');
+        if (preg_match('/(?:^|\R)\s*ok\s*(?:\R|$)/i', $integrityCheck) !== 1) {
             throw new RuntimeException('Restored database failed integrity_check.');
         }
 

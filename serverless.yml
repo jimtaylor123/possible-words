@@ -341,6 +341,7 @@ package:
         - 'vendor/aws/aws-sdk-php/src/data/aliases.json.php'
         - 'vendor/aws/aws-sdk-php/src/data/s3/**'
         - 'vendor/aws/aws-sdk-php/src/data/cloudwatch/**'
+        - 'vendor/aws/aws-sdk-php/src/data/monitoring/**'
         - 'bin/turso'
         - '!docker-compose.yml'
 

@@ -33,6 +33,7 @@ describe('backup infrastructure', function () {
         expect($serverless['resources']['Resources']['BackupAlarmTopic']['Properties']['Subscription'])
             ->toContain(['Endpoint' => 'jimtayloremail@gmail.com', 'Protocol' => 'email']);
         expect($serverless['package']['patterns'])->toContain('bin/turso');
+        expect($serverless['package']['patterns'])->toContain('vendor/aws/aws-sdk-php/src/data/monitoring/**');
     });
 
     test('Given the backup Lambda, it receives only backup-specific secrets and documented complete-disk read access', function () {
