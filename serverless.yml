@@ -206,11 +206,13 @@ resources:
                     Status: Enabled
                 LifecycleConfiguration:
                     Rules:
-                        - Id: ExpireBackupRunsAfter35Days
+                        - Id: ExpireBackupRunDataAfter35Days
                           Status: Enabled
                           ExpirationInDays: 35
                           NoncurrentVersionExpiration:
-                              NoncurrentDays: 35
+                              NoncurrentDays: 1
+                        - Id: DeleteExpiredBackupDeleteMarkers
+                          Status: Enabled
                           ExpiredObjectDeleteMarker: true
         BackupAlarmTopic:
             Type: AWS::SNS::Topic

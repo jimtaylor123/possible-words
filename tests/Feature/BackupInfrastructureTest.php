@@ -1,24 +1,36 @@
 <?php
 
+use Symfony\Component\Yaml\Yaml;
+
 describe('backup infrastructure', function () {
     test('Given the production Serverless definition, backups are isolated, scheduled, and alarmed', function () {
-        $serverless = file_get_contents(base_path('serverless.yml'));
+        $serverless = Yaml::parseFile(base_path('serverless.yml'));
+        $backupLifecycleRules = $serverless['resources']['Resources']['BackupBucket']['Properties']['LifecycleConfiguration']['Rules'];
 
-        expect($serverless)
-            ->toContain('backup:run')
-            ->toContain('backup:check-freshness')
-            ->toContain('timeout: 720')
-            ->toContain('BackupBucket:')
-            ->toContain('BlockPublicAcls: true')
-            ->toContain('VersioningConfiguration:')
-            ->toContain('ExpirationInDays: 35')
-            ->toContain('NoncurrentVersionExpiration:')
-            ->toContain('NoncurrentDays: 35')
-            ->toContain('ExpiredObjectDeleteMarker: true')
-            ->toContain('BackupLambdaErrorsAlarm:')
-            ->toContain('BackupFreshnessAlarm:')
-            ->toContain('jimtayloremail@gmail.com')
-            ->toContain("- 'bin/turso'");
+        expect($serverless['functions']['backup']['events'])
+            ->toContain(['schedule' => ['rate' => 'cron(0 */3 * * ? *)', 'input' => ['cli' => 'backup:run']]])
+            ->toContain(['schedule' => ['rate' => 'cron(0 * * * ? *)', 'input' => ['cli' => 'backup:check-freshness']]]);
+        expect($serverless['functions']['backup']['timeout'])->toBe(720);
+        expect($serverless['resources']['Resources']['BackupBucket']['Properties'])
+            ->toHaveKey('VersioningConfiguration')
+            ->and($serverless['resources']['Resources']['BackupBucket']['Properties']['PublicAccessBlockConfiguration']['BlockPublicAcls'])->toBeTrue();
+        expect($backupLifecycleRules)->toContain([
+            'Id' => 'ExpireBackupRunDataAfter35Days',
+            'Status' => 'Enabled',
+            'ExpirationInDays' => 35,
+            'NoncurrentVersionExpiration' => ['NoncurrentDays' => 1],
+        ])->toContain([
+            'Id' => 'DeleteExpiredBackupDeleteMarkers',
+            'Status' => 'Enabled',
+            'ExpiredObjectDeleteMarker' => true,
+        ]);
+        expect($serverless['resources']['Resources'])->toHaveKeys([
+            'BackupLambdaErrorsAlarm',
+            'BackupFreshnessAlarm',
+        ]);
+        expect($serverless['resources']['Resources']['BackupAlarmTopic']['Properties']['Subscription'])
+            ->toContain(['Endpoint' => 'jimtayloremail@gmail.com', 'Protocol' => 'email']);
+        expect($serverless['package']['patterns'])->toContain('bin/turso');
     });
 
     test('Given the backup Lambda, it receives only backup-specific secrets and documented complete-disk read access', function () {

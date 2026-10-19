@@ -8,11 +8,15 @@ subscription after the first deployment. The verified recovery point objective
 (RPO) is six hours: a backup runs every three hours and is alarmed when the
 latest verified completion manifest is four hours old.
 
-Each run is retained for 35 days in the private stack-managed backup bucket
-(`possiblewords-prod-<account-id>-backups`) under `runs/`. A run is usable only
-when it has `completion.json`; it contains the dump checksum, source object
-paths, sizes, checksums, and restore-verification time. The web Lambda cannot
-read or write this bucket.
+Each run's current data version is scheduled to expire 35 days after creation
+in the private stack-managed backup bucket
+(`possiblewords-prod-<account-id>-backups`) under `runs/`. Its resulting
+noncurrent version is scheduled to expire one day later, preventing versioning
+from extending the intended 35-day retention window by another 35 days. S3
+lifecycle actions are asynchronous, so objects can remain temporarily after
+their scheduled expiration. A run is usable only when it has `completion.json`;
+it contains the dump checksum, source object paths, sizes, checksums, and
+restore-verification time. The web Lambda cannot read or write this bucket.
 
 The dedicated backup role has read-only list/get access to the **complete**
 production S3 disk. This intentionally includes `audio/`, root-level
