@@ -44,6 +44,9 @@ class BackupService
                 @unlink($dumpPath);
             }
 
+            $this->deleteTemporaryDatabase($temporaryDatabase);
+            $temporaryDatabaseCreated = false;
+
             $this->verifyObjectRestore($destination, $runPrefix, $objects);
             $manifest = [
                 'version' => 1,
@@ -57,11 +60,7 @@ class BackupService
             return $runPrefix;
         } finally {
             if ($temporaryDatabaseCreated) {
-                try {
-                    $this->turso->delete($temporaryDatabase);
-                } catch (Throwable $exception) {
-                    report($exception);
-                }
+                $this->deleteTemporaryDatabase($temporaryDatabase);
             }
         }
     }
@@ -69,25 +68,18 @@ class BackupService
     public function isFresh(): bool
     {
         $destination = Storage::disk(config('backups.destination_disk'));
-        $manifest = collect($destination->allFiles(config('backups.prefix')))
+        $manifests = collect($destination->allFiles(config('backups.prefix')))
             ->filter(fn (string $path): bool => str_ends_with($path, '/completion.json'))
             ->map(fn (string $path): array => ['path' => $path, 'contents' => $destination->get($path)])
-            ->sortByDesc('path')
-            ->first();
+            ->sortByDesc('path');
 
-        if ($manifest === null) {
-            return false;
+        foreach ($manifests as $manifest) {
+            if ($this->isUsableFreshManifest($destination, $manifest['path'], $manifest['contents'])) {
+                return true;
+            }
         }
 
-        try {
-            $data = json_decode($manifest['contents'], true, 512, JSON_THROW_ON_ERROR);
-            $verifiedAt = CarbonImmutable::parse($data['verified_at'] ?? null);
-
-            return ($data['version'] ?? null) === 1 && isset($data['database'], $data['objects'])
-                && $verifiedAt->greaterThan(now('UTC')->subHours(4));
-        } catch (Throwable) {
-            return false;
-        }
+        return false;
     }
 
     /** @return array<string, int> */
@@ -198,5 +190,54 @@ class BackupService
         }
 
         return $path;
+    }
+
+    private function deleteTemporaryDatabase(string $database): void
+    {
+        try {
+            $this->turso->delete($database);
+        } catch (Throwable $exception) {
+            throw new RuntimeException("Unable to delete temporary Turso database [$database].", 0, $exception);
+        }
+    }
+
+    /** @param array{path: string, contents: string} $manifest */
+    private function isUsableFreshManifest(Filesystem $destination, string $manifestPath, string $contents): bool
+    {
+        try {
+            $data = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
+            if (! is_string($data['verified_at'] ?? null)) {
+                return false;
+            }
+            $verifiedAt = CarbonImmutable::parse($data['verified_at']);
+            if (($data['version'] ?? null) !== 1 || ! $verifiedAt->greaterThan(now('UTC')->subHours(4))
+                || ! is_array($data['database'] ?? null) || ! is_array($data['objects'] ?? null)) {
+                return false;
+            }
+
+            $runPrefix = dirname($manifestPath);
+            if (! isset($data['database']['tables']) || ! is_array($data['database']['tables'])
+                || ! is_string($data['database']['sha256'])
+                || ! $destination->exists("$runPrefix/database.sql")
+                || ! hash_equals($data['database']['sha256'], hash('sha256', $destination->get("$runPrefix/database.sql")))) {
+                return false;
+            }
+
+            foreach ($data['objects'] as $object) {
+                if (! is_array($object) || ! is_string($object['path'] ?? null) || $object['path'] === ''
+                    || ! is_int($object['size'] ?? null) || ! is_string($object['sha256'] ?? null)) {
+                    return false;
+                }
+                $path = "$runPrefix/objects/{$object['path']}";
+                if (! $destination->exists($path) || strlen($destination->get($path)) !== $object['size']
+                    || ! hash_equals($object['sha256'], hash('sha256', $destination->get($path)))) {
+                    return false;
+                }
+            }
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
     }
 }

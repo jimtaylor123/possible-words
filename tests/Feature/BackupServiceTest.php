@@ -3,6 +3,7 @@
 use App\Backups\BackupMetricPublisher;
 use App\Backups\BackupService;
 use App\Backups\TursoCli;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -40,6 +41,27 @@ function successfulTurso(): TursoCli
     return $turso;
 }
 
+/** @param list<array{path: string, contents: string}> $objects */
+function putCompletionManifest(string $run, CarbonInterface $verifiedAt, array $objects = []): void
+{
+    $disk = Storage::disk('backups');
+    $dump = 'CREATE TABLE example (id INTEGER);';
+    $disk->put("runs/$run/database.sql", $dump);
+    foreach ($objects as $object) {
+        $disk->put("runs/$run/objects/{$object['path']}", $object['contents']);
+    }
+    $disk->put("runs/$run/completion.json", json_encode([
+        'version' => 1,
+        'verified_at' => $verifiedAt->toIso8601String(),
+        'database' => ['tables' => ['example' => 0], 'sha256' => hash('sha256', $dump)],
+        'objects' => array_map(fn (array $object): array => [
+            'path' => $object['path'],
+            'size' => strlen($object['contents']),
+            'sha256' => hash('sha256', $object['contents']),
+        ], $objects),
+    ], JSON_THROW_ON_ERROR));
+}
+
 describe('verified backups', function () {
     test('Given source objects and a successful restore drill, it publishes a completion manifest after copying every object', function () {
         Storage::disk('s3')->put('audio/one.mp3', 'first');
@@ -73,27 +95,47 @@ describe('verified backups', function () {
         expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
     });
 
+    test('Given temporary database cleanup fails, it fails without publishing a completion marker', function () {
+        $turso = mock(TursoCli::class);
+        $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
+        $turso->shouldReceive('createFromDump')->once();
+        $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $sql === 'PRAGMA integrity_check;')->andReturn('ok');
+        $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT COUNT(*)'))->andReturn('0');
+        $turso->shouldReceive('delete')->once()->andThrow(new RuntimeException('delete failed'));
+        $metrics = mock(BackupMetricPublisher::class);
+        $metrics->shouldNotReceive('publish');
+
+        expect(fn () => (new BackupService($turso, $metrics))->run())
+            ->toThrow(RuntimeException::class, 'Unable to delete temporary Turso database');
+        expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
+    });
+
     test('Given a completion manifest younger than four hours, it is fresh', function () {
-        Storage::disk('backups')->put('runs/20260101T000000Z-a/completion.json', json_encode([
-            'version' => 1,
-            'verified_at' => now('UTC')->subHours(3)->toIso8601String(),
-            'database' => [],
-            'objects' => [],
-        ], JSON_THROW_ON_ERROR));
+        putCompletionManifest('20260101T000000Z-a', now('UTC')->subHours(3), [['path' => 'audio/one.mp3', 'contents' => 'first']]);
 
         expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeTrue();
     });
 
     test('Given a completion manifest exactly four hours old or malformed, it is not fresh', function () {
-        Storage::disk('backups')->put('runs/old/completion.json', json_encode([
-            'version' => 1,
-            'verified_at' => now('UTC')->subHours(4)->toIso8601String(),
-            'database' => [],
-            'objects' => [],
-        ], JSON_THROW_ON_ERROR));
+        putCompletionManifest('old', now('UTC')->subHours(4));
         expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeFalse();
 
         Storage::disk('backups')->put('runs/new/completion.json', '{not json');
+        expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeFalse();
+    });
+
+    test('Given a fresh valid manifest before a later malformed or stale marker, it is fresh', function () {
+        putCompletionManifest('20260101T000000Z-valid', now('UTC')->subHours(3));
+        Storage::disk('backups')->put('runs/20260101T020000Z-malformed/completion.json', '{not json');
+        putCompletionManifest('20260101T010000Z-stale', now('UTC')->subHours(5));
+
+        expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeTrue();
+    });
+
+    test('Given a fresh manifest whose declared artifacts are missing or changed, it is not fresh', function () {
+        putCompletionManifest('broken', now('UTC')->subHours(3), [['path' => 'audio/one.mp3', 'contents' => 'first']]);
+        Storage::disk('backups')->put('runs/broken/objects/audio/one.mp3', 'changed');
+
         expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeFalse();
     });
 });
