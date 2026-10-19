@@ -46,8 +46,11 @@ class BackupService
                 @unlink($dumpPath);
             }
 
-            $this->deleteTemporaryDatabase($temporaryDatabase);
+            // Clear the flag before the attempt so a failed deletion is never
+            // retried from the finally block, where a second exception would
+            // mask this one.
             $temporaryDatabaseCreated = false;
+            $this->deleteTemporaryDatabase($temporaryDatabase);
 
             $this->verifyObjectRestore($destination, $runPrefix, $objects);
             $manifest = [
@@ -141,9 +144,17 @@ class BackupService
                     if ($chunk === false) {
                         throw new RuntimeException("Unable to read source object [$path].");
                     }
-                    $size += strlen($chunk);
+                    $length = strlen($chunk);
+                    $offset = 0;
+                    while ($offset < $length) {
+                        $written = fwrite($temporary, substr($chunk, $offset));
+                        if ($written === false || $written === 0) {
+                            throw new RuntimeException("Unable to write temporary copy of object [$path].");
+                        }
+                        $offset += $written;
+                    }
+                    $size += $length;
                     hash_update($hash, $chunk);
-                    fwrite($temporary, $chunk);
                 }
                 rewind($temporary);
                 $destination->writeStream("$runPrefix/objects/$path", $temporary);
@@ -270,9 +281,9 @@ class BackupService
 
         try {
             $hash = hash_init('sha256');
-            $size = hash_update_stream($hash, $stream);
+            $bytesRead = hash_update_stream($hash, $stream);
 
-            return ['size' => $size, 'sha256' => hash_final($hash)];
+            return ['size' => $bytesRead, 'sha256' => hash_final($hash)];
         } finally {
             fclose($stream);
         }
