@@ -9,5 +9,6 @@ return [
     'turso_cli_path' => env('TURSO_CLI_PATH', base_path('bin/turso')),
     'turso_api_token' => env('TURSO_BACKUP_API_TOKEN'),
     'turso_organization' => env('TURSO_ORGANIZATION'),
+    'turso_platform_api_url' => env('TURSO_PLATFORM_API_URL', 'https://api.turso.tech'),
     'aws_region' => env('AWS_DEFAULT_REGION', 'eu-west-1'),
 ];
