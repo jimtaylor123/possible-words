@@ -62,6 +62,17 @@ describe('verified backups', function () {
         expect(Storage::disk('backups')->allFiles('runs'))->toBe([]);
     });
 
+    test('Given temporary database verification fails, it deletes the temporary database and does not complete the run', function () {
+        $turso = mock(TursoCli::class);
+        $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
+        $turso->shouldReceive('createFromDump')->once();
+        $turso->shouldReceive('query')->once()->withArgs(fn ($database, $sql) => $sql === 'PRAGMA integrity_check;')->andThrow(new RuntimeException('integrity failed'));
+        $turso->shouldReceive('delete')->once();
+
+        expect(fn () => backupServiceWith($turso)->run())->toThrow(RuntimeException::class, 'integrity failed');
+        expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
+    });
+
     test('Given a completion manifest younger than four hours, it is fresh', function () {
         Storage::disk('backups')->put('runs/20260101T000000Z-a/completion.json', json_encode([
             'version' => 1,
