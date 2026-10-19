@@ -150,6 +150,138 @@ functions:
                   input:
                       cli: 'notifications:prune'
 
+    backup:
+        handler: artisan
+        runtime: php-84-console
+        timeout: 720
+        role:
+            Fn::GetAtt:
+                - BackupLambdaRole
+                - Arn
+        environment:
+            BACKUP_SOURCE_DISK: s3
+            BACKUP_DESTINATION_DISK: backups
+            BACKUP_BUCKET:
+                Ref: BackupBucket
+            BACKUP_PREFIX: runs
+            TURSO_ORGANIZATION: ${env:TURSO_ORGANIZATION}
+            TURSO_PRODUCTION_DATABASE: ${env:TURSO_PRODUCTION_DATABASE}
+            TURSO_BACKUP_API_TOKEN: ${env:TURSO_BACKUP_API_TOKEN}
+            TURSO_CLI_PATH: /var/task/bin/turso
+        events:
+            - schedule:
+                  rate: cron(0 */3 * * ? *)
+                  input:
+                      cli: 'backup:run'
+            - schedule:
+                  rate: cron(0 * * * ? *)
+                  input:
+                      cli: 'backup:check-freshness'
+
+resources:
+    Resources:
+        BackupBucket:
+            Type: AWS::S3::Bucket
+            Properties:
+                BucketName: possiblewords-${sls:stage}-${aws:accountId}-backups
+                BucketEncryption:
+                    ServerSideEncryptionConfiguration:
+                        - ServerSideEncryptionByDefault:
+                              SSEAlgorithm: AES256
+                OwnershipControls:
+                    Rules:
+                        - ObjectOwnership: BucketOwnerEnforced
+                PublicAccessBlockConfiguration:
+                    BlockPublicAcls: true
+                    BlockPublicPolicy: true
+                    IgnorePublicAcls: true
+                    RestrictPublicBuckets: true
+                VersioningConfiguration:
+                    Status: Enabled
+                LifecycleConfiguration:
+                    Rules:
+                        - Id: ExpireBackupRunsAfter35Days
+                          Status: Enabled
+                          ExpirationInDays: 35
+        BackupAlarmTopic:
+            Type: AWS::SNS::Topic
+            Properties:
+                TopicName: possiblewords-${sls:stage}-backup-alarms
+                Subscription:
+                    - Endpoint: jimtayloremail@gmail.com
+                      Protocol: email
+        BackupLambdaRole:
+            Type: AWS::IAM::Role
+            Properties:
+                AssumeRolePolicyDocument:
+                    Version: '2012-10-17'
+                    Statement:
+                        - Effect: Allow
+                          Principal:
+                              Service: lambda.amazonaws.com
+                          Action: sts:AssumeRole
+                ManagedPolicyArns:
+                    - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+                Policies:
+                    - PolicyName: BackupDataAccess
+                      PolicyDocument:
+                          Version: '2012-10-17'
+                          Statement:
+                              - Effect: Allow
+                                Action:
+                                    - s3:GetObject
+                                    - s3:ListBucket
+                                Resource:
+                                    - arn:aws:s3:::possiblewords-prod-audio
+                                    - arn:aws:s3:::possiblewords-prod-audio/*
+                              - Effect: Allow
+                                Action:
+                                    - s3:GetObject
+                                    - s3:PutObject
+                                    - s3:DeleteObject
+                                    - s3:ListBucket
+                                Resource:
+                                    - Fn::GetAtt: [BackupBucket, Arn]
+                                    - Fn::Join: ['', [Fn::GetAtt: [BackupBucket, Arn], '/*']]
+                              - Effect: Allow
+                                Action: cloudwatch:PutMetricData
+                                Resource: '*'
+                                Condition:
+                                    StringEquals:
+                                        cloudwatch:namespace: PossibleWords/Backups
+        BackupLambdaErrorsAlarm:
+            Type: AWS::CloudWatch::Alarm
+            Properties:
+                AlarmDescription: The backup Lambda invocation failed.
+                Namespace: AWS/Lambda
+                MetricName: Errors
+                Statistic: Sum
+                Period: 300
+                EvaluationPeriods: 1
+                Threshold: 1
+                ComparisonOperator: GreaterThanOrEqualToThreshold
+                TreatMissingData: notBreaching
+                Dimensions:
+                    - Name: FunctionName
+                      Value:
+                          Ref: BackupLambdaFunction
+                AlarmActions:
+                    - Ref: BackupAlarmTopic
+        BackupFreshnessAlarm:
+            Type: AWS::CloudWatch::Alarm
+            Properties:
+                AlarmDescription: No verified backup manifest is younger than four hours.
+                Namespace: PossibleWords/Backups
+                MetricName: BackupFreshness
+                Statistic: Minimum
+                Period: 3600
+                EvaluationPeriods: 1
+                Threshold: 1
+                ComparisonOperator: LessThanThreshold
+                TreatMissingData: breaching
+                AlarmActions:
+                    - Ref: BackupAlarmTopic
+
 package:
     patterns:
         - '!.env'
@@ -181,6 +313,8 @@ package:
         - 'vendor/aws/aws-sdk-php/src/data/endpoints_prefix_history.json.php'
         - 'vendor/aws/aws-sdk-php/src/data/aliases.json.php'
         - 'vendor/aws/aws-sdk-php/src/data/s3/**'
+        - 'vendor/aws/aws-sdk-php/src/data/cloudwatch/**'
+        - 'bin/turso'
         - '!docker-compose.yml'
 
 plugins:
