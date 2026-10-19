@@ -85,6 +85,9 @@ provider:
         GOOGLE_REDIRECT_URI: https://possiblewords.jimtaylor.space/auth/google/callback
 
 custom:
+    # Keep the default retention small; deployments can override it with
+    # BACKUP_RETENTION_DAYS without changing the infrastructure definition.
+    backupRetentionDays: ${env:BACKUP_RETENTION_DAYS, 7}
     # Do not place these in provider.environment: Serverless merges that map
     # into every function, including the deliberately isolated backup Lambda.
     applicationEnvironment:
@@ -206,9 +209,9 @@ resources:
                     Status: Enabled
                 LifecycleConfiguration:
                     Rules:
-                        - Id: ExpireBackupRunDataAfter35Days
+                        - Id: ExpireBackupRunData
                           Status: Enabled
-                          ExpirationInDays: 35
+                          ExpirationInDays: ${self:custom.backupRetentionDays}
                           NoncurrentVersionExpiration:
                               NoncurrentDays: 1
                         - Id: DeleteExpiredBackupDeleteMarkers

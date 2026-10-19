@@ -8,15 +8,19 @@ subscription after the first deployment. The verified recovery point objective
 (RPO) is six hours: a backup runs every three hours and is alarmed when the
 latest verified completion manifest is four hours old.
 
-Each run's current data version is scheduled to expire 35 days after creation
+Each run's current data version is scheduled to expire seven days after creation
 in the private stack-managed backup bucket
 (`possiblewords-prod-<account-id>-backups`) under `runs/`. Its resulting
 noncurrent version is scheduled to expire one day later, preventing versioning
-from extending the intended 35-day retention window by another 35 days. S3
+from extending the intended seven-day retention window by another seven days. S3
 lifecycle actions are asynchronous, so objects can remain temporarily after
 their scheduled expiration. A run is usable only when it has `completion.json`;
 it contains the dump checksum, source object paths, sizes, checksums, and
 restore-verification time. The web Lambda cannot read or write this bucket.
+
+The GitHub Actions `BACKUP_RETENTION_DAYS` repository variable controls the
+retention period at deployment time; it defaults to `7`. Set it only when a
+different retention period is explicitly required.
 
 The dedicated backup role has read-only list/get access to the **complete**
 production S3 disk. This intentionally includes `audio/`, root-level

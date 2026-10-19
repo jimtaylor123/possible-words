@@ -14,10 +14,11 @@ describe('backup infrastructure', function () {
         expect($serverless['resources']['Resources']['BackupBucket']['Properties'])
             ->toHaveKey('VersioningConfiguration')
             ->and($serverless['resources']['Resources']['BackupBucket']['Properties']['PublicAccessBlockConfiguration']['BlockPublicAcls'])->toBeTrue();
+        expect($serverless['custom']['backupRetentionDays'])->toBe('${env:BACKUP_RETENTION_DAYS, 7}');
         expect($backupLifecycleRules)->toContain([
-            'Id' => 'ExpireBackupRunDataAfter35Days',
+            'Id' => 'ExpireBackupRunData',
             'Status' => 'Enabled',
-            'ExpirationInDays' => 35,
+            'ExpirationInDays' => '${self:custom.backupRetentionDays}',
             'NoncurrentVersionExpiration' => ['NoncurrentDays' => 1],
         ])->toContain([
             'Id' => 'DeleteExpiredBackupDeleteMarkers',
@@ -48,6 +49,7 @@ describe('backup infrastructure', function () {
 
         expect($workflow)
             ->toContain('scripts/install-turso-cli.sh')
-            ->toContain("grep -q 'bin/turso'");
+            ->toContain("grep -q 'bin/turso'")
+            ->toContain("BACKUP_RETENTION_DAYS: \${{ vars.BACKUP_RETENTION_DAYS || '7' }}");
     });
 });
