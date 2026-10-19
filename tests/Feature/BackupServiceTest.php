@@ -52,7 +52,8 @@ function fakeProductionTableCounts(array $tables = ['example' => 0]): void
             return Http::response(['database' => ['Hostname' => 'production-possiblewords.turso.io']]);
         }
 
-        if ($request->method() === 'POST' && $request->url() === 'https://api.turso.tech/v1/organizations/possiblewords/databases/production/auth/tokens?expiration=5m&authorization=read-only') {
+        if ($request->method() === 'POST' && $request->url() === 'https://api.turso.tech/v1/organizations/possiblewords/databases/production/auth/tokens'
+            && $request->data() === ['expiration' => '5m', 'authorization' => 'read-only']) {
             return Http::response(['jwt' => 'short-lived-read-only-token']);
         }
 
@@ -136,6 +137,8 @@ describe('verified backups', function () {
         });
         Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.turso.tech/v1/organizations/possiblewords/databases/production'
             && $request->hasHeader('Authorization', 'Bearer platform-token'));
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.turso.tech/v1/organizations/possiblewords/databases/production/auth/tokens'
+            && $request->data() === ['expiration' => '5m', 'authorization' => 'read-only']);
     });
 
     test('Given a Turso export failure, it does not publish a completion marker', function () {
