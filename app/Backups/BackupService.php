@@ -19,6 +19,8 @@ class BackupService
 
     public function run(): string
     {
+        $this->validateConfiguration();
+
         $source = Storage::disk(config('backups.source_disk'));
         $destination = Storage::disk(config('backups.destination_disk'));
         $runPrefix = config('backups.prefix').'/'.now('UTC')->format('Ymd\THis\Z').'-'.Str::uuid();
@@ -98,6 +100,22 @@ class BackupService
         }
 
         return $counts;
+    }
+
+    private function validateConfiguration(): void
+    {
+        foreach ([
+            'source_disk',
+            'destination_disk',
+            'prefix',
+            'production_database',
+            'temporary_database_prefix',
+        ] as $setting) {
+            $value = config("backups.$setting");
+            if (! is_string($value) || trim($value) === '') {
+                throw new RuntimeException("Backup configuration [$setting] is required.");
+            }
+        }
     }
 
     /** @return list<array{path: string, size: int, sha256: string}> */
@@ -216,10 +234,11 @@ class BackupService
             }
 
             $runPrefix = dirname($manifestPath);
+            $databaseChecksum = $this->checksum($destination, "$runPrefix/database.sql");
             if (! isset($data['database']['tables']) || ! is_array($data['database']['tables'])
                 || ! is_string($data['database']['sha256'])
-                || ! $destination->exists("$runPrefix/database.sql")
-                || ! hash_equals($data['database']['sha256'], hash('sha256', $destination->get("$runPrefix/database.sql")))) {
+                || $databaseChecksum === null
+                || ! hash_equals($data['database']['sha256'], $databaseChecksum['sha256'])) {
                 return false;
             }
 
@@ -228,9 +247,9 @@ class BackupService
                     || ! is_int($object['size'] ?? null) || ! is_string($object['sha256'] ?? null)) {
                     return false;
                 }
-                $path = "$runPrefix/objects/{$object['path']}";
-                if (! $destination->exists($path) || strlen($destination->get($path)) !== $object['size']
-                    || ! hash_equals($object['sha256'], hash('sha256', $destination->get($path)))) {
+                $checksum = $this->checksum($destination, "$runPrefix/objects/{$object['path']}");
+                if ($checksum === null || $checksum['size'] !== $object['size']
+                    || ! hash_equals($object['sha256'], $checksum['sha256'])) {
                     return false;
                 }
             }
@@ -238,6 +257,24 @@ class BackupService
             return true;
         } catch (Throwable) {
             return false;
+        }
+    }
+
+    /** @return array{size: int, sha256: string}|null */
+    private function checksum(Filesystem $destination, string $path): ?array
+    {
+        $stream = $destination->readStream($path);
+        if (! is_resource($stream)) {
+            return null;
+        }
+
+        try {
+            $hash = hash_init('sha256');
+            $size = hash_update_stream($hash, $stream);
+
+            return ['size' => $size, 'sha256' => hash_final($hash)];
+        } finally {
+            fclose($stream);
         }
     }
 }

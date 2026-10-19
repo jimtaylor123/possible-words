@@ -66,8 +66,10 @@ describe('verified backups', function () {
     test('Given source objects and a successful restore drill, it publishes a completion manifest after copying every object', function () {
         Storage::disk('s3')->put('audio/one.mp3', 'first');
         Storage::disk('s3')->put('favicon.ico', 'second');
+        $metrics = mock(BackupMetricPublisher::class);
+        $metrics->shouldReceive('publish')->once()->with('BackupVerified', 1);
 
-        $prefix = backupServiceWith(successfulTurso())->run();
+        $prefix = (new BackupService(successfulTurso(), $metrics))->run();
 
         $manifest = json_decode(Storage::disk('backups')->get("$prefix/completion.json"), true, 512, JSON_THROW_ON_ERROR);
         expect(Storage::disk('backups')->get("$prefix/objects/audio/one.mp3"))->toBe('first')
@@ -81,6 +83,23 @@ describe('verified backups', function () {
         $turso->shouldReceive('dump')->once()->andThrow(new RuntimeException('export failed'));
 
         expect(fn () => backupServiceWith($turso)->run())->toThrow(RuntimeException::class, 'export failed');
+        expect(Storage::disk('backups')->allFiles('runs'))->toBe([]);
+    });
+
+    test('Given an empty Turso export, it fails without publishing a completion marker', function () {
+        $turso = mock(TursoCli::class);
+        $turso->shouldReceive('dump')->once()->with('production')->andReturn("  \n");
+
+        expect(fn () => backupServiceWith($turso)->run())
+            ->toThrow(RuntimeException::class, 'Turso export produced an empty dump.');
+        expect(Storage::disk('backups')->allFiles('runs'))->toBe([]);
+    });
+
+    test('Given a required backup setting is missing, it fails before creating backup artifacts', function () {
+        config()->set('backups.production_database', '');
+
+        expect(fn () => backupServiceWith(mock(TursoCli::class))->run())
+            ->toThrow(RuntimeException::class, 'Backup configuration [production_database] is required.');
         expect(Storage::disk('backups')->allFiles('runs'))->toBe([]);
     });
 

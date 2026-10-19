@@ -14,10 +14,21 @@ class ProcessTursoCli implements TursoCli
 
     public function __construct()
     {
-        $this->path = (string) config('backups.turso_cli_path');
+        $path = config('backups.turso_cli_path');
+        if (! is_string($path) || trim($path) === '') {
+            throw new RuntimeException('Backup configuration [turso_cli_path] is required.');
+        }
+        if (! is_file($path)) {
+            throw new RuntimeException("Configured Turso CLI [$path] does not exist.");
+        }
+        if (! is_executable($path)) {
+            throw new RuntimeException("Configured Turso CLI [$path] is not executable.");
+        }
+
+        $this->path = $path;
         $this->environment = [
-            'TURSO_API_TOKEN' => (string) config('backups.turso_api_token'),
-            'TURSO_ORG' => (string) config('backups.turso_organization'),
+            'TURSO_API_TOKEN' => $this->requiredConfiguration('turso_api_token'),
+            'TURSO_ORG' => $this->requiredConfiguration('turso_organization'),
         ];
     }
 
@@ -51,5 +62,15 @@ class ProcessTursoCli implements TursoCli
         }
 
         return $process;
+    }
+
+    private function requiredConfiguration(string $setting): string
+    {
+        $value = config("backups.$setting");
+        if (! is_string($value) || trim($value) === '') {
+            throw new RuntimeException("Backup configuration [$setting] is required.");
+        }
+
+        return $value;
     }
 }

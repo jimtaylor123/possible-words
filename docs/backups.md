@@ -22,6 +22,13 @@ The GitHub Actions `BACKUP_RETENTION_DAYS` repository variable controls the
 retention period at deployment time; it defaults to `7`. Set it only when a
 different retention period is explicitly required.
 
+The bucket name is derived once in `serverless.yml` as
+`possiblewords-${sls:stage}-${aws:accountId}-backups` (which resolves to the
+`possiblewords-prod-<account-id>-backups` pattern above for the production
+stage). The backup Lambda receives the concrete name through the CloudFormation
+`Ref` exported as `BACKUP_BUCKET`; any other environment consuming this bucket
+must set `BACKUP_BUCKET` to that exact value.
+
 The dedicated backup role has read-only list/get access to the **complete**
 production S3 disk. This intentionally includes `audio/`, root-level
 application objects, and future upload prefixes: backups must protect every

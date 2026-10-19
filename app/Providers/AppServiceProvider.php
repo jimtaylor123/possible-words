@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Backups\BackupMetricPublisher;
 use App\Backups\ProcessTursoCli;
 use App\Backups\TursoCli;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -13,6 +14,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(TursoCli::class, ProcessTursoCli::class);
+        $this->app->singleton(BackupMetricPublisher::class);
     }
 
     public function boot(): void
