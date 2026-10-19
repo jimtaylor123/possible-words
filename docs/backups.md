@@ -42,8 +42,9 @@ source, command lines, manifests, or logs:
 - `TURSO_ORGANIZATION`
 - `TURSO_PRODUCTION_DATABASE`
 - `TURSO_BACKUP_API_TOKEN` — a group-scoped Turso Platform token limited to
-  read, `db:create`, `db:delete`, and `db:mint-token` only as required by the
-  Turso CLI restore flow. It is not the application SQL token.
+  `read` (retrieve the production hostname), `db:create`, `db:delete`, and
+  `db:mint-token` (mint a short-lived read-only SQL token) only. It is not the
+  application SQL token.
 
 The deployment downloads that pinned Linux CLI, verifies its digest, and places
 it in the backup Lambda package. The SNS endpoint is intentionally declared in
