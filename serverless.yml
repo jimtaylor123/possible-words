@@ -168,6 +168,9 @@ functions:
                 - BackupLambdaRole
                 - Arn
         environment:
+            # Laravel registers broadcast channels while booting Artisan. The
+            # isolated backup Lambda deliberately has no Pusher credentials.
+            BROADCAST_CONNECTION: log
             BACKUP_SOURCE_DISK: s3
             BACKUP_DESTINATION_DISK: backups
             BACKUP_BUCKET:

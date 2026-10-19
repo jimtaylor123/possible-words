@@ -11,6 +11,7 @@ describe('backup infrastructure', function () {
             ->toContain(['schedule' => ['rate' => 'cron(0 */3 * * ? *)', 'input' => ['cli' => 'backup:run']]])
             ->toContain(['schedule' => ['rate' => 'cron(0 * * * ? *)', 'input' => ['cli' => 'backup:check-freshness']]]);
         expect($serverless['functions']['backup']['timeout'])->toBe(720);
+        expect($serverless['functions']['backup']['environment']['BROADCAST_CONNECTION'])->toBe('log');
         expect($serverless['resources']['Resources']['BackupBucket']['Properties'])
             ->toHaveKey('VersioningConfiguration')
             ->and($serverless['resources']['Resources']['BackupBucket']['Properties']['PublicAccessBlockConfiguration']['BlockPublicAcls'])->toBeTrue();
