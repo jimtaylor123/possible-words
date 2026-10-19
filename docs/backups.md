@@ -14,6 +14,11 @@ when it has `completion.json`; it contains the dump checksum, source object
 paths, sizes, checksums, and restore-verification time. The web Lambda cannot
 read or write this bucket.
 
+The dedicated backup role has read-only list/get access to the **complete**
+production S3 disk. This intentionally includes `audio/`, root-level
+application objects, and future upload prefixes: backups must protect every
+object Laravel can store on that disk. It has no source-bucket write access.
+
 ## Required deployment configuration
 
 Create these GitHub Actions secrets before deploying; never put their values in

@@ -19,7 +19,6 @@ provider:
                   Resource: arn:aws:s3:::possiblewords-prod-audio
     environment:
         APP_ENV: production
-        APP_KEY: ${env:APP_KEY}
         APP_DEBUG: 0
         APP_NAME: "Possible Words"
         APP_URL: https://possiblewords.jimtaylor.space
@@ -37,8 +36,6 @@ provider:
         # dictionaryapi.dev times out from the Lambda environment.
         FREE_DICTIONARY_ENABLED: 'false'
         MERRIAM_WEBSTER_ENABLED: 'true'
-        MERRIAM_WEBSTER_API_KEY: ${env:MERRIAM_WEBSTER_API_KEY}
-        GEMINI_API_KEY: ${env:GEMINI_API_KEY}
 
         # A request is deferred after every unknown outcome; no invocation loops
         # retries. Keep per-request pacing and Retry-After cooldowns conservative
@@ -62,16 +59,10 @@ provider:
         WORD_RELEASE_SCHEDULE: ${env:WORD_RELEASE_SCHEDULE, 'cron(0 */6 * * ? *)'}
 
         DB_CONNECTION: turso
-        TURSO_DATABASE_URL: ${env:TURSO_DATABASE_URL}
-        TURSO_AUTH_TOKEN: ${env:TURSO_AUTH_TOKEN}
         TURSO_CONNECT_TIMEOUT: ${env:TURSO_CONNECT_TIMEOUT, '5'}
         TURSO_REQUEST_TIMEOUT: ${env:TURSO_REQUEST_TIMEOUT, '15'}
 
         BROADCAST_CONNECTION: pusher
-        PUSHER_APP_ID: ${env:PUSHER_APP_ID}
-        PUSHER_APP_KEY: ${env:PUSHER_APP_KEY}
-        PUSHER_APP_SECRET: ${env:PUSHER_APP_SECRET}
-        PUSHER_APP_CLUSTER: ${env:PUSHER_APP_CLUSTER}
         PUSHER_PORT: 443
         PUSHER_SCHEME: https
 
@@ -82,7 +73,6 @@ provider:
         MAIL_HOST: smtp.resend.com
         MAIL_PORT: 465
         MAIL_USERNAME: resend
-        MAIL_PASSWORD: ${env:RESEND_SMTP_PASSWORD}
         MAIL_FROM_ADDRESS: notifications@possiblewords.jimtaylor.space
 
         FILESYSTEM_DISK: s3
@@ -92,10 +82,24 @@ provider:
 
         TTS_PROVIDER: edge-tts
 
-        GOOGLE_CLIENT_ID: ${env:GOOGLE_CLIENT_ID}
-        GOOGLE_CLIENT_SECRET: ${env:GOOGLE_CLIENT_SECRET}
         GOOGLE_REDIRECT_URI: https://possiblewords.jimtaylor.space/auth/google/callback
 
+custom:
+    # Do not place these in provider.environment: Serverless merges that map
+    # into every function, including the deliberately isolated backup Lambda.
+    applicationEnvironment:
+        APP_KEY: ${env:APP_KEY}
+        MERRIAM_WEBSTER_API_KEY: ${env:MERRIAM_WEBSTER_API_KEY}
+        GEMINI_API_KEY: ${env:GEMINI_API_KEY}
+        TURSO_DATABASE_URL: ${env:TURSO_DATABASE_URL}
+        TURSO_AUTH_TOKEN: ${env:TURSO_AUTH_TOKEN}
+        PUSHER_APP_ID: ${env:PUSHER_APP_ID}
+        PUSHER_APP_KEY: ${env:PUSHER_APP_KEY}
+        PUSHER_APP_SECRET: ${env:PUSHER_APP_SECRET}
+        PUSHER_APP_CLUSTER: ${env:PUSHER_APP_CLUSTER}
+        MAIL_PASSWORD: ${env:RESEND_SMTP_PASSWORD}
+        GOOGLE_CLIENT_ID: ${env:GOOGLE_CLIENT_ID}
+        GOOGLE_CLIENT_SECRET: ${env:GOOGLE_CLIENT_SECRET}
         VITE_PUSHER_APP_KEY: ${env:PUSHER_APP_KEY}
         VITE_PUSHER_APP_CLUSTER: ${env:PUSHER_APP_CLUSTER}
 
@@ -104,6 +108,7 @@ functions:
         handler: public/index.php
         runtime: php-84-fpm
         timeout: 28
+        environment: ${self:custom.applicationEnvironment}
         events:
             - httpApi: '*'
 
@@ -111,6 +116,7 @@ functions:
         handler: artisan
         runtime: php-84-console
         timeout: 720
+        environment: ${self:custom.applicationEnvironment}
         events:
             - schedule:
                   rate: cron(0 5 * * ? *)
@@ -203,6 +209,9 @@ resources:
                         - Id: ExpireBackupRunsAfter35Days
                           Status: Enabled
                           ExpirationInDays: 35
+                          NoncurrentVersionExpiration:
+                              NoncurrentDays: 35
+                          ExpiredObjectDeleteMarker: true
         BackupAlarmTopic:
             Type: AWS::SNS::Topic
             Properties:
@@ -227,6 +236,10 @@ resources:
                       PolicyDocument:
                           Version: '2012-10-17'
                           Statement:
+                              # The source disk includes `audio/`, root-level
+                              # application objects, and future uploads. This
+                              # dedicated role is read-only and backs up that
+                              # complete disk; see docs/backups.md.
                               - Effect: Allow
                                 Action:
                                     - s3:ListBucket
