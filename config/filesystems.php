@@ -60,6 +60,16 @@ return [
             'report' => false,
         ],
 
+        'backups' => [
+            'driver' => 's3',
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION'),
+            'bucket' => env('BACKUP_BUCKET'),
+            'throw' => true,
+            'report' => true,
+        ],
+
     ],
 
     /*
