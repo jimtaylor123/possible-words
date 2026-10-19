@@ -42,6 +42,7 @@ class BackupService
             try {
                 $this->turso->createFromDump($temporaryDatabase, $dumpPath);
                 $temporaryDatabaseCreated = true;
+                $this->waitForRestore($temporaryDatabase, $tables);
                 $this->verifyDatabase($temporaryDatabase, $tables);
             } finally {
                 @unlink($dumpPath);
@@ -305,6 +306,28 @@ class BackupService
                 throw new RuntimeException("Restored table [$table] has an unexpected row count.");
             }
         }
+    }
+
+    /** @param array<string, int> $expected */
+    private function waitForRestore(string $database, array $expected): void
+    {
+        $deadline = microtime(true) + 60;
+
+        do {
+            try {
+                foreach (array_keys($expected) as $table) {
+                    $this->turso->query($database, 'SELECT 1 FROM "'.str_replace('"', '""', $table).'" LIMIT 1;');
+                }
+
+                return;
+            } catch (RuntimeException $exception) {
+                if (microtime(true) >= $deadline) {
+                    throw new RuntimeException('Restored database did not become ready before verification.', 0, $exception);
+                }
+
+                sleep(1);
+            }
+        } while (true);
     }
 
     /** @param list<array{path: string, size: int, sha256: string}> $objects */
