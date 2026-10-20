@@ -33,10 +33,10 @@ describe('Turso CLI process', function () {
             ->toThrow(RuntimeException::class, 'Turso CLI command failed: turso exploded');
     });
 
-    test('Given a SQL dump, it creates an empty database and imports the dump through shell stdin', function () {
+    test('Given a SQL dump, it waits for Turso to import it before returning', function () {
         $dump = tempnam(sys_get_temp_dir(), 'turso-dump-');
         file_put_contents($dump, 'CREATE TABLE migrations (id INTEGER);');
-        config()->set('backups.turso_cli_path', tursoCliStub('echo "$*|$(cat)"'));
+        config()->set('backups.turso_cli_path', tursoCliStub('echo "$*"'));
         config()->set('backups.turso_api_token', 'backup-token');
         config()->set('backups.turso_organization', 'backup-org');
 

@@ -39,13 +39,7 @@ class ProcessTursoCli implements TursoCli
 
     public function createFromDump(string $database, string $dumpPath): void
     {
-        $dump = file_get_contents($dumpPath);
-        if ($dump === false) {
-            throw new RuntimeException("Unable to read Turso dump [$dumpPath].");
-        }
-
-        $this->run(['db', 'create', $database]);
-        $this->run(['db', 'shell', $database], $dump);
+        $this->run(['db', 'create', $database, '--from-dump', $dumpPath, '--wait']);
     }
 
     public function query(string $database, string $sql): string
@@ -58,10 +52,9 @@ class ProcessTursoCli implements TursoCli
         $this->run(['db', 'destroy', $database, '--yes']);
     }
 
-    private function run(array $arguments, ?string $input = null): Process
+    private function run(array $arguments): Process
     {
         $process = new Process([$this->path, ...$arguments], null, $this->environment, null, 600);
-        $process->setInput($input);
         $process->run();
 
         if (! $process->isSuccessful()) {
