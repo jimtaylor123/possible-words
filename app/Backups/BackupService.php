@@ -16,7 +16,10 @@ class BackupService
     public function __construct(
         private readonly TursoCli $turso,
         private readonly BackupMetricPublisher $metrics,
-        private readonly float $restoreDeadlineSeconds = 60.0,
+        // Turso imports the 78 MB production dump asynchronously. Allow enough
+        // time for all tables and rows to become queryable before declaring the
+        // restore invalid, while remaining within the 12-minute Lambda limit.
+        private readonly float $restoreDeadlineSeconds = 300.0,
         private readonly int $restorePollSeconds = 1,
     ) {}
 
