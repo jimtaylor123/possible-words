@@ -33,25 +33,19 @@ describe('Turso CLI process', function () {
             ->toThrow(RuntimeException::class, 'Turso CLI command failed: turso exploded');
     });
 
-    test('Given a SQL dump, it creates the database from a SQLite file', function () {
+    test('Given a SQL dump, it creates the database with the native dump import', function () {
         $dump = tempnam(sys_get_temp_dir(), 'turso-dump-');
-        $database = tempnam(sys_get_temp_dir(), 'turso-database-');
         $arguments = tempnam(sys_get_temp_dir(), 'turso-arguments-');
         file_put_contents($dump, 'CREATE TABLE migrations (id INTEGER);');
-        config()->set('backups.turso_cli_path', tursoCliStub("cp \"\$5\" '$database'\nprintf '%s' \"\$*\" > '$arguments'"));
+        config()->set('backups.turso_cli_path', tursoCliStub("printf '%s' \"\$*\" > '$arguments'"));
         config()->set('backups.turso_api_token', 'backup-token');
         config()->set('backups.turso_organization', 'backup-org');
 
         (new ProcessTursoCli)->createFromDump('restore-check', $dump);
 
         expect(file_get_contents($dump))->toBe('CREATE TABLE migrations (id INTEGER);');
-        expect(file_get_contents($arguments))
-            ->toStartWith('db create restore-check --from-file ')
-            ->toEndWith(' --wait');
-        expect((new PDO('sqlite:'.$database))->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'migrations'")->fetchColumn())
-            ->toBe('migrations');
+        expect(file_get_contents($arguments))->toBe("db create restore-check --from-dump $dump --wait");
         unlink($dump);
-        unlink($database);
         unlink($arguments);
     });
 

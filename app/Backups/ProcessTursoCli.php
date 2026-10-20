@@ -2,8 +2,6 @@
 
 namespace App\Backups;
 
-use PDO;
-use PDOException;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
@@ -41,24 +39,11 @@ class ProcessTursoCli implements TursoCli
 
     public function createFromDump(string $database, string $dumpPath): void
     {
-        $dump = file_get_contents($dumpPath);
-        if ($dump === false) {
+        if (! is_file($dumpPath) || ! is_readable($dumpPath)) {
             throw new RuntimeException("Unable to read Turso dump [$dumpPath].");
         }
 
-        $databasePath = tempnam(sys_get_temp_dir(), 'turso-restore-');
-        if ($databasePath === false) {
-            throw new RuntimeException('Unable to create a temporary SQLite restore database.');
-        }
-
-        try {
-            (new PDO('sqlite:'.$databasePath))->exec($dump);
-            $this->run(['db', 'create', $database, '--from-file', $databasePath, '--wait']);
-        } catch (PDOException $exception) {
-            throw new RuntimeException('Unable to build SQLite restore database from Turso dump.', 0, $exception);
-        } finally {
-            @unlink($databasePath);
-        }
+        $this->run(['db', 'create', $database, '--from-dump', $dumpPath, '--wait']);
     }
 
     public function query(string $database, string $sql): string
