@@ -15,6 +15,10 @@ return [
 
     'rdap_base_url' => env('DOMAIN_RDAP_URL', 'https://rdap.verisign.com/com/v1/domain'),
 
+    'whois_host' => env('DOMAIN_WHOIS_HOST', 'whois.verisign-grs.com'),
+
+    'whois_port' => (int) env('DOMAIN_WHOIS_PORT', 43),
+
     /*
     |--------------------------------------------------------------------------
     | Lookup Resilience
