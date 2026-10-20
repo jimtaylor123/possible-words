@@ -33,6 +33,7 @@ function successfulTurso(array $tables = ['example' => 0]): TursoCli
     $turso = mock(TursoCli::class);
     $turso->shouldReceive('dump')->once()->with('production')->andReturn('CREATE TABLE example (id INTEGER);');
     $turso->shouldReceive('createFromDump')->once();
+    $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $database !== 'production' && str_starts_with($sql, 'SELECT 1 FROM'))->andReturn('1');
     $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $database !== 'production' && $sql === 'PRAGMA integrity_check;')->andReturn("integrity_check\n---------------\nok\n");
     $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $database !== 'production' && str_starts_with($sql, 'SELECT COUNT(*)'))->andReturnUsing(function ($database, $sql) use ($tables): string {
         preg_match('/FROM "(.+)"/', $sql, $matches);
@@ -173,6 +174,7 @@ describe('verified backups', function () {
         $turso = mock(TursoCli::class);
         $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
         $turso->shouldReceive('createFromDump')->once();
+        $turso->shouldReceive('query')->once()->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT 1 FROM'))->andReturn('1');
         $turso->shouldReceive('query')->once()->withArgs(fn ($database, $sql) => $sql === 'PRAGMA integrity_check;')->andThrow(new RuntimeException('integrity failed'));
         $turso->shouldReceive('delete')->once();
 
@@ -185,6 +187,7 @@ describe('verified backups', function () {
         $turso = mock(TursoCli::class);
         $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
         $turso->shouldReceive('createFromDump')->once();
+        $turso->shouldReceive('query')->once()->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT 1 FROM'))->andReturn('1');
         $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $sql === 'PRAGMA integrity_check;')->andReturn('ok');
         $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT COUNT(*)'))->andReturn('0');
         $turso->shouldReceive('delete')->once()->andThrow(new RuntimeException('delete failed'));
@@ -193,6 +196,49 @@ describe('verified backups', function () {
 
         expect(fn () => (new BackupService($turso, $metrics))->run())
             ->toThrow(RuntimeException::class, 'Unable to delete temporary Turso database');
+        expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
+    });
+
+    test('Given a temporary database that is not immediately ready, it retries the readiness probe until it succeeds', function () {
+        fakeProductionTableCounts(['example' => 1]);
+        $turso = mock(TursoCli::class);
+        $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
+        $turso->shouldReceive('createFromDump')->once();
+        $attempts = 0;
+        $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT 1 FROM'))
+            ->andReturnUsing(function () use (&$attempts): string {
+                $attempts++;
+                if ($attempts < 3) {
+                    throw new RuntimeException('database is not ready');
+                }
+
+                return '1';
+            });
+        $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $sql === 'PRAGMA integrity_check;')->andReturn('ok');
+        $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT COUNT(*)'))->andReturn('1');
+        $turso->shouldReceive('delete')->once();
+        $metrics = mock(BackupMetricPublisher::class);
+        $metrics->shouldReceive('publish')->once()->with('BackupVerified', 1);
+
+        $prefix = (new BackupService($turso, $metrics, 5.0, 0))->run();
+
+        expect($attempts)->toBe(3)
+            ->and(Storage::disk('backups')->exists("$prefix/completion.json"))->toBeTrue();
+    });
+
+    test('Given a temporary database that never becomes ready, it throws once the deadline passes', function () {
+        fakeProductionTableCounts(['example' => 1]);
+        $turso = mock(TursoCli::class);
+        $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
+        $turso->shouldReceive('createFromDump')->once();
+        $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT 1 FROM'))->andThrow(new RuntimeException('database is not ready'));
+        $turso->shouldNotReceive('query')->withArgs(fn ($database, $sql) => $sql === 'PRAGMA integrity_check;');
+        $turso->shouldReceive('delete')->once();
+        $metrics = mock(BackupMetricPublisher::class);
+        $metrics->shouldNotReceive('publish');
+
+        expect(fn () => (new BackupService($turso, $metrics, 0.0, 0))->run())
+            ->toThrow(RuntimeException::class, 'Restored database did not become ready before verification.');
         expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
     });
 

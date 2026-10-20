@@ -16,6 +16,8 @@ class BackupService
     public function __construct(
         private readonly TursoCli $turso,
         private readonly BackupMetricPublisher $metrics,
+        private readonly float $restoreDeadlineSeconds = 60.0,
+        private readonly int $restorePollSeconds = 1,
     ) {}
 
     public function run(): string
@@ -42,9 +44,12 @@ class BackupService
             try {
                 $this->turso->createFromDump($temporaryDatabase, $dumpPath);
                 $temporaryDatabaseCreated = true;
+                $this->waitForRestore($temporaryDatabase, $tables);
                 $this->verifyDatabase($temporaryDatabase, $tables);
             } finally {
-                @unlink($dumpPath);
+                if (file_exists($dumpPath)) {
+                    unlink($dumpPath);
+                }
             }
 
             // Clear the flag before the attempt so a failed deletion is never
@@ -300,11 +305,49 @@ class BackupService
         }
 
         foreach ($expected as $table => $count) {
-            $actual = (int) trim($this->turso->query($database, 'SELECT COUNT(*) FROM "'.str_replace('"', '""', $table).'";'));
+            $actual = (int) trim($this->turso->query($database, 'SELECT COUNT(*) FROM '.$this->quoteIdentifier($table).';'));
             if ($actual !== $count) {
                 throw new RuntimeException("Restored table [$table] has an unexpected row count.");
             }
         }
+    }
+
+    /** @param array<string, int> $expected */
+    private function waitForRestore(string $database, array $expected): void
+    {
+        $deadline = microtime(true) + $this->restoreDeadlineSeconds;
+
+        do {
+            try {
+                foreach (array_keys($expected) as $table) {
+                    $this->turso->query($database, 'SELECT 1 FROM '.$this->quoteIdentifier($table).' LIMIT 1;');
+                }
+
+                return;
+            } catch (RuntimeException $exception) {
+                if (microtime(true) >= $deadline) {
+                    throw new RuntimeException('Restored database did not become ready before verification.', 0, $exception);
+                }
+
+                sleep($this->restorePollSeconds);
+            }
+        } while (true);
+    }
+
+    /**
+     * Quote an SQL identifier using SQLite double-quote escaping.
+     *
+     * Only characters that may legitimately appear inside a double-quoted
+     * identifier are accepted, so a table name can never break out of the
+     * quoting even if it were ever sourced from untrusted input.
+     */
+    private function quoteIdentifier(string $identifier): string
+    {
+        if (preg_match('/^[A-Za-z0-9_]+$/', $identifier) !== 1) {
+            throw new RuntimeException("Unsupported SQL identifier [$identifier].");
+        }
+
+        return '"'.str_replace('"', '""', $identifier).'"';
     }
 
     /** @param list<array{path: string, size: int, sha256: string}> $objects */
