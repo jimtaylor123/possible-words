@@ -2,6 +2,8 @@
 
 namespace App\Backups;
 
+use PDO;
+use PDOException;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
@@ -39,17 +41,23 @@ class ProcessTursoCli implements TursoCli
 
     public function createFromDump(string $database, string $dumpPath): void
     {
-        $dump = fopen($dumpPath, 'rb');
+        $dump = file_get_contents($dumpPath);
         if ($dump === false) {
             throw new RuntimeException("Unable to read Turso dump [$dumpPath].");
         }
 
+        $databasePath = tempnam(sys_get_temp_dir(), 'turso-restore-');
+        if ($databasePath === false) {
+            throw new RuntimeException('Unable to create a temporary SQLite restore database.');
+        }
+
         try {
-            $this->run(['db', 'create', $database, '--wait']);
-            // The dump creates tables out of foreign-key dependency order.
-            $this->run(['db', 'shell', $database], $this->dumpInput($dump));
+            (new PDO('sqlite:'.$databasePath))->exec($dump);
+            $this->run(['db', 'create', $database, '--from-file', $databasePath, '--wait']);
+        } catch (PDOException $exception) {
+            throw new RuntimeException('Unable to build SQLite restore database from Turso dump.', 0, $exception);
         } finally {
-            fclose($dump);
+            @unlink($databasePath);
         }
     }
 
@@ -63,25 +71,9 @@ class ProcessTursoCli implements TursoCli
         $this->run(['db', 'destroy', $database, '--yes']);
     }
 
-    /** @param resource $dump */
-    private function dumpInput($dump): \Generator
-    {
-        yield "PRAGMA foreign_keys = OFF;\n";
-
-        while (! feof($dump)) {
-            $chunk = fread($dump, 1024 * 1024);
-            if ($chunk === false) {
-                throw new RuntimeException('Unable to read Turso dump.');
-            }
-
-            yield $chunk;
-        }
-    }
-
-    private function run(array $arguments, mixed $input = null): Process
+    private function run(array $arguments): Process
     {
         $process = new Process([$this->path, ...$arguments], null, $this->environment, null, 600);
-        $process->setInput($input);
         $process->run();
 
         if (! $process->isSuccessful()) {
