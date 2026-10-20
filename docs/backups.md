@@ -74,6 +74,31 @@ it.
 Never use `turso db import` against production, write to the source bucket, or
 change production `TURSO_DATABASE_URL` during a drill.
 
+## Manual database restore
+
+Use a new database name and a Turso Platform token with `db:create` and
+`db:delete`; never run these commands against the production database.
+
+```bash
+aws s3 cp s3://<backup-bucket>/runs/<run-id>/database.sql ./database.sql
+turso db create <restore-db> --wait
+{ printf 'PRAGMA foreign_keys = OFF;\n'; cat ./database.sql; } | turso db shell <restore-db>
+turso db shell <restore-db> 'PRAGMA integrity_check;'
+turso db shell <restore-db> 'SELECT COUNT(*) FROM definitions;'
+turso db destroy <restore-db> --yes
+```
+
+The `PRAGMA foreign_keys = OFF` prefix is required because Turso dumps can
+create related tables out of dependency order. Compare every restored table
+count with `completion.json` before using the restored database.
+
+To run an on-demand production backup and freshness check:
+
+```bash
+aws lambda invoke --region eu-west-1 --function-name possiblewords-prod-backup --cli-binary-format raw-in-base64-out --cli-read-timeout 0 --payload '{"cli":"backup:run"}' /tmp/possiblewords-backup-run.json
+aws lambda invoke --region eu-west-1 --function-name possiblewords-prod-backup --cli-binary-format raw-in-base64-out --payload '{"cli":"backup:check-freshness"}' /tmp/possiblewords-backup-freshness.json
+```
+
 ## Post-deploy acceptance
 
 Invoke `backup:run` through the backup Lambda, verify its `completion.json`,
