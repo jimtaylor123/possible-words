@@ -39,14 +39,18 @@ class ProcessTursoCli implements TursoCli
 
     public function createFromDump(string $database, string $dumpPath): void
     {
-        $dump = file_get_contents($dumpPath);
+        $dump = fopen($dumpPath, 'rb');
         if ($dump === false) {
             throw new RuntimeException("Unable to read Turso dump [$dumpPath].");
         }
 
-        $this->run(['db', 'create', $database, '--wait']);
-        // The dump creates tables out of foreign-key dependency order.
-        $this->run(['db', 'shell', $database], "PRAGMA foreign_keys = OFF;\n$dump");
+        try {
+            $this->run(['db', 'create', $database, '--wait']);
+            // The dump creates tables out of foreign-key dependency order.
+            $this->run(['db', 'shell', $database], $this->dumpInput($dump));
+        } finally {
+            fclose($dump);
+        }
     }
 
     public function query(string $database, string $sql): string
@@ -59,7 +63,22 @@ class ProcessTursoCli implements TursoCli
         $this->run(['db', 'destroy', $database, '--yes']);
     }
 
-    private function run(array $arguments, ?string $input = null): Process
+    /** @param resource $dump */
+    private function dumpInput($dump): \Generator
+    {
+        yield "PRAGMA foreign_keys = OFF;\n";
+
+        while (! feof($dump)) {
+            $chunk = fread($dump, 1024 * 1024);
+            if ($chunk === false) {
+                throw new RuntimeException('Unable to read Turso dump.');
+            }
+
+            yield $chunk;
+        }
+    }
+
+    private function run(array $arguments, mixed $input = null): Process
     {
         $process = new Process([$this->path, ...$arguments], null, $this->environment, null, 600);
         $process->setInput($input);
