@@ -81,16 +81,17 @@ Use a new database name and a Turso Platform token with `db:create` and
 
 ```bash
 aws s3 cp s3://<backup-bucket>/runs/<run-id>/database.sql ./database.sql
-turso db create <restore-db> --wait
-{ printf 'PRAGMA foreign_keys = OFF;\n'; cat ./database.sql; } | turso db shell <restore-db>
+sqlite3 ./restore.sqlite < ./database.sql
+turso db create <restore-db> --from-file ./restore.sqlite --wait
 turso db shell <restore-db> 'PRAGMA integrity_check;'
 turso db shell <restore-db> 'SELECT COUNT(*) FROM definitions;'
 turso db destroy <restore-db> --yes
 ```
 
-The `PRAGMA foreign_keys = OFF` prefix is required because Turso dumps can
-create related tables out of dependency order. Compare every restored table
-count with `completion.json` before using the restored database.
+Turso shell import does not preserve foreign-key settings between statements,
+so do not pipe a dump directly into `turso db shell`. Build a SQLite file and
+use `--from-file`, then compare every restored table count with
+`completion.json` before using the restored database.
 
 To run an on-demand production backup and freshness check:
 
