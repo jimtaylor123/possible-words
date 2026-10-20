@@ -72,11 +72,37 @@ describe('failing closed when RDAP cannot be reached', function () {
             ->and($outcome->failureKind)->toBe('http');
     });
 
-    test('Given a connection error on every attempt, no exception escapes', function () {
+    test('Given an RDAP connection error, it uses the registry WHOIS fallback', function () {
         Http::fake(['*' => Http::failedConnection('cURL error 28: Connection timed out')]);
+        $this->service = new class extends DomainAvailabilityService
+        {
+            protected function checkWhoisAvailability(string $label): \App\Services\DomainAvailabilityOutcome
+            {
+                expect($label)->toBe('blorg');
 
-        expect($this->service->checkComAvailability('blorg')->failureKind)->toBe('transport');
+                return new \App\Services\DomainAvailabilityOutcome(Word::DOMAIN_TAKEN, self::WHOIS_PROVIDER);
+            }
+        };
+
+        $outcome = $this->service->checkComAvailability('blorg');
+
+        expect($outcome->status)->toBe(Word::DOMAIN_TAKEN)
+            ->and($outcome->provider)->toBe(DomainAvailabilityService::WHOIS_PROVIDER);
         Http::assertSentCount(1);
+    });
+
+    test('Given a WHOIS response, only an explicit verdict for the requested domain is accepted', function () {
+        $service = new class extends DomainAvailabilityService
+        {
+            public function classify(string $label, string $response): \App\Services\DomainAvailabilityOutcome
+            {
+                return $this->classifyWhoisResponse($label, $response);
+            }
+        };
+
+        expect($service->classify('blorg', 'No match for "BLORG.COM".')->status)->toBe(Word::DOMAIN_AVAILABLE)
+            ->and($service->classify('blorg', '   Domain Name: BLORG.COM')->status)->toBe(Word::DOMAIN_TAKEN)
+            ->and($service->classify('blorg', 'No match for "different.com".')->status)->toBe(Word::DOMAIN_CHECK_FAILED);
     });
 
     test('Given a label that is not a valid DNS label, the result is check_failed with no request sent', function (string $text) {
