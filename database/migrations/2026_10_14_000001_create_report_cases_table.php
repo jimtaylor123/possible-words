@@ -236,6 +236,7 @@ return new class extends Migration
     private function rebuildReportReviewActionsForTurso(bool $hasReportCaseId): void
     {
         $caseId = $hasReportCaseId ? '"report_case_id"' : 'NULL';
+        DB::unprepared('PRAGMA foreign_keys = OFF');
         DB::unprepared('ALTER TABLE "report_review_actions" RENAME TO "__restore_report_review_actions"');
         DB::unprepared('CREATE TABLE "report_review_actions" ("id" integer primary key autoincrement not null, "report_case_id" integer, "report_id" integer, "admin_user_id" integer, "action" varchar not null, "note" text, "created_at" datetime, "updated_at" datetime, foreign key("report_case_id") references "report_cases"("id") on delete set null, foreign key("report_id") references "reports"("id") on delete set null, foreign key("admin_user_id") references "users"("id") on delete set null)');
         DB::unprepared('INSERT INTO "report_review_actions" ("id", "report_case_id", "report_id", "admin_user_id", "action", "note", "created_at", "updated_at") SELECT "id", '.$caseId.', "report_id", "admin_user_id", "action", "note", "created_at", "updated_at" FROM "__restore_report_review_actions"');
@@ -243,6 +244,7 @@ return new class extends Migration
         DB::unprepared('CREATE INDEX "report_review_actions_report_case_id_created_at_id_index" ON "report_review_actions" ("report_case_id", "created_at", "id")');
         DB::unprepared('CREATE INDEX "report_review_actions_report_id_created_at_id_index" ON "report_review_actions" ("report_id", "created_at", "id")');
         DB::unprepared('CREATE INDEX "report_review_actions_admin_user_id_index" ON "report_review_actions" ("admin_user_id")');
+        DB::unprepared('PRAGMA foreign_keys = ON');
     }
 
     private function assertExistingReportCasesTableMatchesFirstPhase(): void
