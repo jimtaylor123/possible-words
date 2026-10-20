@@ -33,6 +33,19 @@ describe('Turso CLI process', function () {
             ->toThrow(RuntimeException::class, 'Turso CLI command failed: turso exploded');
     });
 
+    test('Given a SQL dump, it waits for Turso to import it before returning', function () {
+        $dump = tempnam(sys_get_temp_dir(), 'turso-dump-');
+        file_put_contents($dump, 'CREATE TABLE migrations (id INTEGER);');
+        config()->set('backups.turso_cli_path', tursoCliStub('echo "$*"'));
+        config()->set('backups.turso_api_token', 'backup-token');
+        config()->set('backups.turso_organization', 'backup-org');
+
+        (new ProcessTursoCli)->createFromDump('restore-check', $dump);
+
+        expect(file_get_contents($dump))->toBe('CREATE TABLE migrations (id INTEGER);');
+        unlink($dump);
+    });
+
     test('Given the configured CLI does not exist, it fails before starting a process', function () {
         config()->set('backups.turso_cli_path', '/missing/turso');
 

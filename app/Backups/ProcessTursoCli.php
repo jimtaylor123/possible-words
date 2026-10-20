@@ -39,7 +39,7 @@ class ProcessTursoCli implements TursoCli
 
     public function createFromDump(string $database, string $dumpPath): void
     {
-        $this->run(['db', 'create', $database, '--from-dump', $dumpPath]);
+        $this->run(['db', 'create', $database, '--from-dump', $dumpPath, '--wait']);
     }
 
     public function query(string $database, string $sql): string
