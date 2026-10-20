@@ -95,27 +95,31 @@ return new class extends Migration
             $reportsHaveCaseReporterUnique = Schema::hasIndex('reports', ['report_case_id', 'reporter_id'], 'unique');
             $reportsHaveCaseCreatedAtIndex = Schema::hasIndex('reports', ['report_case_id', 'created_at']);
 
-            Schema::table('reports', function (Blueprint $table) use ($reportsHaveColumn, $reportsHaveForeignKey, $reportsHaveLegacyUnique, $reportsHaveCaseReporterUnique, $reportsHaveCaseCreatedAtIndex) {
-                if (! $reportsHaveColumn) {
-                    $table->foreignId('report_case_id')->nullable()->after('id');
-                }
+            if (DB::connection()->getDriverName() === 'turso') {
+                $this->rebuildReportsForTurso($reportsHaveColumn);
+            } else {
+                Schema::table('reports', function (Blueprint $table) use ($reportsHaveColumn, $reportsHaveForeignKey, $reportsHaveLegacyUnique, $reportsHaveCaseReporterUnique, $reportsHaveCaseCreatedAtIndex) {
+                    if (! $reportsHaveColumn) {
+                        $table->foreignId('report_case_id')->nullable()->after('id');
+                    }
 
-                if (! $reportsHaveForeignKey) {
-                    $table->foreign('report_case_id')->references('id')->on('report_cases')->nullOnDelete();
-                }
+                    if (! $reportsHaveForeignKey) {
+                        $table->foreign('report_case_id')->references('id')->on('report_cases')->nullOnDelete();
+                    }
 
-                if ($reportsHaveLegacyUnique) {
-                    $table->dropUnique('reports_reporter_id_reportable_type_reportable_id_status_unique');
-                }
+                    if ($reportsHaveLegacyUnique) {
+                        $table->dropUnique('reports_reporter_id_reportable_type_reportable_id_status_unique');
+                    }
 
-                if (! $reportsHaveCaseReporterUnique) {
-                    $table->unique(['report_case_id', 'reporter_id']);
-                }
+                    if (! $reportsHaveCaseReporterUnique) {
+                        $table->unique(['report_case_id', 'reporter_id']);
+                    }
 
-                if (! $reportsHaveCaseCreatedAtIndex) {
-                    $table->index(['report_case_id', 'created_at']);
-                }
-            });
+                    if (! $reportsHaveCaseCreatedAtIndex) {
+                        $table->index(['report_case_id', 'created_at']);
+                    }
+                });
+            }
         }
 
         if ($phases['actions'] !== 'complete') {
@@ -123,19 +127,23 @@ return new class extends Migration
             $actionsHaveForeignKey = $this->hasReportCaseForeignKey('report_review_actions');
             $actionsHaveCaseCreatedAtIndex = Schema::hasIndex('report_review_actions', ['report_case_id', 'created_at', 'id']);
 
-            Schema::table('report_review_actions', function (Blueprint $table) use ($actionsHaveColumn, $actionsHaveForeignKey, $actionsHaveCaseCreatedAtIndex) {
-                if (! $actionsHaveColumn) {
-                    $table->foreignId('report_case_id')->nullable()->after('id');
-                }
+            if (DB::connection()->getDriverName() === 'turso') {
+                $this->rebuildReportReviewActionsForTurso($actionsHaveColumn);
+            } else {
+                Schema::table('report_review_actions', function (Blueprint $table) use ($actionsHaveColumn, $actionsHaveForeignKey, $actionsHaveCaseCreatedAtIndex) {
+                    if (! $actionsHaveColumn) {
+                        $table->foreignId('report_case_id')->nullable()->after('id');
+                    }
 
-                if (! $actionsHaveForeignKey) {
-                    $table->foreign('report_case_id')->references('id')->on('report_cases')->nullOnDelete();
-                }
+                    if (! $actionsHaveForeignKey) {
+                        $table->foreign('report_case_id')->references('id')->on('report_cases')->nullOnDelete();
+                    }
 
-                if (! $actionsHaveCaseCreatedAtIndex) {
-                    $table->index(['report_case_id', 'created_at', 'id']);
-                }
-            });
+                    if (! $actionsHaveCaseCreatedAtIndex) {
+                        $table->index(['report_case_id', 'created_at', 'id']);
+                    }
+                });
+            }
         }
 
         DB::transaction(function (): void {
@@ -208,6 +216,33 @@ return new class extends Migration
         });
 
         Schema::dropIfExists('report_cases');
+    }
+
+    private function rebuildReportsForTurso(bool $hasReportCaseId): void
+    {
+        $caseId = $hasReportCaseId ? '"report_case_id"' : 'NULL';
+        DB::unprepared('PRAGMA foreign_keys = OFF');
+        DB::unprepared('ALTER TABLE "reports" RENAME TO "__restore_reports"');
+        DB::unprepared('CREATE TABLE "reports" ("id" integer primary key autoincrement not null, "report_case_id" integer, "reporter_id" integer, "reportable_type" varchar not null, "reportable_id" integer not null, "reason" varchar not null, "explanation" text, "status" varchar not null default \'open\', "processed_by_user_id" integer, "processed_at" datetime, "processing_action" varchar, "processing_note" text, "created_at" datetime, "updated_at" datetime, foreign key("report_case_id") references "report_cases"("id") on delete set null, foreign key("reporter_id") references "users"("id") on delete set null, foreign key("processed_by_user_id") references "users"("id") on delete set null)');
+        DB::unprepared('INSERT INTO "reports" ("id", "report_case_id", "reporter_id", "reportable_type", "reportable_id", "reason", "explanation", "status", "processed_by_user_id", "processed_at", "processing_action", "processing_note", "created_at", "updated_at") SELECT "id", '.$caseId.', "reporter_id", "reportable_type", "reportable_id", "reason", "explanation", "status", "processed_by_user_id", "processed_at", "processing_action", "processing_note", "created_at", "updated_at" FROM "__restore_reports"');
+        DB::unprepared('DROP TABLE "__restore_reports"');
+        DB::unprepared('CREATE UNIQUE INDEX "reports_report_case_id_reporter_id_unique" ON "reports" ("report_case_id", "reporter_id")');
+        DB::unprepared('CREATE INDEX "reports_report_case_id_created_at_index" ON "reports" ("report_case_id", "created_at")');
+        DB::unprepared('CREATE INDEX "reports_reportable_type_reportable_id_status_index" ON "reports" ("reportable_type", "reportable_id", "status")');
+        DB::unprepared('CREATE INDEX "reports_reporter_id_status_index" ON "reports" ("reporter_id", "status")');
+        DB::unprepared('PRAGMA foreign_keys = ON');
+    }
+
+    private function rebuildReportReviewActionsForTurso(bool $hasReportCaseId): void
+    {
+        $caseId = $hasReportCaseId ? '"report_case_id"' : 'NULL';
+        DB::unprepared('ALTER TABLE "report_review_actions" RENAME TO "__restore_report_review_actions"');
+        DB::unprepared('CREATE TABLE "report_review_actions" ("id" integer primary key autoincrement not null, "report_case_id" integer, "report_id" integer, "admin_user_id" integer, "action" varchar not null, "note" text, "created_at" datetime, "updated_at" datetime, foreign key("report_case_id") references "report_cases"("id") on delete set null, foreign key("report_id") references "reports"("id") on delete set null, foreign key("admin_user_id") references "users"("id") on delete set null)');
+        DB::unprepared('INSERT INTO "report_review_actions" ("id", "report_case_id", "report_id", "admin_user_id", "action", "note", "created_at", "updated_at") SELECT "id", '.$caseId.', "report_id", "admin_user_id", "action", "note", "created_at", "updated_at" FROM "__restore_report_review_actions"');
+        DB::unprepared('DROP TABLE "__restore_report_review_actions"');
+        DB::unprepared('CREATE INDEX "report_review_actions_report_case_id_created_at_id_index" ON "report_review_actions" ("report_case_id", "created_at", "id")');
+        DB::unprepared('CREATE INDEX "report_review_actions_report_id_created_at_id_index" ON "report_review_actions" ("report_id", "created_at", "id")');
+        DB::unprepared('CREATE INDEX "report_review_actions_admin_user_id_index" ON "report_review_actions" ("admin_user_id")');
     }
 
     private function assertExistingReportCasesTableMatchesFirstPhase(): void
