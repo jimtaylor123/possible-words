@@ -19,6 +19,8 @@ class DomainAvailabilityService
 {
     public const PROVIDER = 'verisign-com';
 
+    public const WHOIS_PROVIDER = 'verisign-com-whois';
+
     /**
      * DNS label guard: lowercase letters, digits and inner hyphens only,
      * 1-63 chars, not starting or ending with a hyphen. Production words are
@@ -49,12 +51,7 @@ class DomainAvailabilityService
         try {
             $response = Http::timeout((int) config('domain.timeout', 10))->get($url);
         } catch (Throwable) {
-            return new DomainAvailabilityOutcome(
-                Word::DOMAIN_CHECK_FAILED,
-                self::PROVIDER,
-                'transport',
-                'The RDAP provider could not be reached.',
-            );
+            return $this->checkWhoisAvailability($label);
         }
 
         if ($response->notFound()) {
@@ -73,6 +70,77 @@ class DomainAvailabilityService
             "The RDAP provider returned HTTP {$response->status()}.",
             $response->status(),
             $this->retryAfterSeconds($response->header('Retry-After')),
+        );
+    }
+
+    /**
+     * WHOIS is a registry-operated fallback for environments that cannot reach
+     * the RDAP HTTPS endpoint. Only explicit registry verdicts are accepted.
+     */
+    protected function checkWhoisAvailability(string $label): DomainAvailabilityOutcome
+    {
+        $socket = null;
+
+        try {
+            $errorNumber = 0;
+            $errorMessage = '';
+            $socket = fsockopen(
+                (string) config('domain.whois_host'),
+                (int) config('domain.whois_port'),
+                $errorNumber,
+                $errorMessage,
+                (int) config('domain.timeout', 10),
+            );
+
+            if ($socket === false) {
+                throw new \RuntimeException("WHOIS connection failed: {$errorNumber} {$errorMessage}");
+            }
+
+            if (fwrite($socket, "{$label}.com\r\n") === false) {
+                throw new \RuntimeException('WHOIS request write failed.');
+            }
+
+            stream_set_timeout($socket, (int) config('domain.timeout', 10));
+            $response = stream_get_contents($socket, 65536);
+            $metadata = stream_get_meta_data($socket);
+            fclose($socket);
+
+            if ($response === false || $metadata['timed_out']) {
+                throw new \RuntimeException('WHOIS response timed out.');
+            }
+        } catch (Throwable) {
+            if (is_resource($socket)) {
+                fclose($socket);
+            }
+
+            return new DomainAvailabilityOutcome(
+                Word::DOMAIN_CHECK_FAILED,
+                self::WHOIS_PROVIDER,
+                'transport',
+                'Neither RDAP nor the WHOIS fallback could be reached.',
+            );
+        }
+
+        return $this->classifyWhoisResponse($label, $response);
+    }
+
+    protected function classifyWhoisResponse(string $label, string $response): DomainAvailabilityOutcome
+    {
+        $domain = preg_quote("{$label}.com", '/');
+
+        if (preg_match('/^\s*No match for\s+"?'.$domain.'"?\.?\s*$/mi', $response) === 1) {
+            return new DomainAvailabilityOutcome(Word::DOMAIN_AVAILABLE, self::WHOIS_PROVIDER);
+        }
+
+        if (preg_match('/^\s*Domain Name:\s*'.$domain.'\s*$/mi', $response) === 1) {
+            return new DomainAvailabilityOutcome(Word::DOMAIN_TAKEN, self::WHOIS_PROVIDER);
+        }
+
+        return new DomainAvailabilityOutcome(
+            Word::DOMAIN_CHECK_FAILED,
+            self::WHOIS_PROVIDER,
+            'invalid_response',
+            'The WHOIS fallback did not return a definitive domain verdict.',
         );
     }
 
