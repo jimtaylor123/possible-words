@@ -18,7 +18,15 @@ class BackupService
         private readonly BackupMetricPublisher $metrics,
         private readonly float $restoreDeadlineSeconds = 60.0,
         private readonly int $restorePollSeconds = 1,
-    ) {}
+    ) {
+        if ($restoreDeadlineSeconds < 0) {
+            throw new RuntimeException('Restore deadline must not be negative.');
+        }
+
+        if ($restorePollSeconds < 0) {
+            throw new RuntimeException('Restore poll interval must not be negative.');
+        }
+    }
 
     public function run(): string
     {
@@ -47,6 +55,8 @@ class BackupService
                 $this->waitForRestore($temporaryDatabase, $tables);
                 $this->verifyDatabase($temporaryDatabase, $tables);
             } finally {
+                // No error suppression here: if the dump cannot be removed the
+                // failure surfaces instead of quietly leaving stale files.
                 if (file_exists($dumpPath)) {
                     unlink($dumpPath);
                 }
@@ -315,12 +325,19 @@ class BackupService
     /** @param array<string, int> $expected */
     private function waitForRestore(string $database, array $expected): void
     {
+        // Build the probe statements before the retry loop so an invalid
+        // identifier fails fast instead of being swallowed as "not ready".
+        $probes = array_map(
+            fn (string $table): string => 'SELECT 1 FROM '.$this->quoteIdentifier($table).' LIMIT 1;',
+            array_keys($expected),
+        );
+
         $deadline = microtime(true) + $this->restoreDeadlineSeconds;
 
         do {
             try {
-                foreach (array_keys($expected) as $table) {
-                    $this->turso->query($database, 'SELECT 1 FROM '.$this->quoteIdentifier($table).' LIMIT 1;');
+                foreach ($probes as $sql) {
+                    $this->turso->query($database, $sql);
                 }
 
                 return;

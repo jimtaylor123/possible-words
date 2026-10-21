@@ -242,6 +242,79 @@ describe('verified backups', function () {
         expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
     });
 
+    test('Given readiness probes that fail twice, it waits for the configured poll interval between retries', function () {
+        fakeProductionTableCounts(['example' => 1]);
+        $turso = mock(TursoCli::class);
+        $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
+        $turso->shouldReceive('createFromDump')->once();
+        $attempts = 0;
+        $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT 1 FROM'))
+            ->andReturnUsing(function () use (&$attempts): string {
+                $attempts++;
+                if ($attempts < 3) {
+                    throw new RuntimeException('database is not ready');
+                }
+
+                return '1';
+            });
+        $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $sql === 'PRAGMA integrity_check;')->andReturn('ok');
+        $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT COUNT(*)'))->andReturn('1');
+        $turso->shouldReceive('delete')->once();
+        $metrics = mock(BackupMetricPublisher::class);
+        $metrics->shouldReceive('publish')->once()->with('BackupVerified', 1);
+
+        $startedAt = microtime(true);
+        (new BackupService($turso, $metrics, 60.0, 1))->run();
+        $elapsedSeconds = microtime(true) - $startedAt;
+
+        // Two failed probes against a one-second poll interval must sleep
+        // twice, so the run cannot finish faster than those waits allow.
+        expect($attempts)->toBe(3)
+            ->and($elapsedSeconds)->toBeGreaterThanOrEqual(1.9);
+    });
+
+    test('Given a production table name that is not a safe SQL identifier, it fails before probing the restored database', function () {
+        fakeProductionTableCounts(['bad-table' => 0]);
+        $turso = mock(TursoCli::class);
+        $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE "bad-table" (id INTEGER);');
+        $turso->shouldReceive('createFromDump')->once();
+        $turso->shouldNotReceive('query');
+        $turso->shouldReceive('delete')->once();
+        $metrics = mock(BackupMetricPublisher::class);
+        $metrics->shouldNotReceive('publish');
+
+        expect(fn () => (new BackupService($turso, $metrics))->run())
+            ->toThrow(RuntimeException::class, 'Unsupported SQL identifier [bad-table].');
+        expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
+    });
+
+    test('Given a negative restore deadline or poll interval, it rejects the configuration', function () {
+        $turso = mock(TursoCli::class);
+        $metrics = mock(BackupMetricPublisher::class);
+
+        expect(fn () => new BackupService($turso, $metrics, -1.0))
+            ->toThrow(RuntimeException::class, 'Restore deadline must not be negative.');
+        expect(fn () => new BackupService($turso, $metrics, 60.0, -1))
+            ->toThrow(RuntimeException::class, 'Restore poll interval must not be negative.');
+    });
+
+    test('Given importing the dump fails, it propagates the error, skips verification, and removes the dump file', function () {
+        fakeProductionTableCounts();
+        $dumpFilesBefore = (array) glob(sys_get_temp_dir().'/possiblewords-backup-*');
+        $turso = mock(TursoCli::class);
+        $turso->shouldReceive('dump')->once()->with('production')->andReturn('CREATE TABLE example (id INTEGER);');
+        $turso->shouldReceive('createFromDump')->once()->andThrow(new RuntimeException('restore command failed'));
+        $turso->shouldNotReceive('query');
+        $turso->shouldNotReceive('delete');
+        $metrics = mock(BackupMetricPublisher::class);
+        $metrics->shouldNotReceive('publish');
+
+        expect(fn () => (new BackupService($turso, $metrics))->run())
+            ->toThrow(RuntimeException::class, 'restore command failed');
+        expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
+        expect(array_values(array_diff((array) glob(sys_get_temp_dir().'/possiblewords-backup-*'), $dumpFilesBefore)))->toBe([]);
+    });
+
     test('Given the Platform API rejects the hostname lookup, it fails before using the CLI or creating backup artifacts', function () {
         Http::fake(['api.turso.tech/*' => Http::response(['error' => 'denied'], 403)]);
         $turso = mock(TursoCli::class);
