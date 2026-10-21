@@ -41,7 +41,7 @@ class ProcessTursoCli implements TursoCli
         return $this->run(['db', 'shell', $database, '.dump'])->getOutput();
     }
 
-    public function createFromDump(string $database, string $dumpPath): void
+    public function createFromDump(string $database, string $dumpPath): array
     {
         $dump = file_get_contents($dumpPath);
         if ($dump === false) {
@@ -56,9 +56,12 @@ class ProcessTursoCli implements TursoCli
         try {
             $connection = new PDO('sqlite:'.$databasePath, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
             $connection->exec($dump);
+            $tables = $this->tableCounts($connection);
             $connection->exec('PRAGMA journal_mode = WAL;');
             unset($connection);
             $this->run(['db', 'create', $database, '--from-file', $databasePath, '--wait']);
+
+            return $tables;
         } catch (PDOException $exception) {
             throw new RuntimeException('Unable to build SQLite restore database from Turso dump.', 0, $exception);
         } finally {
@@ -86,6 +89,29 @@ class ProcessTursoCli implements TursoCli
         }
 
         return $process;
+    }
+
+    /** @return array<string, int> */
+    private function tableCounts(PDO $connection): array
+    {
+        $tables = $connection->query("SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'libsql_%'")
+            ->fetchAll(PDO::FETCH_COLUMN);
+        $counts = [];
+
+        foreach ($tables as $table) {
+            if (! is_string($table)) {
+                throw new RuntimeException('SQLite restore database returned an invalid table name.');
+            }
+
+            $identifier = '"'.str_replace('"', '""', $table).'"';
+            $counts[$table] = (int) $connection->query("SELECT COUNT(*) FROM $identifier")->fetchColumn();
+        }
+
+        if ($counts === []) {
+            throw new RuntimeException('Turso dump contains no application tables.');
+        }
+
+        return $counts;
     }
 
     private function requiredConfiguration(string $setting): string
