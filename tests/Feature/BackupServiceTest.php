@@ -32,7 +32,7 @@ function successfulTurso(array $tables = ['example' => 0]): TursoCli
 {
     $turso = mock(TursoCli::class);
     $turso->shouldReceive('dump')->once()->with('production')->andReturn('CREATE TABLE example (id INTEGER);');
-    $turso->shouldReceive('createFromDump')->once();
+    $turso->shouldReceive('createFromDump')->once()->andReturn($tables);
     $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $database !== 'production' && str_starts_with($sql, 'SELECT 1 FROM'))->andReturn('1');
     $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $database !== 'production' && $sql === 'PRAGMA integrity_check;')->andReturn("integrity_check\n---------------\nok\n");
     $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $database !== 'production' && str_starts_with($sql, 'SELECT COUNT(*)'))->andReturnUsing(function ($database, $sql) use ($tables): string {
@@ -113,7 +113,6 @@ describe('verified backups', function () {
     test('Given source objects and a successful restore drill, it publishes a completion manifest after copying every object', function () {
         Storage::disk('s3')->put('audio/one.mp3', 'first');
         Storage::disk('s3')->put('favicon.ico', 'second');
-        fakeProductionTableCounts(['example' => 2, 'words' => 3]);
         DB::shouldReceive('connection')->never();
         DB::shouldReceive('select')->never();
         DB::shouldReceive('scalar')->never();
@@ -128,22 +127,9 @@ describe('verified backups', function () {
             ->and($manifest['objects'])->toHaveCount(2)
             ->and($manifest['database']['tables'])->toBe(['example' => 2, 'words' => 3])
             ->and(Storage::disk('backups')->directoryExists("$prefix/restore-check"))->toBeFalse();
-        Http::assertSent(function (Request $request): bool {
-            if (! str_ends_with($request->url(), '/v2/pipeline')) {
-                return false;
-            }
-
-            return $request->hasHeader('Authorization', 'Bearer short-lived-read-only-token')
-                && $request->data()['requests'][1] === ['type' => 'close'];
-        });
-        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.turso.tech/v1/organizations/possiblewords/databases/production'
-            && $request->hasHeader('Authorization', 'Bearer platform-token'));
-        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.turso.tech/v1/organizations/possiblewords/databases/production/auth/tokens'
-            && $request->data() === ['expiration' => '5m', 'authorization' => 'read-only']);
     });
 
     test('Given a Turso export failure, it does not publish a completion marker', function () {
-        fakeProductionTableCounts();
         $turso = mock(TursoCli::class);
         $turso->shouldReceive('dump')->once()->andThrow(new RuntimeException('export failed'));
 
@@ -152,7 +138,6 @@ describe('verified backups', function () {
     });
 
     test('Given an empty Turso export, it fails without publishing a completion marker', function () {
-        fakeProductionTableCounts();
         $turso = mock(TursoCli::class);
         $turso->shouldReceive('dump')->once()->with('production')->andReturn("  \n");
 
@@ -170,10 +155,9 @@ describe('verified backups', function () {
     });
 
     test('Given temporary database verification fails, it deletes the temporary database and does not complete the run', function () {
-        fakeProductionTableCounts();
         $turso = mock(TursoCli::class);
         $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
-        $turso->shouldReceive('createFromDump')->once();
+        $turso->shouldReceive('createFromDump')->once()->andReturn(['example' => 0]);
         $turso->shouldReceive('query')->once()->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT 1 FROM'))->andReturn('1');
         $turso->shouldReceive('query')->once()->withArgs(fn ($database, $sql) => $sql === 'PRAGMA integrity_check;')->andThrow(new RuntimeException('integrity failed'));
         $turso->shouldReceive('delete')->once();
@@ -183,10 +167,9 @@ describe('verified backups', function () {
     });
 
     test('Given temporary database cleanup fails, it fails without publishing a completion marker', function () {
-        fakeProductionTableCounts();
         $turso = mock(TursoCli::class);
         $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
-        $turso->shouldReceive('createFromDump')->once();
+        $turso->shouldReceive('createFromDump')->once()->andReturn(['example' => 0]);
         $turso->shouldReceive('query')->once()->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT 1 FROM'))->andReturn('1');
         $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $sql === 'PRAGMA integrity_check;')->andReturn('ok');
         $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT COUNT(*)'))->andReturn('0');
@@ -200,10 +183,9 @@ describe('verified backups', function () {
     });
 
     test('Given a temporary database that is not immediately ready, it retries the readiness probe until it succeeds', function () {
-        fakeProductionTableCounts(['example' => 1]);
         $turso = mock(TursoCli::class);
         $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
-        $turso->shouldReceive('createFromDump')->once();
+        $turso->shouldReceive('createFromDump')->once()->andReturn(['example' => 1]);
         $attempts = 0;
         $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT 1 FROM'))
             ->andReturnUsing(function () use (&$attempts): string {
@@ -227,10 +209,9 @@ describe('verified backups', function () {
     });
 
     test('Given a temporary database that never becomes ready, it throws once the deadline passes', function () {
-        fakeProductionTableCounts(['example' => 1]);
         $turso = mock(TursoCli::class);
         $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
-        $turso->shouldReceive('createFromDump')->once();
+        $turso->shouldReceive('createFromDump')->once()->andReturn(['example' => 1]);
         $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT 1 FROM'))->andThrow(new RuntimeException('database is not ready'));
         $turso->shouldNotReceive('query')->withArgs(fn ($database, $sql) => $sql === 'PRAGMA integrity_check;');
         $turso->shouldReceive('delete')->once();
@@ -240,29 +221,6 @@ describe('verified backups', function () {
         expect(fn () => (new BackupService($turso, $metrics, 0.0, 0))->run())
             ->toThrow(RuntimeException::class, 'Restored database did not become ready before verification.');
         expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
-    });
-
-    test('Given the Platform API rejects the hostname lookup, it fails before using the CLI or creating backup artifacts', function () {
-        Http::fake(['api.turso.tech/*' => Http::response(['error' => 'denied'], 403)]);
-        $turso = mock(TursoCli::class);
-        $turso->shouldNotReceive('dump');
-
-        expect(fn () => backupServiceWith($turso)->run())->toThrow(RuntimeException::class, 'Turso Platform API request failed.');
-        expect(Storage::disk('backups')->allFiles('runs'))->toBe([]);
-    });
-
-    test('Given a database pipeline error response, it fails before using the CLI and still requests connection closure', function () {
-        Http::fake([
-            'api.turso.tech/v1/organizations/possiblewords/databases/production' => Http::response(['database' => ['Hostname' => 'production-possiblewords.turso.io']]),
-            'api.turso.tech/v1/organizations/possiblewords/databases/production/auth/tokens*' => Http::response(['jwt' => 'short-lived-read-only-token']),
-            'production-possiblewords.turso.io/v2/pipeline' => pipelineResponse([], 'error'),
-        ]);
-        $turso = mock(TursoCli::class);
-        $turso->shouldNotReceive('dump');
-
-        expect(fn () => backupServiceWith($turso)->run())->toThrow(RuntimeException::class, 'invalid pipeline response');
-        Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/v2/pipeline')
-            && $request->data()['requests'][1] === ['type' => 'close']);
     });
 
     test('Given a completion manifest younger than four hours, it is fresh', function () {

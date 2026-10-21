@@ -6,7 +6,8 @@ interface TursoCli
 {
     public function dump(string $database): string;
 
-    public function createFromDump(string $database, string $dumpPath): void;
+    /** @return array<string, int> */
+    public function createFromDump(string $database, string $dumpPath): array;
 
     public function query(string $database, string $sql): string;
 
