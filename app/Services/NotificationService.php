@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Mail\NotificationMail;
 use App\Models\User;
 use App\Models\Word;
+use App\Models\WordBatch;
 use App\Notifications\AppNotification;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Log;
@@ -96,6 +97,24 @@ class NotificationService
             }
         });
 
+        return $delivered;
+    }
+
+    public function notifyNewWordBatch(WordBatch $batch): bool
+    {
+        $words = $batch->slots()->with('word')->get()->map(fn ($slot) => [
+            'text' => $slot->word->text,
+            'url' => route('words.show', $slot->word),
+            'domain_status' => $slot->word->domain_status,
+        ])->all();
+        if (count($words) !== $batch->target_count) return false;
+        $delivered = true;
+        User::query()->chunkById(100, function ($users) use ($batch, $words, &$delivered): void {
+            foreach ($users as $user) $delivered = $this->notify($user, [
+                'kind' => 'new_word_batch', 'title' => 'Five new Possible Words', 'body' => 'A new five-word cohort is ready to explore.',
+                'url' => $words[0]['url'], 'words' => $words, 'subject_type' => $batch->getMorphClass(), 'subject_id' => $batch->id,
+            ], false, "new-word-batch:{$batch->id}:{$user->id}") && $delivered;
+        });
         return $delivered;
     }
 

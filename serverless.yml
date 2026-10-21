@@ -16,7 +16,13 @@ provider:
                 - Effect: Allow
                   Action:
                       - s3:ListBucket
-                  Resource: arn:aws:s3:::possiblewords-prod-audio
+                   Resource: arn:aws:s3:::possiblewords-prod-audio
+                - Effect: Allow
+                  Action: cloudwatch:PutMetricData
+                  Resource: '*'
+                  Condition:
+                      StringEquals:
+                          cloudwatch:namespace: PossibleWords/WordBatches
     environment:
         APP_ENV: production
         APP_DEBUG: 0
@@ -55,8 +61,14 @@ provider:
         # the Lambda ceiling so a timed-out invocation cannot overlap a retry.
         DOMAIN_RUN_LOCK_TTL_SECONDS: '720'
 
-        WORD_RELEASE_BATCH_SIZE: ${env:WORD_RELEASE_BATCH_SIZE, '10'}
+        WORD_RELEASE_BATCH_SIZE: ${env:WORD_RELEASE_BATCH_SIZE, '5'}
         WORD_RELEASE_SCHEDULE: ${env:WORD_RELEASE_SCHEDULE, 'cron(0 */6 * * ? *)'}
+        WORD_BATCH_SIZE: ${env:WORD_BATCH_SIZE, '5'}
+        WORD_BATCH_COORDINATOR_ITEMS: ${env:WORD_BATCH_COORDINATOR_ITEMS, '10'}
+        WORD_BATCH_COORDINATOR_SECONDS: ${env:WORD_BATCH_COORDINATOR_SECONDS, '600'}
+        WORD_BATCH_LEASE_TTL_SECONDS: ${env:WORD_BATCH_LEASE_TTL_SECONDS, '720'}
+        WORD_BATCH_RETRY_BASE_SECONDS: ${env:WORD_BATCH_RETRY_BASE_SECONDS, '60'}
+        WORD_BATCH_RETRY_CAP_SECONDS: ${env:WORD_BATCH_RETRY_CAP_SECONDS, '3600'}
 
         DB_CONNECTION: turso
         TURSO_CONNECT_TIMEOUT: ${env:TURSO_CONNECT_TIMEOUT, '5'}
@@ -122,17 +134,13 @@ functions:
         environment: ${self:custom.applicationEnvironment}
         events:
             - schedule:
-                  rate: cron(0 5 * * ? *)
+                  rate: cron(0 */6 * * ? *)
                   input:
-                      cli: 'words:generate --count=20'
+                      cli: 'words:generate-batch'
             - schedule:
-                  rate: cron(30 5 * * ? *)
+                  rate: rate(5 minutes)
                   input:
-                      cli: 'words:generate-pronunciation --chunk=50'
-            - schedule:
-                  rate: cron(0 6 * * ? *)
-                  input:
-                      cli: 'words:check-dictionary --chunk=50 --retry-failed'
+                      cli: 'words:process-batches --limit=10 --max-seconds=600'
             # Each invocation is capped at 8 single RDAP attempts. Its normal
             # worst case is 8 * (10-second timeout + 1.1-second pacing +
             # 15-second Turso write), plus database/startup margin. A provider
@@ -143,7 +151,7 @@ functions:
                   input:
                       cli: 'words:check-domains --chunk=8 --limit=8'
             - schedule:
-                  rate: ${env:WORD_RELEASE_SCHEDULE, 'cron(0 */6 * * ? *)'}
+                  rate: rate(5 minutes)
                   input:
                       cli: 'words:release'
             - schedule:
@@ -227,6 +235,42 @@ resources:
                 Subscription:
                     - Endpoint: jimtayloremail@gmail.com
                       Protocol: email
+        WordBatchAlarmTopic:
+            Type: AWS::SNS::Topic
+            Properties:
+                TopicName: possiblewords-${sls:stage}-word-batch-alarms
+                Subscription:
+                    - Endpoint: jimtayloremail@gmail.com
+                      Protocol: email
+        ArtisanLambdaErrorsAlarm:
+            Type: AWS::CloudWatch::Alarm
+            Properties:
+                AlarmDescription: The application Artisan Lambda failed.
+                Namespace: AWS/Lambda
+                MetricName: Errors
+                Statistic: Sum
+                Period: 300
+                EvaluationPeriods: 1
+                Threshold: 1
+                ComparisonOperator: GreaterThanOrEqualToThreshold
+                TreatMissingData: notBreaching
+                Dimensions:
+                    - Name: FunctionName
+                      Value: { Ref: ArtisanLambdaFunction }
+                AlarmActions: [{ Ref: WordBatchAlarmTopic }]
+        WordBatchFailureAlarm:
+            Type: AWS::CloudWatch::Alarm
+            Properties:
+                AlarmDescription: Word batch publication or fanout failed.
+                Namespace: PossibleWords/WordBatches
+                MetricName: BatchFanoutFailure
+                Statistic: Sum
+                Period: 300
+                EvaluationPeriods: 1
+                Threshold: 1
+                ComparisonOperator: GreaterThanOrEqualToThreshold
+                TreatMissingData: notBreaching
+                AlarmActions: [{ Ref: WordBatchAlarmTopic }]
         BackupLambdaRole:
             Type: AWS::IAM::Role
             Properties:
