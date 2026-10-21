@@ -1,4 +1,4 @@
-.PHONY: start setup install migrate seed audio build dev realtime snapshot reset fresh reseed-words zip-audio restore-audio test test-load
+.PHONY: start setup install migrate seed audio build dev realtime snapshot reset fresh reseed-words zip-audio restore-audio test test-load pr-manager-start pr-manager-pause pr-manager-restart pr-manager-stop
 
 start: reset dev
 
@@ -36,6 +36,18 @@ test:
 
 test-load:
 	@composer test:load
+
+pr-manager-start:
+	@scripts/manage-pr-manager-scheduler.sh start
+
+pr-manager-pause:
+	@scripts/manage-pr-manager-scheduler.sh pause
+
+pr-manager-restart:
+	@scripts/manage-pr-manager-scheduler.sh restart
+
+pr-manager-stop:
+	@scripts/manage-pr-manager-scheduler.sh stop
 
 SNAPSHOT_DIR = .snapshots
 SNAPSHOT_FILE = $(SNAPSHOT_DIR)/dev-data.sqlite

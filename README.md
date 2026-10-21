@@ -63,6 +63,17 @@ Local dev uses a **stable set of 1000 words** committed as a fixture (`database/
 
 See [tests/README.md](tests/README.md) for how to run the PHP (Pest), frontend (Vitest), and end-to-end (Playwright) test suites.
 
+## PR Manager Scheduler
+
+The local `pr-manager` job runs in this repository every ten minutes. Control it with:
+
+```bash
+make pr-manager-start    # create and schedule the job
+make pr-manager-pause    # prevent future runs without deleting it
+make pr-manager-restart  # schedule it again after pausing
+make pr-manager-stop     # delete the job and its launchd configuration
+```
+
 ## Usage
 
 1. Run the dev servers:
