@@ -47,6 +47,13 @@ class NotificationController extends Controller
                     'title' => $notification->data['title'] ?? null,
                     'body' => $notification->data['body'] ?? null,
                     'url' => $notification->data['url'] ?? null,
+                    'words' => ($notification->kind ?? null) === 'new_word_batch'
+                        ? collect($notification->data['words'] ?? [])->map(fn (array $word) => array_filter([
+                            'text' => $word['text'] ?? null,
+                            'url' => $word['url'] ?? null,
+                            'domain_status' => $word['domain_status'] ?? null,
+                        ], static fn ($value) => $value !== null))->values()->all()
+                        : null,
                 ], static fn ($value) => $value !== null),
                 'read_at' => $notification->read_at?->toISOString(),
                 'created_at' => $notification->created_at->toISOString(),
