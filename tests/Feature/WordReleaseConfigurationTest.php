@@ -32,7 +32,7 @@ describe('word release configuration', function () {
         $serverless = file_get_contents(base_path('serverless.yml'));
 
         expect($serverless)
-            ->toContain("rate: cron(0 */6 * * ? *)")
+            ->toContain('rate: cron(0 */6 * * ? *)')
             ->toContain("cli: 'words:generate-batch'")
             ->toContain("cli: 'words:process-batches --limit=10 --max-seconds=600'")
             ->toContain("cli: 'words:release'");

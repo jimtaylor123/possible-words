@@ -107,14 +107,19 @@ class NotificationService
             'url' => route('words.show', $slot->word),
             'domain_status' => $slot->word->domain_status,
         ])->all();
-        if (count($words) !== $batch->target_count) return false;
+        if (count($words) !== $batch->target_count) {
+            return false;
+        }
         $delivered = true;
         User::query()->chunkById(100, function ($users) use ($batch, $words, &$delivered): void {
-            foreach ($users as $user) $delivered = $this->notify($user, [
-                'kind' => 'new_word_batch', 'title' => 'Five new Possible Words', 'body' => 'A new five-word cohort is ready to explore.',
-                'url' => $words[0]['url'], 'words' => $words, 'subject_type' => $batch->getMorphClass(), 'subject_id' => $batch->id,
-            ], false, "new-word-batch:{$batch->id}:{$user->id}") && $delivered;
+            foreach ($users as $user) {
+                $delivered = $this->notify($user, [
+                    'kind' => 'new_word_batch', 'title' => 'Five new Possible Words', 'body' => 'A new five-word cohort is ready to explore.',
+                    'url' => $words[0]['url'], 'words' => $words, 'subject_type' => $batch->getMorphClass(), 'subject_id' => $batch->id,
+                ], false, "new-word-batch:{$batch->id}:{$user->id}") && $delivered;
+            }
         });
+
         return $delivered;
     }
 

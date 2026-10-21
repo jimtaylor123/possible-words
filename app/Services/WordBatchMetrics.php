@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Log;
 
 class WordBatchMetrics
 {
-    public function emit(string $name, float $value = 1): void
+    public function emit(string $name, float $value = 1, string $unit = 'Count'): void
     {
         Log::info('Word batch metric', ['metric' => $name, 'value' => $value]);
         if (! app()->environment('production')) {
@@ -16,7 +16,7 @@ class WordBatchMetrics
         try {
             (new CloudWatchClient(['version' => 'latest', 'region' => config('services.ses.region')]))->putMetricData([
                 'Namespace' => 'PossibleWords/WordBatches',
-                'MetricData' => [['MetricName' => $name, 'Value' => $value, 'Unit' => 'Count']],
+                'MetricData' => [['MetricName' => $name, 'Value' => $value, 'Unit' => $unit]],
             ]);
         } catch (\Throwable $exception) {
             Log::warning('Word batch metric could not be sent.', ['metric' => $name, 'exception' => $exception]);

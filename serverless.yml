@@ -16,7 +16,7 @@ provider:
                 - Effect: Allow
                   Action:
                       - s3:ListBucket
-                   Resource: arn:aws:s3:::possiblewords-prod-audio
+                  Resource: arn:aws:s3:::possiblewords-prod-audio
                 - Effect: Allow
                   Action: cloudwatch:PutMetricData
                   Resource: '*'
@@ -69,6 +69,7 @@ provider:
         WORD_BATCH_LEASE_TTL_SECONDS: ${env:WORD_BATCH_LEASE_TTL_SECONDS, '720'}
         WORD_BATCH_RETRY_BASE_SECONDS: ${env:WORD_BATCH_RETRY_BASE_SECONDS, '60'}
         WORD_BATCH_RETRY_CAP_SECONDS: ${env:WORD_BATCH_RETRY_CAP_SECONDS, '3600'}
+        WORD_BATCH_STALE_SECONDS: ${env:WORD_BATCH_STALE_SECONDS, '21600'}
 
         DB_CONNECTION: turso
         TURSO_CONNECT_TIMEOUT: ${env:TURSO_CONNECT_TIMEOUT, '5'}
@@ -100,6 +101,7 @@ custom:
     # Keep the default retention small; deployments can override it with
     # BACKUP_RETENTION_DAYS without changing the infrastructure definition.
     backupRetentionDays: ${env:BACKUP_RETENTION_DAYS, 7}
+    wordBatchStaleSeconds: ${env:WORD_BATCH_STALE_SECONDS, 21600}
     # Do not place these in provider.environment: Serverless merges that map
     # into every function, including the deliberately isolated backup Lambda.
     applicationEnvironment:
@@ -270,6 +272,19 @@ resources:
                 Threshold: 1
                 ComparisonOperator: GreaterThanOrEqualToThreshold
                 TreatMissingData: notBreaching
+                AlarmActions: [{ Ref: WordBatchAlarmTopic }]
+        WordBatchStalledAlarm:
+            Type: AWS::CloudWatch::Alarm
+            Properties:
+                AlarmDescription: An active word cohort has not progressed within the stale threshold.
+                Namespace: PossibleWords/WordBatches
+                MetricName: BatchOldestActiveAge
+                Statistic: Maximum
+                Period: 300
+                EvaluationPeriods: 1
+                Threshold: ${self:custom.wordBatchStaleSeconds}
+                ComparisonOperator: GreaterThanOrEqualToThreshold
+                TreatMissingData: breaching
                 AlarmActions: [{ Ref: WordBatchAlarmTopic }]
         BackupLambdaRole:
             Type: AWS::IAM::Role

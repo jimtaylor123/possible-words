@@ -1,10 +1,10 @@
 <?php
 
 use App\Models\Definition;
+use App\Models\User;
 use App\Models\Word;
 use App\Models\WordBatch;
 use App\Models\WordBatchSlot;
-use App\Models\User;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
@@ -16,8 +16,11 @@ function readyBatch(bool $ready = true): WordBatch
         $word = Word::create(['text' => "batchword{$number}", 'slug' => "batchword{$number}", 'status' => 'available', 'dictionary_status' => Word::DICTIONARY_NOT_FOUND, 'domain_status' => Word::DOMAIN_AVAILABLE, 'ipa' => '/test/', 'audio_url' => "audio/{$number}.mp3", 'ai_definition_status' => Word::AI_DEFINITION_GENERATED]);
         Definition::create(['word_id' => $word->id, 'user_id' => $user->id, 'text' => 'An AI definition.', 'origin' => Definition::ORIGIN_AI, 'votes_count' => 0]);
         WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => $number, 'word_id' => $word->id]);
-        if (! $ready && $number === 5) $word->update(['audio_url' => null]);
+        if (! $ready && $number === 5) {
+            $word->update(['audio_url' => null]);
+        }
     }
+
     return $batch;
 }
 

@@ -2,43 +2,38 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('word_batches', function (Blueprint $table) {
-            $table->id();
-            $table->timestamp('scheduled_for')->unique();
-            $table->unsignedTinyInteger('target_count')->default(5);
-            $table->string('status')->default('generating');
-            $table->timestamp('generated_at')->nullable();
-            $table->timestamp('ready_at')->nullable();
-            $table->timestamp('published_at')->nullable();
-            $table->timestamp('notification_dispatched_at')->nullable();
-            $table->timestamp('last_progressed_at')->nullable();
-            $table->unsignedInteger('attempts')->default(0);
-            $table->timestamp('retry_at')->nullable();
-            $table->json('last_error')->nullable();
-            $table->timestamp('stalled_at')->nullable();
-            $table->timestamps();
-            $table->index(['status', 'retry_at']);
-        });
+        // SQLite/Turso do not support adding check constraints after a table is
+        // created. Define the two invariant-bearing tables directly so both the
+        // production database and the test database reject partial cohorts.
+        DB::statement("CREATE TABLE word_batches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scheduled_for DATETIME NOT NULL UNIQUE,
+            target_count INTEGER NOT NULL DEFAULT 5 CHECK (target_count = 5),
+            status VARCHAR NOT NULL DEFAULT 'generating',
+            generated_at DATETIME NULL, ready_at DATETIME NULL, published_at DATETIME NULL,
+            notification_dispatched_at DATETIME NULL, last_progressed_at DATETIME NULL,
+            attempts INTEGER NOT NULL DEFAULT 0, retry_at DATETIME NULL, last_error TEXT NULL,
+            stalled_at DATETIME NULL, created_at DATETIME NULL, updated_at DATETIME NULL
+        )");
+        DB::statement('CREATE INDEX word_batches_status_retry_at_index ON word_batches (status, retry_at)');
 
-        Schema::create('word_batch_slots', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('word_batch_id')->constrained()->cascadeOnDelete();
-            $table->unsignedTinyInteger('slot_number');
-            $table->foreignId('word_id')->nullable()->unique()->constrained()->nullOnDelete();
-            $table->string('status')->default('pending');
-            $table->unsignedInteger('attempts')->default(0);
-            $table->timestamp('retry_at')->nullable();
-            $table->json('last_error')->nullable();
-            $table->timestamps();
-            $table->unique(['word_batch_id', 'slot_number']);
-            $table->index(['status', 'retry_at']);
-        });
+        DB::statement("CREATE TABLE word_batch_slots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            word_batch_id INTEGER NOT NULL REFERENCES word_batches(id) ON DELETE CASCADE,
+            slot_number INTEGER NOT NULL CHECK (slot_number BETWEEN 1 AND 5),
+            word_id INTEGER NULL UNIQUE REFERENCES words(id) ON DELETE SET NULL,
+            status VARCHAR NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+            retry_at DATETIME NULL, last_error TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL,
+            UNIQUE (word_batch_id, slot_number)
+        )");
+        DB::statement('CREATE INDEX word_batch_slots_status_retry_at_index ON word_batch_slots (status, retry_at)');
 
         Schema::create('word_batch_run_locks', function (Blueprint $table) {
             $table->string('name')->primary();

@@ -1,9 +1,9 @@
 <?php
 
+use App\Models\User;
 use App\Models\Word;
 use App\Models\WordBatch;
 use App\Models\WordBatchSlot;
-use App\Models\User;
 use App\Services\NotificationService;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
