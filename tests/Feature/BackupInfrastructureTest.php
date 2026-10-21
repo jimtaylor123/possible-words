@@ -33,6 +33,7 @@ describe('backup infrastructure', function () {
         expect($serverless['resources']['Resources']['BackupAlarmTopic']['Properties']['Subscription'])
             ->toContain(['Endpoint' => 'jimtayloremail@gmail.com', 'Protocol' => 'email']);
         expect($serverless['package']['patterns'])->toContain('bin/turso');
+        expect($serverless['package']['patterns'])->toContain('bin/sqlite3');
         expect($serverless['package']['patterns'])->toContain('vendor/aws/aws-sdk-php/src/data/monitoring/**');
     });
 
@@ -52,6 +53,7 @@ describe('backup infrastructure', function () {
         expect($workflow)
             ->toContain('scripts/install-turso-cli.sh')
             ->toContain("grep -q 'bin/turso'")
+            ->toContain("grep -q 'bin/sqlite3'")
             ->toContain("BACKUP_RETENTION_DAYS: \${{ vars.BACKUP_RETENTION_DAYS || '7' }}");
     });
 });

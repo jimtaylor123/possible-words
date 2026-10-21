@@ -343,6 +343,7 @@ package:
         - 'vendor/aws/aws-sdk-php/src/data/cloudwatch/**'
         - 'vendor/aws/aws-sdk-php/src/data/monitoring/**'
         - 'bin/turso'
+        - 'bin/sqlite3'
         - '!docker-compose.yml'
 
 plugins:
