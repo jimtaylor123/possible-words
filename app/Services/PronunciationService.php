@@ -109,15 +109,42 @@ class PronunciationService
         $ipa = $this->generateIPA($word);
         $word->ipa = $ipa;
 
-        if ($this->tts->isAvailable()) {
+        if (blank($word->audio_url) && $this->tts->isAvailable()) {
             $audioUrl = $this->tts->generateAudio($word);
             if ($audioUrl !== null) {
                 $word->audio_url = $audioUrl;
             }
         }
 
-        $word->save();
+        if (filled($word->ipa) && filled($word->audio_url)) {
+            $word->fill([
+                'pronunciation_status' => Word::PRONUNCIATION_GENERATED,
+                'pronunciation_attempted_at' => now(),
+                'pronunciation_attempts' => 0,
+                'pronunciation_retry_at' => null,
+                'pronunciation_error' => null,
+            ])->save();
+
+            return $word->fresh();
+        }
+
+        $attempts = $word->pronunciation_attempts + 1;
+        $word->fill([
+            'pronunciation_status' => Word::PRONUNCIATION_FAILED,
+            'pronunciation_attempted_at' => now(),
+            'pronunciation_attempts' => $attempts,
+            'pronunciation_retry_at' => now()->addSeconds($this->retryDelay($attempts)),
+            'pronunciation_error' => $this->tts->isAvailable() ? 'audio_not_generated' : 'tts_unavailable',
+        ])->save();
 
         return $word->fresh();
+    }
+
+    private function retryDelay(int $attempts): int
+    {
+        $base = (int) config('word-batch.retry_base_seconds');
+        $cap = (int) config('word-batch.retry_cap_seconds');
+
+        return min($cap, $base * (2 ** min(10, max(0, $attempts - 1))));
     }
 }

@@ -1,83 +1,91 @@
 <?php
 
+use App\Models\Definition;
+use App\Models\User;
 use App\Models\Word;
-use App\Services\NotificationService;
+use App\Models\WordBatch;
+use App\Models\WordBatchSlot;
+use App\Services\DictionaryService;
+use App\Services\DomainAvailabilityService;
+use App\Services\PronunciationService;
+use App\Services\WordBatchCoordinator;
+use App\Services\WordBatchMetrics;
+use App\Services\WordBatchPublisher;
+use App\Services\WordGenerator;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
-function releasableWord(string $text, array $attributes = []): Word
+function readyBatch(bool $ready = true): WordBatch
 {
-    return Word::create(array_merge([
-        'text' => $text,
-        'slug' => $text,
-        'status' => 'available',
-        'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
-        'generated_at' => now(),
-    ], $attributes));
+    $batch = WordBatch::create(['scheduled_for' => now('UTC')->subHours(6), 'target_count' => 5, 'status' => WordBatch::READY, 'ready_at' => now()]);
+    $user = User::factory()->create();
+    foreach (range(1, 5) as $number) {
+        $word = Word::create(['text' => "batchword{$number}", 'slug' => "batchword{$number}", 'status' => 'available', 'dictionary_status' => Word::DICTIONARY_NOT_FOUND, 'domain_status' => Word::DOMAIN_AVAILABLE, 'ipa' => '/test/', 'audio_url' => "audio/{$number}.mp3", 'ai_definition_status' => Word::AI_DEFINITION_GENERATED]);
+        Definition::create(['word_id' => $word->id, 'user_id' => $user->id, 'text' => 'An AI definition.', 'origin' => Definition::ORIGIN_AI, 'votes_count' => 0]);
+        WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => $number, 'word_id' => $word->id]);
+        if (! $ready && $number === 5) {
+            $word->update(['audio_url' => null]);
+        }
+    }
+
+    return $batch;
 }
 
-describe('releasing words via artisan', function () {
-    test('Given eligible inventory, it releases the oldest words up to the configured batch size', function () {
-        config()->set('word-release.batch_size', 2);
-        $oldest = releasableWord('oldest', ['generated_at' => now()->subHours(2)]);
-        $next = releasableWord('next', ['generated_at' => now()->subHour()]);
-        $newest = releasableWord('newest');
+describe('releasing word cohorts via artisan', function () {
+    test('delegates to the batch publisher and reports its count', function () {
+        $publisher = mock(WordBatchPublisher::class);
+        $publisher->shouldReceive('publishReady')->once()->andReturn(3);
+        app()->instance(WordBatchPublisher::class, $publisher);
 
         $this->artisan('words:release')
-            ->expectsOutputToContain('Released 2 of 2 word(s).')
-            ->assertExitCode(0);
-
-        expect($oldest->fresh()->published_at)->not->toBeNull()
-            ->and($next->fresh()->published_at)->not->toBeNull()
-            ->and($newest->fresh()->published_at)->toBeNull()
-            ->and($oldest->fresh()->published_at->toDateTimeString())
-            ->toBe($next->fresh()->published_at->toDateTimeString());
-    });
-
-    test('Given ineligible inventory, it skips it and releases a partial batch', function () {
-        config()->set('word-release.batch_size', 3);
-        $eligible = releasableWord('eligible', ['generated_at' => now()->subHour()]);
-        $realWord = releasableWord('realword', ['dictionary_status' => Word::DICTIONARY_EXISTS_AS_WORD]);
-        $owned = releasableWord('ownedword', ['status' => 'owned']);
-        $withdrawn = releasableWord('withdrawn');
-        $withdrawn->delete();
-
-        $this->artisan('words:release')
-            ->expectsOutputToContain('Released 1 of 3 word(s).')
-            ->assertExitCode(0);
-
-        expect($eligible->fresh()->published_at)->not->toBeNull()
-            ->and($realWord->fresh()->published_at)->toBeNull()
-            ->and($owned->fresh()->published_at)->toBeNull()
-            ->and(Word::withTrashed()->find($withdrawn->id)->published_at)->toBeNull();
-    });
-
-    test('Given no eligible inventory, it performs no release', function () {
-        releasableWord('unchecked', ['dictionary_status' => Word::DICTIONARY_UNCHECKED]);
-
-        $this->artisan('words:release')
-            ->expectsOutputToContain('Released 0 of 10 word(s).')
+            ->expectsOutput('Published 3 complete cohort(s).')
             ->assertExitCode(0);
     });
 
-    test('Given notification delivery fails, it leaves the word pending for a retry', function () {
-        $word = releasableWord('pending-notification', ['domain_status' => Word::DOMAIN_AVAILABLE]);
-        $notifications = Mockery::mock(NotificationService::class);
-        $notifications->shouldReceive('notifyNewWord')->once()->with(Mockery::on(fn (Word $candidate) => $candidate->is($word)))->andReturnFalse();
-        app()->instance(NotificationService::class, $notifications);
+    test('publishes exactly five ready cohort words with a shared timestamp', function () {
+        $batch = readyBatch();
+        $legacy = Word::create(['text' => 'legacyinventory', 'slug' => 'legacyinventory', 'status' => 'available', 'dictionary_status' => Word::DICTIONARY_NOT_FOUND]);
+
+        $this->artisan('words:release')->expectsOutputToContain('Published 1 complete cohort(s).')->assertExitCode(0);
+
+        $words = $batch->fresh()->slots()->with('word')->get()->pluck('word');
+        expect($batch->fresh()->status)->toBe(WordBatch::PUBLISHED)
+            ->and($words->pluck('published_at')->unique()->count())->toBe(1)
+            ->and($words->filter(fn (Word $word) => $word->published_at !== null))->toHaveCount(5)
+            ->and($legacy->fresh()->published_at)->toBeNull();
+    });
+
+    test('does not publish an incomplete cohort and returns it to processing', function () {
+        $batch = readyBatch(false);
 
         $this->artisan('words:release')->assertExitCode(0);
 
-        expect($word->fresh()->published_at)->not->toBeNull()
-            ->and($word->fresh()->notification_sent_at)->toBeNull();
+        expect($batch->fresh()->status)->toBe(WordBatch::PROCESSING)
+            ->and($batch->fresh()->published_at)->toBeNull()
+            ->and($batch->slots()->with('word')->get()->pluck('word')->every(fn (Word $word) => $word->published_at === null))->toBeTrue();
     });
 
-    test('Given a previously published word, it does not notify users after notification support is deployed', function () {
-        releasableWord('already-published', ['domain_status' => Word::DOMAIN_AVAILABLE, 'published_at' => now()->subDay(), 'notification_sent_at' => now()]);
-        $notifications = Mockery::mock(NotificationService::class);
-        $notifications->shouldNotReceive('notifyNewWord');
-        app()->instance(NotificationService::class, $notifications);
+    test('is idempotent after cohort publication', function () {
+        $batch = readyBatch();
+        $this->artisan('words:release')->assertExitCode(0);
+        $publishedAt = $batch->fresh()->published_at;
+        $this->artisan('words:release')->expectsOutputToContain('Published 0 complete cohort(s).')->assertExitCode(0);
+        expect($batch->fresh()->published_at->equalTo($publishedAt))->toBeTrue();
+    });
+
+    test('a processor selected before publication cannot revert or republish the cohort', function () {
+        $batch = readyBatch();
+        $selectedForProcessing = $batch->fresh();
+        $coordinator = new WordBatchCoordinator(
+            mock(WordGenerator::class), mock(DictionaryService::class), mock(PronunciationService::class), mock(DomainAvailabilityService::class), mock(WordBatchMetrics::class)
+        );
 
         $this->artisan('words:release')->assertExitCode(0);
+        $publishedAt = $batch->fresh()->published_at;
+        $coordinator->process($selectedForProcessing);
+
+        $this->artisan('words:release')->expectsOutputToContain('Published 0 complete cohort(s).')->assertExitCode(0);
+        expect($batch->fresh()->status)->toBe(WordBatch::PUBLISHED)
+            ->and($batch->fresh()->published_at->equalTo($publishedAt))->toBeTrue();
     });
 });

@@ -43,6 +43,8 @@ class GenerateWordDefinition implements ShouldQueue
             $word->update([
                 'ai_definition_status' => Word::AI_DEFINITION_GENERATED,
                 'ai_definition_error' => null,
+                'ai_definition_attempts' => 0,
+                'ai_definition_retry_at' => null,
             ]);
 
             return;
@@ -137,6 +139,8 @@ class GenerateWordDefinition implements ShouldQueue
             'ai_definition_status' => Word::AI_DEFINITION_FAILED,
             'ai_definition_attempted_at' => now(),
             'ai_definition_error' => mb_substr($message, 0, 255),
+            'ai_definition_attempts' => $word->ai_definition_attempts + 1,
+            'ai_definition_retry_at' => now()->addSeconds(min(3600, 60 * (2 ** min(10, $word->ai_definition_attempts)))),
         ]);
 
         Log::warning('AI definition generation failed.', [

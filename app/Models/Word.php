@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
@@ -40,6 +41,12 @@ class Word extends Model
     public const AI_DEFINITION_GENERATED = 'generated';
 
     public const AI_DEFINITION_FAILED = 'failed';
+
+    public const PRONUNCIATION_PENDING = 'pending';
+
+    public const PRONUNCIATION_GENERATED = 'generated';
+
+    public const PRONUNCIATION_FAILED = 'failed';
 
     /**
      * Dictionary verdicts that make a word safe to publish as an unused word.
@@ -95,6 +102,8 @@ class Word extends Model
         'ai_definition_attempted_at',
         'ai_definition_error',
         'notification_sent_at',
+        'pronunciation_status', 'pronunciation_attempted_at', 'pronunciation_attempts', 'pronunciation_retry_at', 'pronunciation_error',
+        'dictionary_attempts', 'dictionary_retry_at', 'dictionary_error', 'ai_definition_attempts', 'ai_definition_retry_at',
     ];
 
     protected $casts = [
@@ -110,6 +119,7 @@ class Word extends Model
         'ai_definition_attempted_at' => 'datetime',
         'deleted_at' => 'datetime',
         'notification_sent_at' => 'datetime',
+        'pronunciation_attempted_at' => 'datetime', 'pronunciation_retry_at' => 'datetime', 'dictionary_retry_at' => 'datetime', 'ai_definition_retry_at' => 'datetime',
     ];
 
     /**
@@ -168,6 +178,11 @@ class Word extends Model
     public function definitions(): HasMany
     {
         return $this->hasMany(Definition::class);
+    }
+
+    public function batchSlot(): HasOne
+    {
+        return $this->hasOne(WordBatchSlot::class);
     }
 
     public function ownerships(): HasMany
