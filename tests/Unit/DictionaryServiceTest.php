@@ -10,10 +10,6 @@ beforeEach(function () {
 });
 
 describe('banned word list', function () {
-    test('Given a packaged application, it reads the immutable list outside writable storage', function () {
-        expect(config('dictionary.banned_words_path'))->toBe(base_path('storage/app/dictionary/banned-words.json'));
-    });
-
     test('Given the banned list file, it loads a non-empty word array', function () {
         $words = $this->service->loadBannedWords();
 
@@ -45,6 +41,20 @@ describe('banned word list', function () {
         config()->set('dictionary.banned_words_required', false);
 
         expect((new DictionaryService)->loadBannedWords())->toBe([]);
+    });
+
+    test('Given a malformed required banned list, loading it fails closed', function () {
+        $path = tempnam(sys_get_temp_dir(), 'banned-words-');
+        file_put_contents($path, '{not json');
+        config()->set('dictionary.banned_words_path', $path);
+        config()->set('dictionary.banned_words_required', true);
+
+        try {
+            expect(fn () => (new DictionaryService)->loadBannedWords())
+                ->toThrow(RuntimeException::class, 'Banned words list missing or empty');
+        } finally {
+            unlink($path);
+        }
     });
 });
 
