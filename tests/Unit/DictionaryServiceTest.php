@@ -10,6 +10,10 @@ beforeEach(function () {
 });
 
 describe('banned word list', function () {
+    test('Given a packaged application, it reads the immutable list outside writable storage', function () {
+        expect(config('dictionary.banned_words_path'))->toBe(base_path('storage/app/dictionary/banned-words.json'));
+    });
+
     test('Given the banned list file, it loads a non-empty word array', function () {
         $words = $this->service->loadBannedWords();
 

@@ -20,7 +20,9 @@ return [
     | during generation. This is a fast sync check before API lookups.
     |
     */
-    'banned_words_path' => storage_path('app/dictionary/banned-words.json'),
+    // Bref relocates writable Laravel storage to /tmp, but this immutable gate
+    // is packaged with the application under /var/task/storage.
+    'banned_words_path' => base_path('storage/app/dictionary/banned-words.json'),
 
     /*
     |--------------------------------------------------------------------------
