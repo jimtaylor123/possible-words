@@ -24,7 +24,7 @@ class WordBatchCoordinator
     {
         $batch->load('slots.word');
         foreach ($batch->slots as $slot) {
-            if ($slot->word === null || $slot->status === WordBatchSlot::REJECTED) {
+            if (($slot->word === null || $slot->status === WordBatchSlot::REJECTED) && ($slot->retry_at === null || $slot->retry_at->isPast())) {
                 $this->fill($batch, $slot);
             }
             if ($slot->fresh()->word !== null) {
@@ -118,11 +118,18 @@ class WordBatchCoordinator
 
     private function evaluate(WordBatch $batch): void
     {
-        $ready = $batch->target_count === WordBatch::SIZE && $batch->slots->count() === WordBatch::SIZE && $batch->slots->every(fn (WordBatchSlot $slot) => $slot->word !== null && $this->ready($slot->word));
-        $batch->update(['status' => $ready ? WordBatch::READY : WordBatch::PROCESSING, 'ready_at' => $ready ? ($batch->ready_at ?? now()) : null, 'generated_at' => $batch->generated_at ?? now(), 'last_progressed_at' => now(), 'retry_at' => $ready ? null : now()->addSeconds(config('word-batch.retry_base_seconds'))]);
-        if ($ready) {
-            $this->metrics->emit('BatchReady');
-        }
+        DB::transaction(function () use ($batch) {
+            $batch = WordBatch::query()->lockForUpdate()->find($batch->id);
+            if ($batch === null || $batch->status === WordBatch::PUBLISHED) {
+                return;
+            }
+            $slots = WordBatchSlot::query()->where('word_batch_id', $batch->id)->lockForUpdate()->with('word')->orderBy('slot_number')->get();
+            $ready = $batch->target_count === WordBatch::SIZE && $slots->count() === WordBatch::SIZE && $slots->every(fn (WordBatchSlot $slot) => $slot->word !== null && $this->ready($slot->word));
+            $batch->update(['status' => $ready ? WordBatch::READY : WordBatch::PROCESSING, 'ready_at' => $ready ? ($batch->ready_at ?? now()) : null, 'generated_at' => $batch->generated_at ?? now(), 'last_progressed_at' => now(), 'retry_at' => $ready ? null : now()->addSeconds(config('word-batch.retry_base_seconds'))]);
+            if ($ready) {
+                $this->metrics->emit('BatchReady');
+            }
+        });
     }
 
     public function ready(Word $word): bool

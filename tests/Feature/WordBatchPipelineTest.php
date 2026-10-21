@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Definition;
+use App\Models\User;
 use App\Models\Word;
 use App\Models\WordBatch;
 use App\Models\WordBatchSlot;
@@ -60,6 +62,58 @@ test('an inconclusive dictionary result retains a diagnostic and exponential ret
         ->and($word->dictionary_attempts)->toBe(1)
         ->and($word->dictionary_retry_at)->not->toBeNull()
         ->and($word->dictionary_error)->toContain('timeout');
+});
+
+test('empty slots do not retry generation before their persisted retry time', function () {
+    $batch = WordBatch::create(['scheduled_for' => now(), 'target_count' => WordBatch::SIZE]);
+    $user = User::factory()->create();
+    WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => 1]);
+    foreach (range(2, WordBatch::SIZE) as $slot) {
+        $word = Word::factory()->create([
+            'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
+            'domain_status' => Word::DOMAIN_AVAILABLE,
+            'ipa' => '/test/',
+            'audio_url' => 'audio/test.mp3',
+        ]);
+        Definition::create(['word_id' => $word->id, 'user_id' => $user->id, 'text' => 'An AI definition.', 'origin' => Definition::ORIGIN_AI, 'votes_count' => 0]);
+        WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => $slot, 'word_id' => $word->id]);
+    }
+    $generator = mock(WordGenerator::class);
+    $generator->shouldReceive('generateWords')->once()->with(1)->andReturn([]);
+    $metrics = mock(WordBatchMetrics::class);
+    $metrics->shouldReceive('emit')->with('BatchRetry')->once();
+    $coordinator = new WordBatchCoordinator($generator, mock(DictionaryService::class), mock(PronunciationService::class), mock(DomainAvailabilityService::class), $metrics);
+
+    $coordinator->process($batch);
+    $retryAt = $batch->slots()->findOrFail(1)->retry_at;
+    $coordinator->process($batch->fresh());
+
+    expect($retryAt)->not->toBeNull()
+        ->and($batch->slots()->findOrFail(1)->retry_at->equalTo($retryAt))->toBeTrue();
+});
+
+test('rejected slots do not replace their candidate before their persisted retry time', function () {
+    $batch = WordBatch::create(['scheduled_for' => now(), 'target_count' => WordBatch::SIZE]);
+    $user = User::factory()->create();
+    WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => 1, 'status' => WordBatchSlot::REJECTED, 'retry_at' => now()->addHour()]);
+    foreach (range(2, WordBatch::SIZE) as $slot) {
+        $word = Word::factory()->create([
+            'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
+            'domain_status' => Word::DOMAIN_AVAILABLE,
+            'ipa' => '/test/',
+            'audio_url' => 'audio/test.mp3',
+        ]);
+        Definition::create(['word_id' => $word->id, 'user_id' => $user->id, 'text' => 'An AI definition.', 'origin' => Definition::ORIGIN_AI, 'votes_count' => 0]);
+        WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => $slot, 'word_id' => $word->id]);
+    }
+    $generator = mock(WordGenerator::class);
+    $generator->shouldNotReceive('generateWords');
+    $coordinator = new WordBatchCoordinator($generator, mock(DictionaryService::class), mock(PronunciationService::class), mock(DomainAvailabilityService::class), mock(WordBatchMetrics::class));
+
+    $coordinator->process($batch);
+
+    expect($batch->slots()->findOrFail(1)->status)->toBe(WordBatchSlot::REJECTED)
+        ->and($batch->slots()->findOrFail(1)->word_id)->toBeNull();
 });
 
 test('stalled batches are diagnosed and oldest active age is emitted', function () {

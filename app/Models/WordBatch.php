@@ -48,6 +48,6 @@ class WordBatch extends Model
 
     public function scopeDue(Builder $query): void
     {
-        $query->whereNotIn('status', [self::PUBLISHED, self::FAILED])->where(fn (Builder $query) => $query->whereNull('retry_at')->orWhere('retry_at', '<=', now()));
+        $query->whereNotIn('status', [self::READY, self::PUBLISHED, self::FAILED])->where(fn (Builder $query) => $query->whereNull('retry_at')->orWhere('retry_at', '<=', now()));
     }
 }

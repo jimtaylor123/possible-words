@@ -5,6 +5,12 @@ use App\Models\User;
 use App\Models\Word;
 use App\Models\WordBatch;
 use App\Models\WordBatchSlot;
+use App\Services\DictionaryService;
+use App\Services\DomainAvailabilityService;
+use App\Services\PronunciationService;
+use App\Services\WordBatchCoordinator;
+use App\Services\WordBatchMetrics;
+use App\Services\WordGenerator;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
@@ -54,5 +60,21 @@ describe('releasing word cohorts via artisan', function () {
         $publishedAt = $batch->fresh()->published_at;
         $this->artisan('words:release')->expectsOutputToContain('Published 0 complete cohort(s).')->assertExitCode(0);
         expect($batch->fresh()->published_at->equalTo($publishedAt))->toBeTrue();
+    });
+
+    test('a processor selected before publication cannot revert or republish the cohort', function () {
+        $batch = readyBatch();
+        $selectedForProcessing = $batch->fresh();
+        $coordinator = new WordBatchCoordinator(
+            mock(WordGenerator::class), mock(DictionaryService::class), mock(PronunciationService::class), mock(DomainAvailabilityService::class), mock(WordBatchMetrics::class)
+        );
+
+        $this->artisan('words:release')->assertExitCode(0);
+        $publishedAt = $batch->fresh()->published_at;
+        $coordinator->process($selectedForProcessing);
+
+        $this->artisan('words:release')->expectsOutputToContain('Published 0 complete cohort(s).')->assertExitCode(0);
+        expect($batch->fresh()->status)->toBe(WordBatch::PUBLISHED)
+            ->and($batch->fresh()->published_at->equalTo($publishedAt))->toBeTrue();
     });
 });
