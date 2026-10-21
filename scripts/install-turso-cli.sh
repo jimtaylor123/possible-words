@@ -13,3 +13,20 @@ curl --fail --location --silent --show-error "$url" --output "/tmp/$archive"
 printf '%s  %s\n' "$sha256" "/tmp/$archive" | sha256sum --check --status
 tar --extract --gzip --file "/tmp/$archive" --directory bin turso
 chmod 0755 bin/turso
+
+sqlite_version='3490100'
+sqlite_archive="sqlite-autoconf-${sqlite_version}.tar.gz"
+sqlite_url="https://www.sqlite.org/2025/${sqlite_archive}"
+sqlite_sha256='106642d8ccb36c5f7323b64e4152e9b719f7c0215acf5bfeac3d5e7f97b59254'
+sqlite_source="/tmp/sqlite-autoconf-${sqlite_version}"
+
+rm -rf "$sqlite_source"
+curl --fail --location --silent --show-error "$sqlite_url" --output "/tmp/$sqlite_archive"
+printf '%s  %s\n' "$sqlite_sha256" "/tmp/$sqlite_archive" | sha256sum --check --status
+tar --extract --gzip --file "/tmp/$sqlite_archive" --directory /tmp
+(
+    cd "$sqlite_source"
+    ./configure --disable-readline --disable-shared --enable-static CFLAGS='-Os' LDFLAGS='-static'
+    make -j"$(nproc)" sqlite3
+)
+install -m 0755 "$sqlite_source/sqlite3" bin/sqlite3

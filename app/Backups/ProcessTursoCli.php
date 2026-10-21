@@ -2,6 +2,8 @@
 
 namespace App\Backups;
 
+use PDO;
+use PDOException;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
@@ -26,9 +28,11 @@ class ProcessTursoCli implements TursoCli
         }
 
         $this->path = $path;
+        $systemPath = getenv('PATH');
         $this->environment = [
             'TURSO_API_TOKEN' => $this->requiredConfiguration('turso_api_token'),
             'TURSO_ORG' => $this->requiredConfiguration('turso_organization'),
+            'PATH' => dirname($this->path).':'.(is_string($systemPath) ? $systemPath : '/usr/local/bin:/usr/bin:/bin'),
         ];
     }
 
@@ -39,11 +43,24 @@ class ProcessTursoCli implements TursoCli
 
     public function createFromDump(string $database, string $dumpPath): void
     {
-        if (! is_file($dumpPath) || ! is_readable($dumpPath)) {
+        $dump = file_get_contents($dumpPath);
+        if ($dump === false) {
             throw new RuntimeException("Unable to read Turso dump [$dumpPath].");
         }
 
-        $this->run(['db', 'create', $database, '--from-dump', $dumpPath, '--wait']);
+        $databasePath = tempnam(sys_get_temp_dir(), 'turso-restore-');
+        if ($databasePath === false) {
+            throw new RuntimeException('Unable to create a temporary SQLite restore database.');
+        }
+
+        try {
+            (new PDO('sqlite:'.$databasePath))->exec($dump);
+            $this->run(['db', 'create', $database, '--from-file', $databasePath, '--wait']);
+        } catch (PDOException $exception) {
+            throw new RuntimeException('Unable to build SQLite restore database from Turso dump.', 0, $exception);
+        } finally {
+            @unlink($databasePath);
+        }
     }
 
     public function query(string $database, string $sql): string
