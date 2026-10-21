@@ -102,14 +102,15 @@ class NotificationService
 
     public function notifyNewWordBatch(WordBatch $batch): bool
     {
-        $words = $batch->slots()->with('word')->get()->map(fn ($slot) => [
+        $slots = $batch->slots()->with('word')->get();
+        if ($batch->target_count !== WordBatch::SIZE || $slots->count() !== WordBatch::SIZE || $slots->contains(fn ($slot) => $slot->word === null)) {
+            return false;
+        }
+        $words = $slots->map(fn ($slot) => [
             'text' => $slot->word->text,
             'url' => route('words.show', $slot->word),
             'domain_status' => $slot->word->domain_status,
         ])->all();
-        if (count($words) !== $batch->target_count) {
-            return false;
-        }
         $delivered = true;
         User::query()->chunkById(100, function ($users) use ($batch, $words, &$delivered): void {
             foreach ($users as $user) {
