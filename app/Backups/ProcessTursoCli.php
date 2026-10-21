@@ -54,7 +54,10 @@ class ProcessTursoCli implements TursoCli
         }
 
         try {
-            (new PDO('sqlite:'.$databasePath))->exec($dump);
+            $connection = new PDO('sqlite:'.$databasePath);
+            $connection->exec($dump);
+            $connection->exec('PRAGMA journal_mode = WAL;');
+            unset($connection);
             $this->run(['db', 'create', $database, '--from-file', $databasePath, '--wait']);
         } catch (PDOException $exception) {
             throw new RuntimeException('Unable to build SQLite restore database from Turso dump.', 0, $exception);
