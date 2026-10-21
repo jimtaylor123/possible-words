@@ -77,7 +77,7 @@ class E2eFixtureController extends Controller
         }
 
         return response()->json([
-            'user' => ['email' => $user->email],
+            'user' => ['id' => $user->id, 'email' => $user->email],
             'words' => $words->map(fn (Word $word) => ['slug' => $word->slug, 'text' => $word->text]),
         ]);
     }
