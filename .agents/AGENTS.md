@@ -4,7 +4,7 @@
 A web app that generates pronounceable made-up words using phonotactic rules (onsets + nuclei + codas). Users can browse words, suggest definitions, and vote on them. Built with Laravel + Inertia.js + Vue 3.
 
 ## Tech Stack
-- **Backend:** Laravel 12 (PHP 8.2+)
+- **Backend:** Laravel 12 (PHP 8.4.27+ within PHP 8.4)
 - **Frontend:** Vue 3 Composition API (`<script setup>`), Inertia.js 2
 - **CSS:** Tailwind CSS 4
 - **UI Library:** Naive UI
