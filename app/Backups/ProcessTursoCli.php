@@ -54,7 +54,7 @@ class ProcessTursoCli implements TursoCli
         }
 
         try {
-            $connection = new PDO('sqlite:'.$databasePath);
+            $connection = new PDO('sqlite:'.$databasePath, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
             $connection->exec($dump);
             $connection->exec('PRAGMA journal_mode = WAL;');
             unset($connection);

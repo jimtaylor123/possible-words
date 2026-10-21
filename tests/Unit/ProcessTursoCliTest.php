@@ -44,19 +44,41 @@ describe('Turso CLI process', function () {
         config()->set('backups.turso_api_token', 'backup-token');
         config()->set('backups.turso_organization', 'backup-org');
 
-        (new ProcessTursoCli)->createFromDump('restore-check', $dump);
+        try {
+            (new ProcessTursoCli)->createFromDump('restore-check', $dump);
 
-        expect(file_get_contents($dump))->toBe('CREATE TABLE migrations (id INTEGER);');
-        expect(file_get_contents($arguments))
-            ->toStartWith('db create restore-check --from-file ')
-            ->toEndWith(' --wait');
-        expect((new PDO('sqlite:'.$database))->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'migrations'")->fetchColumn())
-            ->toBe('migrations');
-        expect((new PDO('sqlite:'.$database))->query('PRAGMA journal_mode;')->fetchColumn())
-            ->toBe('wal');
-        unlink($dump);
-        unlink($database);
-        unlink($arguments);
+            expect(file_get_contents($dump))->toBe('CREATE TABLE migrations (id INTEGER);');
+            expect(file_get_contents($arguments))
+                ->toStartWith('db create restore-check --from-file ')
+                ->toEndWith(' --wait');
+            expect((new PDO('sqlite:'.$database))->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'migrations'")->fetchColumn())
+                ->toBe('migrations');
+            expect((new PDO('sqlite:'.$database))->query('PRAGMA journal_mode;')->fetchColumn())
+                ->toBe('wal');
+        } finally {
+            @unlink($dump);
+            @unlink($database);
+            @unlink($arguments);
+        }
+    });
+
+    test('Given a malformed SQL dump, it fails before invoking the CLI', function () {
+        $dump = tempnam(sys_get_temp_dir(), 'turso-dump-');
+        $invocation = tempnam(sys_get_temp_dir(), 'turso-invocation-');
+        file_put_contents($dump, 'NOT SQL;');
+        unlink($invocation);
+        config()->set('backups.turso_cli_path', tursoCliStub("touch '$invocation'"));
+        config()->set('backups.turso_api_token', 'backup-token');
+        config()->set('backups.turso_organization', 'backup-org');
+
+        try {
+            expect(fn () => (new ProcessTursoCli)->createFromDump('restore-check', $dump))
+                ->toThrow(RuntimeException::class, 'Unable to build SQLite restore database from Turso dump.');
+            expect(file_exists($invocation))->toBeFalse();
+        } finally {
+            @unlink($dump);
+            @unlink($invocation);
+        }
     });
 
     test('Given the configured CLI does not exist, it fails before starting a process', function () {
