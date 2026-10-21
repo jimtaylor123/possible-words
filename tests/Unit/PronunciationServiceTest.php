@@ -67,6 +67,9 @@ describe('ensuring pronunciation', function () {
         expect($result->audio_url)->toBe('http://localhost/audio/testword.mp3');
         expect($result->pronunciation_status)->toBe(Word::PRONUNCIATION_GENERATED)
             ->and($result->pronunciation_retry_at)->toBeNull();
+        expect($word->fresh()->pronunciation_status)->toBe(Word::PRONUNCIATION_GENERATED)
+            ->and($word->fresh()->pronunciation_attempted_at)->not->toBeNull()
+            ->and($word->fresh()->pronunciation_attempts)->toBe(0);
     });
 
     test('Given an unavailable provider, IPA is set but audio is skipped', function () {

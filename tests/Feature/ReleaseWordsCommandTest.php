@@ -10,6 +10,7 @@ use App\Services\DomainAvailabilityService;
 use App\Services\PronunciationService;
 use App\Services\WordBatchCoordinator;
 use App\Services\WordBatchMetrics;
+use App\Services\WordBatchPublisher;
 use App\Services\WordGenerator;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
@@ -31,6 +32,16 @@ function readyBatch(bool $ready = true): WordBatch
 }
 
 describe('releasing word cohorts via artisan', function () {
+    test('delegates to the batch publisher and reports its count', function () {
+        $publisher = mock(WordBatchPublisher::class);
+        $publisher->shouldReceive('publishReady')->once()->andReturn(3);
+        app()->instance(WordBatchPublisher::class, $publisher);
+
+        $this->artisan('words:release')
+            ->expectsOutput('Published 3 complete cohort(s).')
+            ->assertExitCode(0);
+    });
+
     test('publishes exactly five ready cohort words with a shared timestamp', function () {
         $batch = readyBatch();
         $legacy = Word::create(['text' => 'legacyinventory', 'slug' => 'legacyinventory', 'status' => 'available', 'dictionary_status' => Word::DICTIONARY_NOT_FOUND]);

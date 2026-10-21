@@ -10,6 +10,7 @@ use App\Services\DomainAvailabilityService;
 use App\Services\PronunciationService;
 use App\Services\WordBatchCoordinator;
 use App\Services\WordBatchMetrics;
+use App\Services\WordBatchRunLock;
 use App\Services\WordGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,75 @@ test('batch creation is idempotent and always creates exactly five slots', funct
     expect($batch->target_count)->toBe(WordBatch::SIZE)
         ->and($batch->slots()->count())->toBe(WordBatch::SIZE)
         ->and($batch->slots()->pluck('slot_number')->all())->toBe([1, 2, 3, 4, 5]);
+});
+
+test('batch creation emits its metric once and accepts aligned historical replay', function () {
+    $metrics = mock(WordBatchMetrics::class);
+    $metrics->shouldReceive('emit')->once()->with('BatchCreated');
+    app()->instance(WordBatchMetrics::class, $metrics);
+
+    $this->artisan('words:generate-batch --scheduled-for=2020-01-01T00:00:00Z')
+        ->expectsOutputToContain('Batch')
+        ->assertExitCode(0);
+    $this->artisan('words:generate-batch --scheduled-for=2020-01-01T00:00:00Z')->assertExitCode(0);
+
+    expect(WordBatch::where('scheduled_for', '2020-01-01 00:00:00')->count())->toBe(1)
+        ->and(WordBatchSlot::count())->toBe(WordBatch::SIZE);
+});
+
+test('batch creation rejects malformed and non-six-hour schedule timestamps', function () {
+    $this->artisan('words:generate-batch --scheduled-for=not-a-date')
+        ->expectsOutput('--scheduled-for must be a valid timestamp.')
+        ->assertExitCode(1);
+    $this->artisan('words:generate-batch --scheduled-for=2026-10-18T13:00:00Z')
+        ->expectsOutput('--scheduled-for must align to a UTC six-hour slot.')
+        ->assertExitCode(1);
+
+    expect(WordBatch::count())->toBe(0);
+});
+
+test('batch processor processes its limit and releases its lease', function () {
+    WordBatch::create(['scheduled_for' => now()->subHours(12), 'target_count' => WordBatch::SIZE]);
+    WordBatch::create(['scheduled_for' => now()->subHours(6), 'target_count' => WordBatch::SIZE]);
+    $lock = mock(WordBatchRunLock::class);
+    $lock->shouldReceive('acquire')->once()->andReturn('lease-token');
+    $lock->shouldReceive('release')->once()->with('lease-token');
+    $coordinator = mock(WordBatchCoordinator::class);
+    $coordinator->shouldReceive('process')->once();
+    $coordinator->shouldReceive('monitorStalled')->once();
+    app()->instance(WordBatchRunLock::class, $lock);
+    app()->instance(WordBatchCoordinator::class, $coordinator);
+
+    $this->artisan('words:process-batches --limit=1 --max-seconds=60')
+        ->expectsOutput('Processed 1 word batch(es).')
+        ->assertExitCode(0);
+});
+
+test('batch processor skips when its lease is held', function () {
+    $lock = mock(WordBatchRunLock::class);
+    $lock->shouldReceive('acquire')->once()->andReturnNull();
+    $lock->shouldNotReceive('release');
+    app()->instance(WordBatchRunLock::class, $lock);
+
+    $this->artisan('words:process-batches')
+        ->expectsOutput('Another batch processor holds the database lease — skipping.')
+        ->assertExitCode(0);
+});
+
+test('batch processor respects its time budget', function () {
+    WordBatch::create(['scheduled_for' => now()->subHours(6), 'target_count' => WordBatch::SIZE]);
+    $lock = mock(WordBatchRunLock::class);
+    $lock->shouldReceive('acquire')->once()->andReturn('lease-token');
+    $lock->shouldReceive('release')->once()->with('lease-token');
+    $coordinator = mock(WordBatchCoordinator::class);
+    $coordinator->shouldNotReceive('process');
+    $coordinator->shouldReceive('monitorStalled')->once();
+    app()->instance(WordBatchRunLock::class, $lock);
+    app()->instance(WordBatchCoordinator::class, $coordinator);
+
+    $this->artisan('words:process-batches --max-seconds=-1')
+        ->expectsOutput('Processed 0 word batch(es).')
+        ->assertExitCode(0);
 });
 
 test('the database rejects batch sizes and slot numbers outside the five-slot invariant', function () {

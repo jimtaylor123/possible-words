@@ -7,6 +7,7 @@ use App\Models\WordBatchSlot;
 use App\Services\WordBatchMetrics;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 class GenerateWordBatch extends Command
@@ -19,20 +20,31 @@ class GenerateWordBatch extends Command
     {
         $requested = $this->option('scheduled-for');
         try {
-            $scheduledFor = $requested ? CarbonImmutable::parse($requested, 'UTC') : now('UTC')->startOfHour()->subHours(now('UTC')->hour % 6);
+            $now = now('UTC');
+            $scheduledFor = $requested ? CarbonImmutable::parse($requested, 'UTC') : $now->startOfHour()->subHours($now->hour % 6);
         } catch (\Throwable) {
             $this->error('--scheduled-for must be a valid timestamp.');
 
             return self::FAILURE;
         }
         $scheduledFor = $scheduledFor->utc();
-        $batch = DB::transaction(function () use ($scheduledFor) {
-            $batch = WordBatch::firstOrCreate(['scheduled_for' => $scheduledFor], ['target_count' => WordBatch::SIZE, 'status' => WordBatch::GENERATING]);
-            for ($slot = 1; $slot <= WordBatch::SIZE; $slot++) {
-                WordBatchSlot::firstOrCreate(['word_batch_id' => $batch->id, 'slot_number' => $slot]);
-            }
+        if ($scheduledFor->minute !== 0 || $scheduledFor->second !== 0 || $scheduledFor->microsecond !== 0 || $scheduledFor->hour % 6 !== 0) {
+            $this->error('--scheduled-for must align to a UTC six-hour slot.');
 
-            return $batch;
+            return self::FAILURE;
+        }
+        try {
+            $batch = WordBatch::firstOrCreate(['scheduled_for' => $scheduledFor], ['target_count' => WordBatch::SIZE, 'status' => WordBatch::GENERATING]);
+        } catch (QueryException $exception) {
+            $batch = WordBatch::query()->where('scheduled_for', $scheduledFor)->first();
+            if ($batch === null) {
+                throw $exception;
+            }
+        }
+        DB::transaction(function () use ($batch) {
+            for ($slot = 1; $slot <= WordBatch::SIZE; $slot++) {
+                WordBatchSlot::query()->insertOrIgnore(['word_batch_id' => $batch->id, 'slot_number' => $slot, 'status' => WordBatchSlot::PENDING, 'created_at' => now(), 'updated_at' => now()]);
+            }
         });
         if ($batch->wasRecentlyCreated) {
             $metrics->emit('BatchCreated');
