@@ -19,7 +19,7 @@ class GeneratePronunciation extends Command
         $query = Word::query();
 
         if (! $this->option('force')) {
-            $query->whereNull('audio_url');
+            $query->where(fn ($query) => $query->whereNull('audio_url')->orWhereNull('ipa'));
         }
 
         $total = $query->count();
@@ -39,9 +39,13 @@ class GeneratePronunciation extends Command
         $query->chunk($chunkSize, function ($words) use ($service, $bar, &$processed) {
             foreach ($words as $word) {
                 try {
-                    $service->ensurePronunciation($word);
-                    $processed++;
+                    $word = $service->ensurePronunciation($word);
+                    if ($word->pronunciation_status === Word::PRONUNCIATION_GENERATED) {
+                        $processed++;
+                    }
                 } catch (\Exception $e) {
+                    $attempts = $word->pronunciation_attempts + 1;
+                    $word->update(['pronunciation_status' => Word::PRONUNCIATION_FAILED, 'pronunciation_attempted_at' => now(), 'pronunciation_attempts' => $attempts, 'pronunciation_retry_at' => now()->addSeconds(min(3600, 60 * (2 ** min(10, $attempts - 1)))), 'pronunciation_error' => mb_substr($e->getMessage(), 0, 255)]);
                     $this->newLine();
                     $this->error("Failed to generate pronunciation for '{$word->text}': {$e->getMessage()}");
                 }

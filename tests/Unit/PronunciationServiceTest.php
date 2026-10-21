@@ -65,6 +65,11 @@ describe('ensuring pronunciation', function () {
         $result = $service->ensurePronunciation($word);
         expect($result->ipa)->toBe('/tɛst/');
         expect($result->audio_url)->toBe('http://localhost/audio/testword.mp3');
+        expect($result->pronunciation_status)->toBe(Word::PRONUNCIATION_GENERATED)
+            ->and($result->pronunciation_retry_at)->toBeNull();
+        expect($word->fresh()->pronunciation_status)->toBe(Word::PRONUNCIATION_GENERATED)
+            ->and($word->fresh()->pronunciation_attempted_at)->not->toBeNull()
+            ->and($word->fresh()->pronunciation_attempts)->toBe(0);
     });
 
     test('Given an unavailable provider, IPA is set but audio is skipped', function () {
@@ -85,6 +90,10 @@ describe('ensuring pronunciation', function () {
         $result = $service->ensurePronunciation($word);
         expect($result->ipa)->toBe('/tɛst/');
         expect($result->audio_url)->toBeNull();
+        expect($result->pronunciation_status)->toBe(Word::PRONUNCIATION_FAILED)
+            ->and($result->pronunciation_attempts)->toBe(1)
+            ->and($result->pronunciation_retry_at)->not->toBeNull()
+            ->and($result->pronunciation_error)->toBe('tts_unavailable');
     });
 
     test('Given a failed TTS generation, audio_url stays null', function () {
@@ -105,5 +114,7 @@ describe('ensuring pronunciation', function () {
         $result = $service->ensurePronunciation($word);
         expect($result->ipa)->toBe('/tɛst/');
         expect($result->audio_url)->toBeNull();
+        expect($result->pronunciation_status)->toBe(Word::PRONUNCIATION_FAILED)
+            ->and($result->pronunciation_error)->toBe('audio_not_generated');
     });
 });

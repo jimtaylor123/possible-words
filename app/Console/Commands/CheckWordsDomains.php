@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use App\Models\Word;
 use App\Services\DomainAvailabilityService;
 use App\Services\DomainCheckRunLock;
-use App\Services\NotificationService;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
 use Throwable;
@@ -31,7 +30,7 @@ class CheckWordsDomains extends Command
 
     protected $description = 'Check .com availability for words via the free Verisign RDAP endpoint';
 
-    public function handle(DomainAvailabilityService $service, DomainCheckRunLock $runLock, NotificationService $notifications): int
+    public function handle(DomainAvailabilityService $service, DomainCheckRunLock $runLock): int
     {
         if (config('domain.enabled') === false) {
             $this->info('Domain checks are disabled — skipping (DOMAIN_CHECK_ENABLED=false).');
@@ -48,13 +47,13 @@ class CheckWordsDomains extends Command
         }
 
         try {
-            return $this->checkWords($service, $notifications);
+            return $this->checkWords($service);
         } finally {
             $runLock->release($lockToken);
         }
     }
 
-    private function checkWords(DomainAvailabilityService $service, NotificationService $notifications): int
+    private function checkWords(DomainAvailabilityService $service): int
     {
         $forced = (bool) $this->option('force');
         $now = now();
@@ -115,7 +114,7 @@ class CheckWordsDomains extends Command
         $deadlineReserveSeconds = max(0, (int) config('domain.run_deadline_reserve_seconds', 30));
 
         foreach ($queries as $query) {
-            $continue = $query->chunkById($chunkSize, function ($words) use ($service, $notifications, $bar, $limit, $intervalMs, $requestJitterMs, $runDeadline, $deadlineReserveSeconds, &$attempted, &$processed, &$failures, &$results, &$lastRequestAt, &$providerCooldowns) {
+            $continue = $query->chunkById($chunkSize, function ($words) use ($service, $bar, $limit, $intervalMs, $requestJitterMs, $runDeadline, $deadlineReserveSeconds, &$attempted, &$processed, &$failures, &$results, &$lastRequestAt, &$providerCooldowns) {
                 foreach ($words as $word) {
                     if ($limit !== null && $attempted >= $limit) {
                         return false;
@@ -143,9 +142,6 @@ class CheckWordsDomains extends Command
                                 'domain_attempts' => 0,
                                 'domain_failure' => null,
                             ]);
-                            if ($word->fresh()->isPublishable() && $word->notification_sent_at === null && $notifications->notifyNewWord($word)) {
-                                Word::query()->whereKey($word)->whereNull('notification_sent_at')->update(['notification_sent_at' => now()]);
-                            }
                         } else {
                             $attempts = $word->domain_attempts + 1;
                             $retryAfter = min(max(0, (int) ($outcome->retryAfterSeconds ?? 0)), max(0, (int) config('domain.max_retry_after_seconds', 3600)));
