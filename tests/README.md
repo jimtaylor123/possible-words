@@ -52,14 +52,16 @@ The Pest suite is organised as BDD `describe()` blocks (Given/When/Then style). 
 - Dark / light theme toggle (#47)
 - Notifications (#17)
 
-## Testing-only auth route
+## Testing-only E2E routes
 
 Playwright journeys that need a signed-in user (admin, definitions, favourites) log in without Google OAuth using a testing-only endpoint:
 
 - `POST /testing/login?email=...&is_admin=0` — finds or creates the user and logs them in.
 - `POST /testing/logout` — logs out and invalidates the session.
+- `POST /testing/e2e/setup` — creates a whitelisted `word`, `browse`, or `notifications` scenario in a test namespace.
+- `POST /testing/e2e/reset` — removes only records created by that namespace.
 
-These routes (and their CSRF exemption) are registered **only** when the app runs with `APP_ENV=testing` **or** `E2E_AUTH_ENABLED=true` in `.env`. Production never sets `E2E_AUTH_ENABLED`, so the routes are absent there. To run the signed-in e2e specs locally, append `E2E_AUTH_ENABLED=true` to your `.env` (do **not** commit `.env`). The Pest suite needs no flag — `phpunit.xml` already sets `APP_ENV=testing`.
+These routes (and their CSRF exemption) are registered **only** when the app runs with `APP_ENV=testing` **or** `E2E_AUTH_ENABLED=true` in `.env`. Production never sets `E2E_AUTH_ENABLED`, so the routes are absent there. Scenario routes do not accept arbitrary model data or SQL.
 
 ## Load / stress tests (Pest Stressless)
 
@@ -111,16 +113,16 @@ npm run test:watch
 
 The e2e suite boots the real Laravel app via Playwright's `webServer` (see `playwright.config.js`) and drives a real browser against it.
 
-**Important:** the suite uses the committed `.env.testing` and recreates its
-throwaway SQLite database from `.snapshots/dev-data.sqlite`; it does not use
-your development database.
+**Important:** each run copies the committed snapshot into a fresh
+`storage/e2e/<run-id>/testing.sqlite`, then starts a server on a fresh port. It
+never uses your development database.
 
 ```bash
 # Run the whole e2e suite
 npm run test:e2e
 
-# Run a single spec
-npx playwright test tests/e2e/browse.spec.js
+# Run a single spec (still headed and serial)
+npm run test:e2e -- tests/e2e/browse.spec.js
 
 # Run a single test
 npx playwright test --grep "search filters"
@@ -128,19 +130,16 @@ npx playwright test --grep "search filters"
 # Interactive UI mode
 npm run test:e2e:ui
 
-# With the HTML report
-npx playwright test --reporter=html
+# CI-equivalent headless shard
+CI=1 E2E_HEADLESS=1 npm run test:e2e:ci -- --shard=1/4
 ```
 
 Notes:
 
-- The default server port is `8002` (not the dev `8000`) to avoid clashing with `make dev`.
-- Each run builds this worktree's frontend assets, seeds its throwaway database,
-  and starts its own Laravel server. Stop any process using port `8002` before
-  starting the suite, or choose another isolated port with
-  `PLAYWRIGHT_PORT=8003 npm run test:e2e`.
-- On CI, Playwright runs with `--workers=1` and 2 retries.
-- Tests that touch the network (e.g. Google OAuth redirects) assert against external hosts and can be affected by local auth state.
+- `npm run test:e2e` is deliberately **headed Chromium with one worker**. Set `E2E_HEADLESS=1` only when a local display is unavailable.
+- CI runs four independent, headless Playwright shards. Each shard owns its database, server, cookie name, report, and test results.
+- Runtime files are removed unless `E2E_KEEP_RUNTIME=1`; retain them to inspect the per-run server log.
+- Browser tests mock OAuth, Echo/Pusher, social popups, audio/TTS, and domain providers. They must never make live integration requests.
 
 ## Static analysis and style
 
@@ -167,6 +166,6 @@ GitHub Actions runs on every push to `main` and on pull requests (see `.github/w
 
 - **PHP job** — `composer qa` (Pint, PHPStan, Pest) on PHP 8.4.27.
 - **Frontend job** — `npm run lint` + `npm run test` (Vitest) on Node 22.
-- **E2E job** — installs PHP + Node deps, copies `.env.example` to `.env`, restores the committed snapshot (`.snapshots/dev-data.sqlite`) into `database/database.sqlite`, appends `E2E_AUTH_ENABLED=true`, builds assets, installs Playwright browsers, and runs `npm run test:e2e`. Failing runs upload the Playwright HTML report as an artifact.
+- **E2E job** — runs a four-way headless shard matrix. Each shard creates an isolated SQLite runtime and uploads report, results, and server log on failure.
 
 The load/stress suites are **not** part of CI: `test:load` needs a running dev server and `test:load:prod` hits the live site and consumes AWS usage, so both stay manual by design.

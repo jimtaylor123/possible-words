@@ -5,6 +5,7 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminReportController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\E2eFixtureController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\WordController;
@@ -93,10 +94,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
 // The CSRF exemption is registered here too because routes/web.php is loaded after
 // the environment variables, unlike the withMiddleware closure in bootstrap/app.php.
 if (app()->environment('testing') || config('app.e2e_auth_enabled')) {
-    ValidateCsrfToken::except(['testing/login', 'testing/logout']);
+    ValidateCsrfToken::except(['testing/login', 'testing/logout', 'testing/e2e/reset', 'testing/e2e/setup']);
 
     Route::middleware('web')->group(function () {
         Route::post('/testing/login', [AuthController::class, 'testingLogin'])->name('testing.login');
         Route::post('/testing/logout', [AuthController::class, 'testingLogout'])->name('testing.logout');
+        Route::post('/testing/e2e/reset', [E2eFixtureController::class, 'reset'])->name('testing.e2e.reset');
+        Route::post('/testing/e2e/setup', [E2eFixtureController::class, 'setup'])->name('testing.e2e.setup');
     });
 }

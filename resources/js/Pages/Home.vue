@@ -111,6 +111,7 @@
         <div
           v-for="word in allWords"
           :key="word.id"
+          :data-testid="`word-card-${word.slug}`"
           class="group block rounded-lg no-underline text-inherit cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
           role="link"
           :tabindex="0"
@@ -130,6 +131,7 @@
                         size="small"
                         quaternary
                         circle
+                        :aria-label="`Play pronunciation for ${word.text}`"
                         @click="playAudio(word)"
                       >
                         <template #icon>
@@ -147,6 +149,7 @@
                         size="small"
                         quaternary
                         circle
+                        :aria-label="favouriteIds.includes(word.id) ? `Remove ${word.text} from favourites` : `Add ${word.text} to favourites`"
                         @click.stop="toggleFavourite(word)"
                       >
                         <template #icon>

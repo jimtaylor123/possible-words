@@ -45,6 +45,8 @@
                 size="small"
                 quaternary
                 circle
+                aria-label="Play pronunciation"
+                data-testid="word-audio"
                 @click="playAudio"
               >
                 <template #icon>
@@ -79,12 +81,19 @@
       </div>
 
       <!-- Share Section -->
-      <div class="mb-8 flex flex-col items-center gap-3 sm:relative sm:block">
+      <div class="mb-8 flex flex-col items-center gap-3">
         <div class="flex items-center justify-center gap-2">
           <span class="text-sm text-gray-400 mr-1">Share</span>
           <n-tooltip trigger="hover">
             <template #trigger>
-              <n-button size="small" quaternary circle @click="shareWhatsApp">
+              <n-button
+                size="small"
+                quaternary
+                circle
+                aria-label="Share on WhatsApp"
+                data-testid="share-whatsapp"
+                @click="shareWhatsApp"
+              >
                 <template #icon>
                   <svg viewBox="0 0 24 24" width="20" height="20" style="fill: #25D366;">
                     <path :d="mdiWhatsapp" />
@@ -96,7 +105,14 @@
           </n-tooltip>
           <n-tooltip trigger="hover">
             <template #trigger>
-              <n-button size="small" quaternary circle @click="shareFacebook">
+              <n-button
+                size="small"
+                quaternary
+                circle
+                aria-label="Share on Facebook"
+                data-testid="share-facebook"
+                @click="shareFacebook"
+              >
                 <template #icon>
                   <svg viewBox="0 0 24 24" width="20" height="20" style="fill: #1877F2;">
                     <path :d="mdiFacebook" />
@@ -108,7 +124,14 @@
           </n-tooltip>
           <n-tooltip trigger="hover">
             <template #trigger>
-              <n-button size="small" quaternary circle @click="shareTwitter">
+              <n-button
+                size="small"
+                quaternary
+                circle
+                aria-label="Share on X"
+                data-testid="share-x"
+                @click="shareTwitter"
+              >
                 <template #icon>
                   <svg viewBox="0 0 24 24" width="20" height="20" style="fill: currentColor;">
                     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -120,7 +143,14 @@
           </n-tooltip>
           <n-tooltip trigger="hover">
             <template #trigger>
-              <n-button size="small" quaternary circle @click="shareLinkedIn">
+              <n-button
+                size="small"
+                quaternary
+                circle
+                aria-label="Share on LinkedIn"
+                data-testid="share-linkedin"
+                @click="shareLinkedIn"
+              >
                 <template #icon>
                   <svg viewBox="0 0 24 24" width="20" height="20" style="fill: #0A66C2;">
                     <path :d="mdiLinkedin" />
@@ -135,7 +165,7 @@
           :href="domainUrl"
           target="_blank"
           rel="noopener noreferrer"
-          class="inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors hover:brightness-95 sm:absolute sm:right-0 sm:top-1/2 sm:-translate-y-1/2"
+          class="inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors hover:brightness-95"
           :class="domainChip.class"
         >
           {{ domainChip.label }}
@@ -183,6 +213,7 @@
                 <button
                   v-if="$page.props.auth.user && !definition.removed_at"
                   class="flex items-center justify-center rounded p-1 hover:bg-gray-100 transition-colors"
+                  :aria-label="likedByUser(definition) ? 'Remove like' : 'Like definition'"
                   :disabled="animatingId === definition.id"
                   @click="vote(definition.id)"
                 >
@@ -446,8 +477,11 @@ const removeDefinition = (definitionId) => {
   })
 }
 
-const submitDefinition = () => {
-  if (!definitionText.value.trim()) return
+  const submitDefinition = () => {
+  if (!definitionText.value.trim()) {
+    definitionError.value = 'Please enter a definition.'
+    return
+  }
 
   definitionError.value = ''
   submitting.value = true
