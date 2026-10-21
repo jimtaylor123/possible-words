@@ -12,6 +12,8 @@ A Laravel application that generates and discovers available words that aren't i
 
 ## Setup
 
+Requires PHP 8.4.27 or later within the 8.4 release line, Composer, and Node.js.
+
 1. **Environment Setup**:
    - Copy `.env.example` to `.env`
    - The Google OAuth credentials are already configured

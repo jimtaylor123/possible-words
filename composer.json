@@ -15,9 +15,9 @@
         }
     ],
     "require": {
-        "php": "^8.2",
+        "php": ">=8.4.27 <8.5.0",
         "bestmomo/laravel-edge-tts": "^0.1.3",
-        "bref/bref": "^3.0",
+        "bref/bref": "^3.0.14",
         "bref/laravel-bridge": "^3.0",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^12.0",
