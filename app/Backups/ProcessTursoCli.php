@@ -39,7 +39,11 @@ class ProcessTursoCli implements TursoCli
 
     public function createFromDump(string $database, string $dumpPath): void
     {
-        $this->run(['db', 'create', $database, '--from-dump', $dumpPath]);
+        if (! is_file($dumpPath) || ! is_readable($dumpPath)) {
+            throw new RuntimeException("Unable to read Turso dump [$dumpPath].");
+        }
+
+        $this->run(['db', 'create', $database, '--from-dump', $dumpPath, '--wait']);
     }
 
     public function query(string $database, string $sql): string
