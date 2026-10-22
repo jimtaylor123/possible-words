@@ -8,9 +8,11 @@ describe('backup infrastructure', function () {
         $backupLifecycleRules = $serverless['resources']['Resources']['BackupBucket']['Properties']['LifecycleConfiguration']['Rules'];
 
         expect($serverless['functions']['backup']['events'])
-            ->toContain(['schedule' => ['rate' => 'cron(0 */3 * * ? *)', 'input' => ['cli' => 'backup:run']]])
-            ->toContain(['schedule' => ['rate' => 'cron(0 * * * ? *)', 'input' => ['cli' => 'backup:check-freshness']]]);
+            ->toContain(['schedule' => ['rate' => 'cron(0 */6 * * ? *)', 'enabled' => true, 'input' => ['cli' => 'backup:run']]])
+            ->toContain(['schedule' => ['rate' => 'cron(15 * * * ? *)', 'input' => ['cli' => 'backup:check-freshness']]]);
         expect($serverless['functions']['backup']['timeout'])->toBe(720);
+        expect($serverless['resources']['Resources']['BackupFreshnessAlarm']['Properties']['AlarmDescription'])
+            ->toBe('No verified backup manifest is younger than six hours and fifteen minutes.');
         expect($serverless['functions']['backup']['environment']['BROADCAST_CONNECTION'])->toBe('log');
         expect($serverless['resources']['Resources']['BackupBucket']['Properties'])
             ->toHaveKey('VersioningConfiguration')
@@ -55,5 +57,14 @@ describe('backup infrastructure', function () {
             ->toContain("grep -q 'bin/turso'")
             ->toContain("grep -q 'bin/sqlite3'")
             ->toContain("BACKUP_RETENTION_DAYS: \${{ vars.BACKUP_RETENTION_DAYS || '7' }}");
+    });
+
+    test('Given the pinned Turso installer, it uses the issue-02 verified Linux release archive', function () {
+        $installer = file_get_contents(base_path('scripts/install-turso-cli.sh'));
+
+        expect($installer)
+            ->toContain("version='v1.0.34'")
+            ->toContain("archive='turso-cli_Linux_x86_64.tar.gz'")
+            ->toContain("sha256='9eb67f3efece578a6407d1fa535a75e8d7b5cde4f6af3ac1dd79929e99768dc9'");
     });
 });

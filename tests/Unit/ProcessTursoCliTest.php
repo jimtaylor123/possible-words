@@ -45,13 +45,14 @@ describe('Turso CLI process', function () {
         config()->set('backups.turso_organization', 'backup-org');
 
         try {
-            $tables = (new ProcessTursoCli)->createFromDump('restore-check', $dump);
+            $validation = (new ProcessTursoCli)->createFromDump('restore-check', $dump);
 
             expect(file_get_contents($dump))->toBe('CREATE TABLE migrations (id INTEGER);');
-            expect($tables)->toBe(['migrations' => 0]);
+            expect($validation->tableCounts)->toBe(['migrations' => 0])
+                ->and($validation->localIntegrityCheck)->toBe('ok');
             expect(file_get_contents($arguments))
                 ->toStartWith('db create restore-check --from-file ')
-                ->toEndWith(' --wait');
+                ->toEndWith(' --group default --wait');
             expect((new PDO('sqlite:'.$database))->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'migrations'")->fetchColumn())
                 ->toBe('migrations');
             expect((new PDO('sqlite:'.$database))->query('PRAGMA journal_mode;')->fetchColumn())

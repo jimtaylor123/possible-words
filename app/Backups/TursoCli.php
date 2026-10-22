@@ -6,8 +6,11 @@ interface TursoCli
 {
     public function dump(string $database): string;
 
-    /** @return array<string, int> */
-    public function createFromDump(string $database, string $dumpPath): array;
+    /**
+     * Rebuild the dump locally and return validation derived from that snapshot
+     * before uploading it with Turso's --from-file restore path.
+     */
+    public function createFromDump(string $database, string $dumpPath): DatabaseValidation;
 
     public function query(string $database, string $sql): string;
 

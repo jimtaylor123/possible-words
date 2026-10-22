@@ -5,8 +5,10 @@
 The production operator owns backup alerts sent to **jimtayloremail@gmail.com**
 through the `possiblewords-prod-backup-alarms` SNS topic. Confirm the SNS email
 subscription after the first deployment. The verified recovery point objective
-(RPO) is six hours: a backup runs every three hours and is alarmed when the
-latest verified completion manifest is four hours old.
+(RPO) is six hours: an enabled backup runs every six hours and is alarmed when
+the latest verified completion manifest is older than six hours and fifteen
+minutes. Freshness checks run at quarter past the hour, after the 12-minute
+backup Lambda deadline at the next run boundary.
 
 Each run's current data version is scheduled to expire seven days after creation
 in the private stack-managed backup bucket
@@ -53,11 +55,12 @@ it in the backup Lambda package. The SNS endpoint is intentionally declared in
 ## Alarm response
 
 `BackupLambdaErrorsAlarm` means an invocation failed. `BackupFreshnessAlarm`
-means there is no valid completion manifest younger than four hours (including
+means there is no valid completion manifest younger than six hours and fifteen
+minutes (including
 when the freshness schedule is absent). Acknowledge the alarm, inspect the
 backup Lambda CloudWatch logs, and run the documented acceptance drill below.
-Escalate before the six-hour RPO expires. Do not disable an alarm to acknowledge
-it.
+Escalate before the six-hour RPO plus verification allowance expires. Do not
+disable an alarm to acknowledge it.
 
 ## Recovery drill
 
@@ -82,7 +85,7 @@ Use a new database name and a Turso Platform token with `db:create` and
 ```bash
 aws s3 cp s3://<backup-bucket>/runs/<run-id>/database.sql ./database.sql
 sqlite3 ./restore.sqlite < ./database.sql
-turso db create <restore-db> --from-file ./restore.sqlite --wait
+turso db create <restore-db> --from-file ./restore.sqlite --group default --wait
 turso db shell <restore-db> 'PRAGMA integrity_check;'
 turso db shell <restore-db> 'SELECT COUNT(*) FROM definitions;'
 turso db destroy <restore-db> --yes
@@ -90,7 +93,7 @@ turso db destroy <restore-db> --yes
 
 Turso shell import does not preserve foreign-key settings between statements,
 so do not pipe a dump directly into `turso db shell`. Build a SQLite file and
-use `--from-file`, then compare every restored table count with
+use `--from-file --group default`, then compare every restored table count with
 `completion.json` before using the restored database.
 
 To run an on-demand production backup and freshness check:

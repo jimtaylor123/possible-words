@@ -42,10 +42,13 @@ class BackupService
             $dumpPath = $this->writeTemporaryDump($dump);
 
             try {
-                $tables = $this->turso->createFromDump($temporaryDatabase, $dumpPath);
                 $temporaryDatabaseCreated = true;
-                $this->waitForRestore($temporaryDatabase, $tables);
-                $this->verifyDatabase($temporaryDatabase, $tables);
+                $validation = $this->turso->createFromDump($temporaryDatabase, $dumpPath);
+                if ($validation->localIntegrityCheck !== 'ok') {
+                    throw new RuntimeException('Locally rebuilt database failed integrity_check.');
+                }
+                $this->waitForRestore($temporaryDatabase, $validation->tableCounts);
+                $restoredIntegrityCheck = $this->verifyDatabase($temporaryDatabase, $validation->tableCounts);
             } finally {
                 if (file_exists($dumpPath)) {
                     unlink($dumpPath);
@@ -62,17 +65,30 @@ class BackupService
             $manifest = [
                 'version' => 1,
                 'verified_at' => now('UTC')->toIso8601String(),
-                'database' => ['tables' => $tables, 'sha256' => hash('sha256', $dump)],
+                'database' => [
+                    'tables' => $validation->tableCounts,
+                    'sha256' => hash('sha256', $dump),
+                    'validation' => [
+                        'local_integrity_check' => $validation->localIntegrityCheck,
+                        'restored_integrity_check' => $restoredIntegrityCheck,
+                    ],
+                ],
                 'objects' => $objects,
             ];
             $destination->put("$runPrefix/completion.json", json_encode($manifest, JSON_THROW_ON_ERROR));
             $this->metrics->publish('BackupVerified', 1);
 
             return $runPrefix;
-        } finally {
+        } catch (Throwable $exception) {
             if ($temporaryDatabaseCreated) {
-                $this->deleteTemporaryDatabase($temporaryDatabase);
+                try {
+                    $this->deleteTemporaryDatabase($temporaryDatabase);
+                } catch (Throwable) {
+                    // Preserve the export, local-validation, or create failure.
+                }
             }
+
+            throw $exception;
         }
     }
 
@@ -166,7 +182,7 @@ class BackupService
     }
 
     /** @param array<string, int> $expected */
-    private function verifyDatabase(string $database, array $expected): void
+    private function verifyDatabase(string $database, array $expected): string
     {
         $integrityCheck = $this->turso->query($database, 'PRAGMA integrity_check;');
         if (preg_match('/(?:^|\R)\s*ok\s*(?:\R|$)/i', $integrityCheck) !== 1) {
@@ -179,6 +195,8 @@ class BackupService
                 throw new RuntimeException("Restored table [$table] has an unexpected row count.");
             }
         }
+
+        return 'ok';
     }
 
     /** @param array<string, int> $expected */
@@ -275,7 +293,7 @@ class BackupService
                 return false;
             }
             $verifiedAt = CarbonImmutable::parse($data['verified_at']);
-            if (($data['version'] ?? null) !== 1 || ! $verifiedAt->greaterThan(now('UTC')->subHours(4))
+            if (($data['version'] ?? null) !== 1 || ! $verifiedAt->greaterThan(now('UTC')->subMinutes(375))
                 || ! is_array($data['database'] ?? null) || ! is_array($data['objects'] ?? null)) {
                 return false;
             }
@@ -284,6 +302,9 @@ class BackupService
             $databaseChecksum = $this->checksum($destination, "$runPrefix/database.sql");
             if (! isset($data['database']['tables']) || ! is_array($data['database']['tables'])
                 || ! is_string($data['database']['sha256'])
+                || ! is_array($data['database']['validation'] ?? null)
+                || ($data['database']['validation']['local_integrity_check'] ?? null) !== 'ok'
+                || ($data['database']['validation']['restored_integrity_check'] ?? null) !== 'ok'
                 || $databaseChecksum === null
                 || ! hash_equals($data['database']['sha256'], $databaseChecksum['sha256'])) {
                 return false;

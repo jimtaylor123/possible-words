@@ -3,10 +3,11 @@ set -euo pipefail
 
 # Keep the executable in the Serverless package, not in a CI runner or image.
 # A changed release artifact fails closed before deployment.
-version='v1.0.14'
+version='v1.0.34'
 archive='turso-cli_Linux_x86_64.tar.gz'
 url="https://github.com/tursodatabase/turso-cli/releases/download/${version}/${archive}"
-sha256='8a5e9d6631e1e82aedd3f3c58bb93852529a140bd3e5b9855c44b5bf167b43b0'
+# Published by the v1.0.34 GitHub release's checksums.txt asset.
+sha256='9eb67f3efece578a6407d1fa535a75e8d7b5cde4f6af3ac1dd79929e99768dc9'
 
 mkdir -p bin
 curl --fail --location --silent --show-error "$url" --output "/tmp/$archive"
