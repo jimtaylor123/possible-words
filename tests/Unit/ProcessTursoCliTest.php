@@ -56,7 +56,7 @@ describe('Turso CLI process', function () {
             expect((new PDO('sqlite:'.$database))->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'migrations'")->fetchColumn())
                 ->toBe('migrations');
             expect((new PDO('sqlite:'.$database))->query('PRAGMA journal_mode;')->fetchColumn())
-                ->toBe('wal');
+                ->toBe('delete');
         } finally {
             @unlink($dump);
             @unlink($database);
