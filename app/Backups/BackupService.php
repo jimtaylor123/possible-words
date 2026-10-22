@@ -4,8 +4,6 @@ namespace App\Backups;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Filesystem\Filesystem;
-use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -34,7 +32,6 @@ class BackupService
         $temporaryDatabaseCreated = false;
 
         try {
-            $tables = $this->productionTableCounts();
             $dump = $this->turso->dump(config('backups.production_database'));
             if (trim($dump) === '') {
                 throw new RuntimeException('Turso export produced an empty dump.');
@@ -45,7 +42,7 @@ class BackupService
             $dumpPath = $this->writeTemporaryDump($dump);
 
             try {
-                $this->turso->createFromDump($temporaryDatabase, $dumpPath);
+                $tables = $this->turso->createFromDump($temporaryDatabase, $dumpPath);
                 $temporaryDatabaseCreated = true;
                 $this->waitForRestore($temporaryDatabase, $tables);
                 $this->verifyDatabase($temporaryDatabase, $tables);
@@ -96,136 +93,6 @@ class BackupService
         return false;
     }
 
-    /** @return array<string, int> */
-    private function productionTableCounts(): array
-    {
-        $platformToken = $this->requiredConfiguration('turso_api_token');
-        $organization = $this->requiredConfiguration('turso_organization');
-        $database = $this->requiredConfiguration('production_database');
-        $databasePath = 'v1/organizations/'.rawurlencode($organization).'/databases/'.rawurlencode($database);
-        $hostnameResponse = $this->platformRequest($platformToken, 'get', $databasePath);
-        $hostname = $hostnameResponse->json('database.Hostname');
-        if (! is_string($hostname) || ! $this->isValidHostname($hostname)) {
-            throw new RuntimeException('Turso Platform API returned an invalid production database hostname.');
-        }
-
-        $tokenResponse = $this->platformRequest(
-            $platformToken,
-            'post',
-            $databasePath.'/auth/tokens',
-            ['expiration' => '5m', 'authorization' => 'read-only'],
-        );
-        $sqlToken = $tokenResponse->json('jwt');
-        if (! is_string($sqlToken) || trim($sqlToken) === '') {
-            throw new RuntimeException('Turso Platform API did not return a read-only database SQL token.');
-        }
-
-        $tables = $this->pipelineRows(
-            $hostname,
-            $sqlToken,
-            "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'libsql_%'",
-        );
-        $counts = [];
-
-        foreach ($tables as $table) {
-            $name = $this->textValue($table[0] ?? null, 'table name');
-            $count = $this->pipelineRows(
-                $hostname,
-                $sqlToken,
-                'SELECT COUNT(*) FROM "'.str_replace('"', '""', $name).'"',
-            );
-            $counts[$name] = $this->integerValue($count[0][0] ?? null, "row count for table [$name]");
-        }
-
-        if ($counts === []) {
-            throw new RuntimeException('Production database has no application tables to verify.');
-        }
-
-        return $counts;
-    }
-
-    /** @param array<string, string> $data */
-    private function platformRequest(string $token, string $method, string $path, array $data = []): Response
-    {
-        try {
-            $request = Http::timeout(15)
-                ->acceptJson()
-                ->withToken($token);
-            $url = rtrim($this->requiredConfiguration('turso_platform_api_url'), '/').'/'.$path;
-            $response = $method === 'get'
-                ? $request->get($url)
-                : $request->post($url, $data);
-        } catch (Throwable) {
-            throw new RuntimeException('Unable to contact the Turso Platform API.');
-        }
-
-        if (! $response->successful()) {
-            throw new RuntimeException('Turso Platform API request failed.');
-        }
-
-        return $response;
-    }
-
-    /** @return list<list<array{type: string, value?: string}>> */
-    private function pipelineRows(string $hostname, string $token, string $sql): array
-    {
-        try {
-            $response = Http::timeout(15)
-                ->acceptJson()
-                ->withToken($token)
-                ->post("https://$hostname/v2/pipeline", [
-                    'requests' => [
-                        ['type' => 'execute', 'stmt' => ['sql' => $sql]],
-                        ['type' => 'close'],
-                    ],
-                ]);
-        } catch (Throwable) {
-            throw new RuntimeException('Unable to contact the Turso production database.');
-        }
-
-        if (! $response->successful()) {
-            throw new RuntimeException('Turso production database query failed.');
-        }
-
-        $results = $response->json('results');
-        $execute = is_array($results) ? $results[0] ?? null : null;
-        $close = is_array($results) ? $results[1] ?? null : null;
-        $rows = is_array($execute) ? data_get($execute, 'response.result.rows') : null;
-
-        if (data_get($execute, 'type') !== 'ok' || data_get($execute, 'response.type') !== 'execute'
-            || ! is_array($rows) || data_get($close, 'type') !== 'ok' || data_get($close, 'response.type') !== 'close') {
-            throw new RuntimeException('Turso production database returned an invalid pipeline response.');
-        }
-
-        return $rows;
-    }
-
-    /** @param array{type?: mixed, value?: mixed}|mixed $value */
-    private function textValue(mixed $value, string $description): string
-    {
-        if (! is_array($value) || ($value['type'] ?? null) !== 'text' || ! is_string($value['value'] ?? null) || $value['value'] === '') {
-            throw new RuntimeException("Turso production database returned an invalid $description.");
-        }
-
-        return $value['value'];
-    }
-
-    /** @param array{type?: mixed, value?: mixed}|mixed $value */
-    private function integerValue(mixed $value, string $description): int
-    {
-        if (! is_array($value) || ($value['type'] ?? null) !== 'integer' || ! is_string($value['value'] ?? null)
-            || preg_match('/\A\d+\z/', $value['value']) !== 1) {
-            throw new RuntimeException("Turso production database returned an invalid $description.");
-        }
-
-        return (int) $value['value'];
-    }
-
-    private function isValidHostname(string $hostname): bool
-    {
-        return preg_match('/\A(?=.{1,253}\z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}\z/i', $hostname) === 1;
-    }
-
     private function requiredConfiguration(string $setting): string
     {
         $value = config("backups.$setting");
@@ -246,7 +113,6 @@ class BackupService
             'temporary_database_prefix',
             'turso_api_token',
             'turso_organization',
-            'turso_platform_api_url',
         ] as $setting) {
             $this->requiredConfiguration($setting);
         }

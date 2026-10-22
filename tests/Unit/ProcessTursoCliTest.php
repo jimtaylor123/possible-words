@@ -45,9 +45,10 @@ describe('Turso CLI process', function () {
         config()->set('backups.turso_organization', 'backup-org');
 
         try {
-            (new ProcessTursoCli)->createFromDump('restore-check', $dump);
+            $tables = (new ProcessTursoCli)->createFromDump('restore-check', $dump);
 
             expect(file_get_contents($dump))->toBe('CREATE TABLE migrations (id INTEGER);');
+            expect($tables)->toBe(['migrations' => 0]);
             expect(file_get_contents($arguments))
                 ->toStartWith('db create restore-check --from-file ')
                 ->toEndWith(' --wait');

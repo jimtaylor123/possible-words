@@ -42,6 +42,20 @@ describe('banned word list', function () {
 
         expect((new DictionaryService)->loadBannedWords())->toBe([]);
     });
+
+    test('Given a malformed required banned list, loading it fails closed', function () {
+        $path = tempnam(sys_get_temp_dir(), 'banned-words-');
+        file_put_contents($path, '{not json');
+        config()->set('dictionary.banned_words_path', $path);
+        config()->set('dictionary.banned_words_required', true);
+
+        try {
+            expect(fn () => (new DictionaryService)->loadBannedWords())
+                ->toThrow(RuntimeException::class, 'Banned words list missing or empty');
+        } finally {
+            unlink($path);
+        }
+    });
 });
 
 describe('failing closed when the dictionary cannot be reached', function () {
