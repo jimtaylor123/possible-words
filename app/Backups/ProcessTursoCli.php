@@ -41,7 +41,7 @@ class ProcessTursoCli implements TursoCli
         return $this->run(['db', 'shell', $database, '.dump'])->getOutput();
     }
 
-    public function createFromDump(string $database, string $dumpPath): array
+    public function createFromDump(string $database, string $dumpPath): DatabaseValidation
     {
         $dump = file_get_contents($dumpPath);
         if ($dump === false) {
@@ -57,11 +57,15 @@ class ProcessTursoCli implements TursoCli
             $connection = new PDO('sqlite:'.$databasePath, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
             $connection->exec($dump);
             $tables = $this->tableCounts($connection);
+            $localIntegrityCheck = $connection->query('PRAGMA integrity_check;')->fetchColumn();
+            if ($localIntegrityCheck !== 'ok') {
+                throw new RuntimeException('Locally rebuilt database failed integrity_check.');
+            }
             $connection->exec('PRAGMA journal_mode = WAL;');
             unset($connection);
-            $this->run(['db', 'create', $database, '--from-file', $databasePath, '--wait']);
+            $this->run(['db', 'create', $database, '--from-file', $databasePath, '--group', 'default', '--wait']);
 
-            return $tables;
+            return new DatabaseValidation($tables, $localIntegrityCheck);
         } catch (PDOException $exception) {
             throw new RuntimeException('Unable to build SQLite restore database from Turso dump.', 0, $exception);
         } finally {

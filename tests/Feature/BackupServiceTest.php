@@ -2,11 +2,10 @@
 
 use App\Backups\BackupMetricPublisher;
 use App\Backups\BackupService;
+use App\Backups\DatabaseValidation;
 use App\Backups\TursoCli;
 use Carbon\CarbonInterface;
-use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -32,7 +31,7 @@ function successfulTurso(array $tables = ['example' => 0]): TursoCli
 {
     $turso = mock(TursoCli::class);
     $turso->shouldReceive('dump')->once()->with('production')->andReturn('CREATE TABLE example (id INTEGER);');
-    $turso->shouldReceive('createFromDump')->once()->andReturn($tables);
+    $turso->shouldReceive('createFromDump')->once()->andReturn(new DatabaseValidation($tables, 'ok'));
     $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $database !== 'production' && str_starts_with($sql, 'SELECT 1 FROM'))->andReturn('1');
     $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $database !== 'production' && $sql === 'PRAGMA integrity_check;')->andReturn("integrity_check\n---------------\nok\n");
     $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $database !== 'production' && str_starts_with($sql, 'SELECT COUNT(*)'))->andReturnUsing(function ($database, $sql) use ($tables): string {
@@ -46,48 +45,6 @@ function successfulTurso(array $tables = ['example' => 0]): TursoCli
 }
 
 /** @param array<string, int> $tables */
-function fakeProductionTableCounts(array $tables = ['example' => 0]): void
-{
-    Http::fake(function (Request $request) use ($tables) {
-        if ($request->method() === 'GET' && $request->url() === 'https://api.turso.tech/v1/organizations/possiblewords/databases/production') {
-            return Http::response(['database' => ['Hostname' => 'production-possiblewords.turso.io']]);
-        }
-
-        if ($request->method() === 'POST' && $request->url() === 'https://api.turso.tech/v1/organizations/possiblewords/databases/production/auth/tokens'
-            && $request->data() === ['expiration' => '5m', 'authorization' => 'read-only']) {
-            return Http::response(['jwt' => 'short-lived-read-only-token']);
-        }
-
-        if ($request->method() === 'POST' && $request->url() === 'https://production-possiblewords.turso.io/v2/pipeline') {
-            $sql = $request->data()['requests'][0]['stmt']['sql'];
-            if (str_starts_with($sql, 'SELECT name FROM sqlite_schema')) {
-                return pipelineResponse(array_map(
-                    fn (string $name): array => [['type' => 'text', 'value' => $name]],
-                    array_keys($tables),
-                ));
-            }
-
-            preg_match('/FROM "(.+)"/', $sql, $matches);
-            $table = str_replace('""', '"', $matches[1] ?? '');
-
-            return pipelineResponse([[['type' => 'integer', 'value' => (string) $tables[$table]]]]);
-        }
-
-        return Http::response([], 404);
-    });
-}
-
-/** @param list<list<array{type: string, value: string}>> $rows */
-function pipelineResponse(array $rows, string $executeType = 'ok')
-{
-    return Http::response([
-        'results' => [
-            ['type' => $executeType, 'response' => ['type' => 'execute', 'result' => ['rows' => $rows]]],
-            ['type' => 'ok', 'response' => ['type' => 'close']],
-        ],
-    ]);
-}
-
 /** @param list<array{path: string, contents: string}> $objects */
 function putCompletionManifest(string $run, CarbonInterface $verifiedAt, array $objects = []): void
 {
@@ -100,7 +57,11 @@ function putCompletionManifest(string $run, CarbonInterface $verifiedAt, array $
     $disk->put("runs/$run/completion.json", json_encode([
         'version' => 1,
         'verified_at' => $verifiedAt->toIso8601String(),
-        'database' => ['tables' => ['example' => 0], 'sha256' => hash('sha256', $dump)],
+        'database' => [
+            'tables' => ['example' => 0],
+            'sha256' => hash('sha256', $dump),
+            'validation' => ['local_integrity_check' => 'ok', 'restored_integrity_check' => 'ok'],
+        ],
         'objects' => array_map(fn (array $object): array => [
             'path' => $object['path'],
             'size' => strlen($object['contents']),
@@ -126,6 +87,7 @@ describe('verified backups', function () {
             ->and(Storage::disk('backups')->get("$prefix/objects/favicon.ico"))->toBe('second')
             ->and($manifest['objects'])->toHaveCount(2)
             ->and($manifest['database']['tables'])->toBe(['example' => 2, 'words' => 3])
+            ->and($manifest['database']['validation'])->toBe(['local_integrity_check' => 'ok', 'restored_integrity_check' => 'ok'])
             ->and(Storage::disk('backups')->directoryExists("$prefix/restore-check"))->toBeFalse();
     });
 
@@ -157,7 +119,7 @@ describe('verified backups', function () {
     test('Given temporary database verification fails, it deletes the temporary database and does not complete the run', function () {
         $turso = mock(TursoCli::class);
         $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
-        $turso->shouldReceive('createFromDump')->once()->andReturn(['example' => 0]);
+        $turso->shouldReceive('createFromDump')->once()->andReturn(new DatabaseValidation(['example' => 0], 'ok'));
         $turso->shouldReceive('query')->once()->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT 1 FROM'))->andReturn('1');
         $turso->shouldReceive('query')->once()->withArgs(fn ($database, $sql) => $sql === 'PRAGMA integrity_check;')->andThrow(new RuntimeException('integrity failed'));
         $turso->shouldReceive('delete')->once();
@@ -169,7 +131,7 @@ describe('verified backups', function () {
     test('Given temporary database cleanup fails, it fails without publishing a completion marker', function () {
         $turso = mock(TursoCli::class);
         $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
-        $turso->shouldReceive('createFromDump')->once()->andReturn(['example' => 0]);
+        $turso->shouldReceive('createFromDump')->once()->andReturn(new DatabaseValidation(['example' => 0], 'ok'));
         $turso->shouldReceive('query')->once()->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT 1 FROM'))->andReturn('1');
         $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $sql === 'PRAGMA integrity_check;')->andReturn('ok');
         $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT COUNT(*)'))->andReturn('0');
@@ -185,7 +147,7 @@ describe('verified backups', function () {
     test('Given a temporary database that is not immediately ready, it retries the readiness probe until it succeeds', function () {
         $turso = mock(TursoCli::class);
         $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
-        $turso->shouldReceive('createFromDump')->once()->andReturn(['example' => 1]);
+        $turso->shouldReceive('createFromDump')->once()->andReturn(new DatabaseValidation(['example' => 1], 'ok'));
         $attempts = 0;
         $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT 1 FROM'))
             ->andReturnUsing(function () use (&$attempts): string {
@@ -211,7 +173,7 @@ describe('verified backups', function () {
     test('Given a temporary database that never becomes ready, it throws once the deadline passes', function () {
         $turso = mock(TursoCli::class);
         $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
-        $turso->shouldReceive('createFromDump')->once()->andReturn(['example' => 1]);
+        $turso->shouldReceive('createFromDump')->once()->andReturn(new DatabaseValidation(['example' => 1], 'ok'));
         $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT 1 FROM'))->andThrow(new RuntimeException('database is not ready'));
         $turso->shouldNotReceive('query')->withArgs(fn ($database, $sql) => $sql === 'PRAGMA integrity_check;');
         $turso->shouldReceive('delete')->once();
@@ -223,14 +185,14 @@ describe('verified backups', function () {
         expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
     });
 
-    test('Given a completion manifest younger than four hours, it is fresh', function () {
-        putCompletionManifest('20260101T000000Z-a', now('UTC')->subHours(3), [['path' => 'audio/one.mp3', 'contents' => 'first']]);
+    test('Given a completion manifest younger than six hours, it is fresh', function () {
+        putCompletionManifest('20260101T000000Z-a', now('UTC')->subHours(5), [['path' => 'audio/one.mp3', 'contents' => 'first']]);
 
         expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeTrue();
     });
 
-    test('Given a completion manifest exactly four hours old or malformed, it is not fresh', function () {
-        putCompletionManifest('old', now('UTC')->subHours(4));
+    test('Given a completion manifest exactly six hours old or malformed, it is not fresh', function () {
+        putCompletionManifest('old', now('UTC')->subHours(6));
         expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeFalse();
 
         Storage::disk('backups')->put('runs/new/completion.json', '{not json');
