@@ -16,7 +16,9 @@ class TtsRateLimiter
         if ($reservedAt->lessThan($now)) {
             $reservedAt->addSecond();
         }
-        $nextAvailableAt = $reservedAt->addMinute();
+        // Copy before mutating so the reserved instant is not aliased by the
+        // slot deadline, which keeps the two values independent.
+        $nextAvailableAt = $reservedAt->copy()->addMinute();
 
         if (DB::table('tts_rate_limits')->insertOrIgnore([
             'name' => self::NAME,
