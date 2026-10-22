@@ -61,7 +61,6 @@ class ProcessTursoCli implements TursoCli
             if ($localIntegrityCheck !== 'ok') {
                 throw new RuntimeException('Locally rebuilt database failed integrity_check.');
             }
-            $connection->exec('PRAGMA journal_mode = WAL;');
             unset($connection);
             $this->run(['db', 'create', $database, '--from-file', $databasePath, '--group', 'default', '--wait']);
 
