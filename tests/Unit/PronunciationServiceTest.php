@@ -3,9 +3,10 @@
 use App\Contracts\TtsProvider;
 use App\Models\Word;
 use App\Services\PronunciationService;
+use App\Services\TtsRateLimiter;
 
 beforeEach(function () {
-    $this->service = new PronunciationService(mock(TtsProvider::class));
+    $this->service = new PronunciationService(mock(TtsProvider::class), mock(TtsRateLimiter::class));
 });
 
 describe('generating IPA', function () {
@@ -52,7 +53,9 @@ describe('ensuring pronunciation', function () {
         $provider->shouldReceive('isAvailable')->andReturn(true);
         $provider->shouldReceive('generateAudio')->andReturn('http://localhost/audio/testword.mp3');
 
-        $service = new PronunciationService($provider);
+        $rateLimiter = mock(TtsRateLimiter::class);
+        $rateLimiter->shouldReceive('acquire')->andReturn(true);
+        $service = new PronunciationService($provider, $rateLimiter);
 
         $word = Word::factory()->create([
             'text' => 'testword',
@@ -77,7 +80,7 @@ describe('ensuring pronunciation', function () {
         $provider->shouldReceive('isAvailable')->andReturn(false);
         $provider->shouldNotReceive('generateAudio');
 
-        $service = new PronunciationService($provider);
+        $service = new PronunciationService($provider, mock(TtsRateLimiter::class));
 
         $word = Word::factory()->create([
             'text' => 'testword',
@@ -101,7 +104,9 @@ describe('ensuring pronunciation', function () {
         $provider->shouldReceive('isAvailable')->andReturn(true);
         $provider->shouldReceive('generateAudio')->andReturn(null);
 
-        $service = new \App\Services\PronunciationService($provider);
+        $rateLimiter = mock(TtsRateLimiter::class);
+        $rateLimiter->shouldReceive('acquire')->andReturn(true);
+        $service = new \App\Services\PronunciationService($provider, $rateLimiter);
 
         $word = Word::factory()->create([
             'text' => 'testword',
@@ -116,5 +121,22 @@ describe('ensuring pronunciation', function () {
         expect($result->audio_url)->toBeNull();
         expect($result->pronunciation_status)->toBe(Word::PRONUNCIATION_FAILED)
             ->and($result->pronunciation_error)->toBe('audio_not_generated');
+    });
+
+    test('Given the TTS rate limit is occupied, audio generation is deferred without a failed attempt', function () {
+        $provider = mock(TtsProvider::class);
+        $provider->shouldReceive('isAvailable')->andReturn(true);
+        $provider->shouldNotReceive('generateAudio');
+        $rateLimiter = mock(TtsRateLimiter::class);
+        $rateLimiter->shouldReceive('acquire')->andReturn(false);
+        $rateLimiter->shouldReceive('nextAvailableAt')->andReturn(now()->addMinute());
+        $service = new PronunciationService($provider, $rateLimiter);
+        $word = Word::factory()->create(['text' => 'testword', 'slug' => 'testword']);
+
+        $result = $service->ensurePronunciation($word);
+
+        expect($result->pronunciation_status)->toBe(Word::PRONUNCIATION_PENDING)
+            ->and($result->pronunciation_attempts)->toBe(0)
+            ->and($result->pronunciation_retry_at)->not->toBeNull();
     });
 });

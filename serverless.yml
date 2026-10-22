@@ -140,7 +140,7 @@ functions:
                   input:
                       cli: 'words:generate-batch'
             - schedule:
-                  rate: rate(5 minutes)
+                  rate: rate(1 minute)
                   input:
                       cli: 'words:process-batches --limit=10 --max-seconds=600'
             # Each invocation is capped at 8 single RDAP attempts. Its normal

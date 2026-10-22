@@ -7,7 +7,7 @@ use App\Models\Word;
 
 class PronunciationService
 {
-    public function __construct(private TtsProvider $tts) {}
+    public function __construct(private TtsProvider $tts, private TtsRateLimiter $rateLimiter) {}
 
     private array $onsetMap = [
         'b' => 'b', 'bl' => 'bl', 'br' => 'bɹ',
@@ -110,6 +110,16 @@ class PronunciationService
         $word->ipa = $ipa;
 
         if (blank($word->audio_url) && $this->tts->isAvailable()) {
+            if (! $this->rateLimiter->acquire()) {
+                $word->fill([
+                    'pronunciation_status' => Word::PRONUNCIATION_PENDING,
+                    'pronunciation_retry_at' => $this->rateLimiter->nextAvailableAt(),
+                    'pronunciation_error' => null,
+                ])->save();
+
+                return $word->fresh();
+            }
+
             $audioUrl = $this->tts->generateAudio($word);
             if ($audioUrl !== null) {
                 $word->audio_url = $audioUrl;

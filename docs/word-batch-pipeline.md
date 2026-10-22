@@ -1,6 +1,6 @@
 # Word batch pipeline
 
-Every EventBridge UTC six-hour slot runs `words:generate-batch`, which idempotently creates one five-slot cohort. `words:process-batches` runs every five minutes under a Turso database lease and fills/replaces candidates, then progresses dictionary, definition, pronunciation, and .com checks. Failed work records a capped retry; a lease expiry is safely reclaimed.
+Every EventBridge UTC six-hour slot runs `words:generate-batch`, which idempotently creates one five-slot cohort. `words:process-batches` runs every minute under a Turso database lease and fills/replaces candidates, then progresses dictionary, definition, pronunciation, and .com checks. Edge TTS reserves one durable request slot per minute; queued pronunciations defer without consuming a retry attempt. Failed provider requests record a capped retry; a lease expiry is safely reclaimed.
 
 Only a `ready` cohort with five current candidates is published by `words:release`. Publication uses one transaction and one shared timestamp. It creates one durable `new_word_batch` notification per recipient; the existing immediate and daily outbox paths deliver it.
 

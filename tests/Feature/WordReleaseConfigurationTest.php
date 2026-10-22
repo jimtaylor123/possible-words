@@ -28,11 +28,12 @@ describe('word release configuration', function () {
             ->and(config('word-batch.schedule'))->toBe('cron(0 */6 * * ? *)');
     });
 
-    test('Given the production schedule, it creates cohorts every six hours and processes them every five minutes', function () {
+    test('Given the production schedule, it creates cohorts every six hours and processes them every minute', function () {
         $serverless = file_get_contents(base_path('serverless.yml'));
 
         expect($serverless)
             ->toContain('rate: cron(0 */6 * * ? *)')
+            ->toContain('rate: rate(1 minute)')
             ->toContain("cli: 'words:generate-batch'")
             ->toContain("cli: 'words:process-batches --limit=10 --max-seconds=600'")
             ->toContain("cli: 'words:release'");

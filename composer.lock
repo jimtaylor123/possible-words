@@ -8,28 +8,27 @@
     "packages": [
         {
             "name": "afaya/edge-tts",
-            "version": "1.7.0",
+            "version": "1.9.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andresayac/edge-tts-php.git",
-                "reference": "48c3f29be85c5f371de33317cdd517a9f0637e3e"
+                "reference": "84c16e61b44f2c1cd465f3867dc3a4edb19be515"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andresayac/edge-tts-php/zipball/48c3f29be85c5f371de33317cdd517a9f0637e3e",
-                "reference": "48c3f29be85c5f371de33317cdd517a9f0637e3e",
+                "url": "https://api.github.com/repos/andresayac/edge-tts-php/zipball/84c16e61b44f2c1cd465f3867dc3a4edb19be515",
+                "reference": "84c16e61b44f2c1cd465f3867dc3a4edb19be515",
                 "shasum": ""
             },
             "require": {
-                "php": ">=7.4 <8.5",
-                "ramsey/uuid": "^4.2",
-                "ratchet/pawl": "^0.4.1",
-                "react/async": "^4.3",
-                "react/event-loop": "^1.3",
-                "symfony/console": "^5.4|^6.0|^7.0"
+                "composer/ca-bundle": "^1.3",
+                "ext-json": "*",
+                "ext-openssl": "*",
+                "php": ">=7.4",
+                "symfony/console": "^5.4|^6.0|^7.0|^8.0"
             },
             "require-dev": {
-                "phpunit/phpunit": "^9.5"
+                "phpunit/phpunit": "^9.6"
             },
             "bin": [
                 "src/Cli/edge-tts"
@@ -42,14 +41,27 @@
             },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
-                "GPL-3.0+"
+                "GPL-3.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "Andres Aya"
+                }
             ],
             "description": "Edge TTS is a PHP package that allows access to the online text-to-speech service used by Microsoft Edge without the need for Microsoft Edge, Windows, or an API key.",
+            "homepage": "https://github.com/andresayac/edge-tts-php",
+            "keywords": [
+                "edge",
+                "microsoft",
+                "speech-synthesis",
+                "text-to-speech",
+                "tts"
+            ],
             "support": {
                 "issues": "https://github.com/andresayac/edge-tts-php/issues",
-                "source": "https://github.com/andresayac/edge-tts-php/tree/v1.7.0"
+                "source": "https://github.com/andresayac/edge-tts-php"
             },
-            "time": "2025-12-12T23:58:36+00:00"
+            "time": "2026-10-13T04:42:52+00:00"
         },
         {
             "name": "aws/aws-crt-php",
@@ -5066,60 +5078,6 @@
             "time": "2026-09-16T11:39:30+00:00"
         },
         {
-            "name": "ratchet/pawl",
-            "version": "v0.4.3",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/ratchetphp/Pawl.git",
-                "reference": "2c582373c78271de32cb04c755c4c0db7e09c9c0"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/ratchetphp/Pawl/zipball/2c582373c78271de32cb04c755c4c0db7e09c9c0",
-                "reference": "2c582373c78271de32cb04c755c4c0db7e09c9c0",
-                "shasum": ""
-            },
-            "require": {
-                "evenement/evenement": "^3.0 || ^2.0",
-                "guzzlehttp/psr7": "^2.0",
-                "php": ">=7.4",
-                "ratchet/rfc6455": "^0.3.1 || ^0.4.0",
-                "react/socket": "^1.9"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^9.3 || ^5.7 || ^4.8"
-            },
-            "suggest": {
-                "reactivex/rxphp": "~2.0"
-            },
-            "type": "library",
-            "autoload": {
-                "files": [
-                    "src/functions_include.php"
-                ],
-                "psr-4": {
-                    "Ratchet\\Client\\": "src"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "description": "Asynchronous WebSocket client",
-            "keywords": [
-                "Ratchet",
-                "async",
-                "client",
-                "websocket",
-                "websocket client"
-            ],
-            "support": {
-                "issues": "https://github.com/ratchetphp/Pawl/issues",
-                "source": "https://github.com/ratchetphp/Pawl/tree/v0.4.3"
-            },
-            "time": "2025-03-19T16:47:38+00:00"
-        },
-        {
             "name": "ratchet/rfc6455",
             "version": "v0.4.1",
             "source": {
@@ -5177,81 +5135,6 @@
                 "source": "https://github.com/ratchetphp/RFC6455/tree/v0.4.1"
             },
             "time": "2026-06-06T14:34:23+00:00"
-        },
-        {
-            "name": "react/async",
-            "version": "v4.3.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/reactphp/async.git",
-                "reference": "635d50e30844a484495713e8cb8d9e079c0008a5"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/reactphp/async/zipball/635d50e30844a484495713e8cb8d9e079c0008a5",
-                "reference": "635d50e30844a484495713e8cb8d9e079c0008a5",
-                "shasum": ""
-            },
-            "require": {
-                "php": ">=8.1",
-                "react/event-loop": "^1.2",
-                "react/promise": "^3.2 || ^2.8 || ^1.2.1"
-            },
-            "require-dev": {
-                "phpstan/phpstan": "1.10.39",
-                "phpunit/phpunit": "^9.6"
-            },
-            "type": "library",
-            "autoload": {
-                "files": [
-                    "src/functions_include.php"
-                ],
-                "psr-4": {
-                    "React\\Async\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Christian Lück",
-                    "email": "christian@clue.engineering",
-                    "homepage": "https://clue.engineering/"
-                },
-                {
-                    "name": "Cees-Jan Kiewiet",
-                    "email": "reactphp@ceesjankiewiet.nl",
-                    "homepage": "https://wyrihaximus.net/"
-                },
-                {
-                    "name": "Jan Sorgalla",
-                    "email": "jsorgalla@gmail.com",
-                    "homepage": "https://sorgalla.com/"
-                },
-                {
-                    "name": "Chris Boden",
-                    "email": "cboden@gmail.com",
-                    "homepage": "https://cboden.dev/"
-                }
-            ],
-            "description": "Async utilities and fibers for ReactPHP",
-            "keywords": [
-                "async",
-                "reactphp"
-            ],
-            "support": {
-                "issues": "https://github.com/reactphp/async/issues",
-                "source": "https://github.com/reactphp/async/tree/v4.3.0"
-            },
-            "funding": [
-                {
-                    "url": "https://opencollective.com/reactphp",
-                    "type": "open_collective"
-                }
-            ],
-            "time": "2024-06-04T14:40:02+00:00"
         },
         {
             "name": "react/cache",
@@ -8822,6 +8705,78 @@
                 }
             ],
             "time": "2026-04-26T05:33:54+00:00"
+        },
+        {
+            "name": "composer/ca-bundle",
+            "version": "1.6.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/composer/ca-bundle.git",
+                "reference": "2c99cf2e92516985dea4914812b93d9daf01cdd6"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/composer/ca-bundle/zipball/2c99cf2e92516985dea4914812b93d9daf01cdd6",
+                "reference": "2c99cf2e92516985dea4914812b93d9daf01cdd6",
+                "shasum": ""
+            },
+            "require": {
+                "ext-openssl": "*",
+                "ext-pcre": "*",
+                "php": "^7.2 || ^8.0"
+            },
+            "require-dev": {
+                "phpstan/phpstan": "^1.10",
+                "phpunit/phpunit": "^8 || ^9",
+                "psr/log": "^1.0 || ^2.0 || ^3.0",
+                "symfony/process": "^4.0 || ^5.0 || ^6.0 || ^7.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Composer\\CaBundle\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Jordi Boggiano",
+                    "email": "j.boggiano@seld.be",
+                    "homepage": "http://seld.be"
+                }
+            ],
+            "description": "Lets you find a path to the system CA bundle, and includes a fallback to the Mozilla CA bundle.",
+            "keywords": [
+                "cabundle",
+                "cacert",
+                "certificate",
+                "ssl",
+                "tls"
+            ],
+            "support": {
+                "irc": "irc://irc.freenode.org/composer",
+                "issues": "https://github.com/composer/ca-bundle/issues",
+                "source": "https://github.com/composer/ca-bundle/tree/1.6.0"
+            },
+            "funding": [
+                {
+                    "url": "https://packagist.com",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/composer",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-10-20T20:14:05+00:00"
         }
     ],
     "packages-dev": [
