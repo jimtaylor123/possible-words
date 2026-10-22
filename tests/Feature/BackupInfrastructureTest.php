@@ -9,8 +9,10 @@ describe('backup infrastructure', function () {
 
         expect($serverless['functions']['backup']['events'])
             ->toContain(['schedule' => ['rate' => 'cron(0 */6 * * ? *)', 'enabled' => true, 'input' => ['cli' => 'backup:run']]])
-            ->toContain(['schedule' => ['rate' => 'cron(0 * * * ? *)', 'input' => ['cli' => 'backup:check-freshness']]]);
+            ->toContain(['schedule' => ['rate' => 'cron(15 * * * ? *)', 'input' => ['cli' => 'backup:check-freshness']]]);
         expect($serverless['functions']['backup']['timeout'])->toBe(720);
+        expect($serverless['resources']['Resources']['BackupFreshnessAlarm']['Properties']['AlarmDescription'])
+            ->toBe('No verified backup manifest is younger than six hours and fifteen minutes.');
         expect($serverless['functions']['backup']['environment']['BROADCAST_CONNECTION'])->toBe('log');
         expect($serverless['resources']['Resources']['BackupBucket']['Properties'])
             ->toHaveKey('VersioningConfiguration')

@@ -6,7 +6,9 @@ The production operator owns backup alerts sent to **jimtayloremail@gmail.com**
 through the `possiblewords-prod-backup-alarms` SNS topic. Confirm the SNS email
 subscription after the first deployment. The verified recovery point objective
 (RPO) is six hours: an enabled backup runs every six hours and is alarmed when
-the latest verified completion manifest is six hours old.
+the latest verified completion manifest is older than six hours and fifteen
+minutes. Freshness checks run at quarter past the hour, after the 12-minute
+backup Lambda deadline at the next run boundary.
 
 Each run's current data version is scheduled to expire seven days after creation
 in the private stack-managed backup bucket
@@ -53,11 +55,12 @@ it in the backup Lambda package. The SNS endpoint is intentionally declared in
 ## Alarm response
 
 `BackupLambdaErrorsAlarm` means an invocation failed. `BackupFreshnessAlarm`
-means there is no valid completion manifest younger than six hours (including
+means there is no valid completion manifest younger than six hours and fifteen
+minutes (including
 when the freshness schedule is absent). Acknowledge the alarm, inspect the
 backup Lambda CloudWatch logs, and run the documented acceptance drill below.
-Escalate before the six-hour RPO expires. Do not disable an alarm to acknowledge
-it.
+Escalate before the six-hour RPO plus verification allowance expires. Do not
+disable an alarm to acknowledge it.
 
 ## Recovery drill
 

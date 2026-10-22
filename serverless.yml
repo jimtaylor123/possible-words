@@ -197,7 +197,7 @@ functions:
                   input:
                       cli: 'backup:run'
             - schedule:
-                  rate: cron(0 * * * ? *)
+                  rate: cron(15 * * * ? *)
                   input:
                       cli: 'backup:check-freshness'
 
@@ -357,7 +357,7 @@ resources:
         BackupFreshnessAlarm:
             Type: AWS::CloudWatch::Alarm
             Properties:
-                AlarmDescription: No verified backup manifest is younger than six hours.
+                AlarmDescription: No verified backup manifest is younger than six hours and fifteen minutes.
                 Namespace: PossibleWords/Backups
                 MetricName: BackupFreshness
                 Statistic: Minimum

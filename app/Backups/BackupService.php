@@ -42,8 +42,11 @@ class BackupService
             $dumpPath = $this->writeTemporaryDump($dump);
 
             try {
-                $validation = $this->turso->createFromDump($temporaryDatabase, $dumpPath);
                 $temporaryDatabaseCreated = true;
+                $validation = $this->turso->createFromDump($temporaryDatabase, $dumpPath);
+                if ($validation->localIntegrityCheck !== 'ok') {
+                    throw new RuntimeException('Locally rebuilt database failed integrity_check.');
+                }
                 $this->waitForRestore($temporaryDatabase, $validation->tableCounts);
                 $restoredIntegrityCheck = $this->verifyDatabase($temporaryDatabase, $validation->tableCounts);
             } finally {
@@ -76,10 +79,16 @@ class BackupService
             $this->metrics->publish('BackupVerified', 1);
 
             return $runPrefix;
-        } finally {
+        } catch (Throwable $exception) {
             if ($temporaryDatabaseCreated) {
-                $this->deleteTemporaryDatabase($temporaryDatabase);
+                try {
+                    $this->deleteTemporaryDatabase($temporaryDatabase);
+                } catch (Throwable) {
+                    // Preserve the export, local-validation, or create failure.
+                }
             }
+
+            throw $exception;
         }
     }
 
@@ -284,7 +293,7 @@ class BackupService
                 return false;
             }
             $verifiedAt = CarbonImmutable::parse($data['verified_at']);
-            if (($data['version'] ?? null) !== 1 || ! $verifiedAt->greaterThan(now('UTC')->subHours(6))
+            if (($data['version'] ?? null) !== 1 || ! $verifiedAt->greaterThan(now('UTC')->subMinutes(375))
                 || ! is_array($data['database'] ?? null) || ! is_array($data['objects'] ?? null)) {
                 return false;
             }

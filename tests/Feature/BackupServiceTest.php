@@ -128,6 +128,37 @@ describe('verified backups', function () {
         expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
     });
 
+    test('Given local dump validation is not ok, it deletes the temporary database and does not publish a completion marker', function () {
+        $turso = mock(TursoCli::class);
+        $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
+        $turso->shouldReceive('createFromDump')->once()->andReturn(new DatabaseValidation(['example' => 0], 'corrupt'));
+        $turso->shouldNotReceive('query');
+        $turso->shouldReceive('delete')->once();
+
+        expect(fn () => backupServiceWith($turso)->run())
+            ->toThrow(RuntimeException::class, 'Locally rebuilt database failed integrity_check.');
+        expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
+    });
+
+    test('Given temporary database creation fails after being attempted, it deletes the named database and does not complete the run', function () {
+        $turso = mock(TursoCli::class);
+        $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
+        $turso->shouldReceive('createFromDump')->once()->andThrow(new RuntimeException('create timed out'));
+        $turso->shouldReceive('delete')->once();
+
+        expect(fn () => backupServiceWith($turso)->run())->toThrow(RuntimeException::class, 'create timed out');
+        expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
+    });
+
+    test('Given compensating temporary database cleanup fails, it preserves the original create failure', function () {
+        $turso = mock(TursoCli::class);
+        $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
+        $turso->shouldReceive('createFromDump')->once()->andThrow(new RuntimeException('create timed out'));
+        $turso->shouldReceive('delete')->once()->andThrow(new RuntimeException('database not found'));
+
+        expect(fn () => backupServiceWith($turso)->run())->toThrow(RuntimeException::class, 'create timed out');
+    });
+
     test('Given temporary database cleanup fails, it fails without publishing a completion marker', function () {
         $turso = mock(TursoCli::class);
         $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
@@ -191,11 +222,17 @@ describe('verified backups', function () {
         expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeTrue();
     });
 
-    test('Given a completion manifest exactly six hours old or malformed, it is not fresh', function () {
+    test('Given a completion manifest is exactly six hours old, it remains fresh despite a later malformed manifest', function () {
         putCompletionManifest('old', now('UTC')->subHours(6));
-        expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeFalse();
+        expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeTrue();
 
         Storage::disk('backups')->put('runs/new/completion.json', '{not json');
+        expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeTrue();
+    });
+
+    test('Given a completion manifest is older than the fifteen-minute verification allowance, it is not fresh', function () {
+        putCompletionManifest('old', now('UTC')->subMinutes(375));
+
         expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeFalse();
     });
 
@@ -212,5 +249,26 @@ describe('verified backups', function () {
         Storage::disk('backups')->put('runs/broken/objects/audio/one.mp3', 'changed');
 
         expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeFalse();
+    });
+
+    test('Given a fresh manifest is missing or falsifies either integrity validation result, it is not fresh', function () {
+        $disk = Storage::disk('backups');
+
+        foreach (['local_integrity_check', 'restored_integrity_check'] as $field) {
+            putCompletionManifest('invalid-'.$field, now('UTC')->subHour());
+            $path = "runs/invalid-$field/completion.json";
+            $manifest = json_decode($disk->get($path), true, 512, JSON_THROW_ON_ERROR);
+            unset($manifest['database']['validation'][$field]);
+            $disk->put($path, json_encode($manifest, JSON_THROW_ON_ERROR));
+
+            expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeFalse();
+
+            $manifest['database']['validation'][$field] = 'failed';
+            $disk->put($path, json_encode($manifest, JSON_THROW_ON_ERROR));
+
+            expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeFalse();
+
+            $disk->delete($path);
+        }
     });
 });
