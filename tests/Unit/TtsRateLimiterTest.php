@@ -22,13 +22,17 @@ test('it permits one Edge TTS request per minute', function () {
     try {
         $limiter = new TtsRateLimiter;
 
+        // The first request reserves the slot, the second one within the
+        // same minute is rejected.
         expect($limiter->acquire())->toBeTrue()
             ->and($limiter->acquire())->toBeFalse();
 
+        // The slot is still held a second before the deadline.
         Carbon::setTestNow('2026-10-22 12:01:00');
 
         expect($limiter->acquire())->toBeFalse();
 
+        // Once the deadline passes the slot is released again.
         Carbon::setTestNow('2026-10-22 12:01:01');
 
         expect($limiter->acquire())->toBeTrue()
@@ -63,4 +67,14 @@ test('it keeps the reserved instant and the slot deadline independent', function
 
     expect($reservedAt->toDateTimeString())->toBe('2026-10-22 12:00:01')
         ->and($nextAvailableAt->toDateTimeString())->toBe('2026-10-22 12:01:02');
+});
+
+test('it reserves the current instant when now falls exactly on a whole second', function () {
+    [$reservedAt, $nextAvailableAt] = ttsRateLimiterWithExposedSlotInstants()
+        ->slotInstantsFor(Carbon::parse('2026-10-22 12:00:00'));
+
+    // The instant is not rounded up, because it is already a whole second.
+    expect($reservedAt->toDateTimeString())->toBe('2026-10-22 12:00:00')
+        ->and($nextAvailableAt->toDateTimeString())->toBe('2026-10-22 12:01:00')
+        ->and($nextAvailableAt->getTimestamp() - $reservedAt->getTimestamp())->toBe(60);
 });

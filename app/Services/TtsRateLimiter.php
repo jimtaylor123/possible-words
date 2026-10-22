@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
  * next whole second at or after the current time, and the slot deadline is
  * that reserved instant plus one minute. The deadline is calculated from a
  * copy of the reserved instant so the two values are independent and never
- * alias one another.
+ * alias each other.
  */
 class TtsRateLimiter
 {
@@ -43,11 +43,12 @@ class TtsRateLimiter
 
     public function nextAvailableAt(): CarbonInterface
     {
+        $now = now();
         $nextAvailableAt = DB::table('tts_rate_limits')
             ->where('name', self::NAME)
             ->value('next_available_at');
 
-        return $nextAvailableAt === null ? now()->addMinute() : now()->parse($nextAvailableAt);
+        return $nextAvailableAt === null ? $now->addMinute() : $now->parse($nextAvailableAt);
     }
 
     /**
