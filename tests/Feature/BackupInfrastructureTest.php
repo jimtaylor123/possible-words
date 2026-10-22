@@ -59,6 +59,29 @@ describe('backup infrastructure', function () {
             ->toContain("BACKUP_RETENTION_DAYS: \${{ vars.BACKUP_RETENTION_DAYS || '7' }}");
     });
 
+    test('Given the Laravel console schedule, backups run every six hours and the freshness check runs quarter past the hour', function () {
+        $schedule = file_get_contents(base_path('routes/console.php'));
+
+        expect($schedule)
+            ->toContain("Schedule::command('backup:run')->everySixHours()->withoutOverlapping()")
+            ->toContain("Schedule::command('backup:check-freshness')->hourlyAt(15)->withoutOverlapping()")
+            ->not->toContain("Schedule::command('backup:run')->everyThreeHours()")
+            ->not->toContain("Schedule::command('backup:check-freshness')->hourly()");
+    });
+
+    test('Given the backup documentation and freshness command, they describe the same window as the CloudWatch alarm', function () {
+        $documentation = preg_replace('/\s+/', ' ', file_get_contents(base_path('docs/backups.md')));
+        $command = file_get_contents(base_path('app/Console/Commands/CheckBackupFreshnessCommand.php'));
+        $alarmDescription = Yaml::parseFile(base_path('serverless.yml'))['resources']['Resources']['BackupFreshnessAlarm']['Properties']['AlarmDescription'];
+
+        expect($documentation)
+            ->toContain('an enabled backup runs every six hours')
+            ->toContain('six hours and fifteen minutes')
+            ->toContain('--from-file ./restore.sqlite --group default --wait');
+        expect($command)->toContain('six hours and fifteen minutes');
+        expect($alarmDescription)->toBe('No verified backup manifest is younger than six hours and fifteen minutes.');
+    });
+
     test('Given the pinned Turso installer, it uses the issue-02 verified Linux release archive', function () {
         $installer = file_get_contents(base_path('scripts/install-turso-cli.sh'));
 

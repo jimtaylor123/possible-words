@@ -157,6 +157,7 @@ describe('verified backups', function () {
         $turso->shouldReceive('delete')->once()->andThrow(new RuntimeException('database not found'));
 
         expect(fn () => backupServiceWith($turso)->run())->toThrow(RuntimeException::class, 'create timed out');
+        expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
     });
 
     test('Given temporary database cleanup fails, it fails without publishing a completion marker', function () {

@@ -64,6 +64,33 @@ describe('Turso CLI process', function () {
         }
     });
 
+    test('Given a dump that rebuilds into a database failing the local integrity check, it fails before invoking the CLI', function () {
+        $dump = tempnam(sys_get_temp_dir(), 'turso-dump-');
+        $invocation = tempnam(sys_get_temp_dir(), 'turso-invocation-');
+        file_put_contents($dump, <<<'SQL'
+CREATE TABLE example (id INTEGER PRIMARY KEY, name TEXT);
+INSERT INTO example (name) VALUES ('one');
+CREATE INDEX example_name ON example(name);
+PRAGMA writable_schema=ON;
+DELETE FROM sqlite_master WHERE name='example_name';
+PRAGMA schema_version = 2;
+PRAGMA writable_schema=OFF;
+SQL);
+        unlink($invocation);
+        config()->set('backups.turso_cli_path', tursoCliStub("touch '$invocation'"));
+        config()->set('backups.turso_api_token', 'backup-token');
+        config()->set('backups.turso_organization', 'backup-org');
+
+        try {
+            expect(fn () => (new ProcessTursoCli)->createFromDump('restore-check', $dump))
+                ->toThrow(RuntimeException::class, 'Locally rebuilt database failed integrity_check.');
+            expect(file_exists($invocation))->toBeFalse();
+        } finally {
+            @unlink($dump);
+            @unlink($invocation);
+        }
+    });
+
     test('Given a malformed SQL dump, it fails before invoking the CLI', function () {
         $dump = tempnam(sys_get_temp_dir(), 'turso-dump-');
         $invocation = tempnam(sys_get_temp_dir(), 'turso-invocation-');
