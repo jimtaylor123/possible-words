@@ -75,7 +75,12 @@ class E2eFixtureController extends Controller
                 'syllables' => $index % 3 + 1,
                 'status' => 'available',
                 'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
-                'domain_status' => $index % 2 ? Word::DOMAIN_AVAILABLE : Word::DOMAIN_TAKEN,
+                'domain_status' => match ($index % 4) {
+                    1 => Word::DOMAIN_AVAILABLE,
+                    2 => Word::DOMAIN_TAKEN,
+                    3 => Word::DOMAIN_CHECK_FAILED,
+                    default => Word::DOMAIN_UNCHECKED,
+                },
                 'published_at' => now()->subMinute(),
                 'ipa' => $index === 1 ? '/iː tuː iː/' : null,
                 'audio_url' => $index === 1 ? '/audio/e2e.mp3' : null,
