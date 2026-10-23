@@ -8,7 +8,7 @@
             <Logo compact :current="isCurrentPath('/')" />
           </div>
 
-          <div class="order-3 flex w-full shrink-0 items-center gap-2 pt-2 sm:order-none sm:ml-auto sm:w-auto sm:gap-4 sm:pt-0">
+          <div class="order-3 flex w-full shrink-0 items-center gap-2 pt-2 sm:order-none sm:ml-auto sm:w-auto sm:gap-6 sm:pt-0">
             <Link
               :href="route('home')"
               :class="[navLinkClass('/'), 'sm:hidden']"
@@ -39,7 +39,7 @@
               Favourites
             </Link>
           </div>
-          <div class="ml-auto flex shrink-0 items-center gap-2 sm:ml-4 sm:gap-4">
+          <div class="ml-auto flex shrink-0 items-center gap-2 sm:ml-6 sm:gap-6">
             <n-popover v-if="user" trigger="click" placement="bottom-end">
               <template #trigger>
                 <button type="button" aria-label="Notifications" class="relative p-2 text-gray-600 hover:text-gray-900" @click="unlockNotificationAudio">
