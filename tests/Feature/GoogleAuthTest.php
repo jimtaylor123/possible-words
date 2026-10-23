@@ -77,6 +77,23 @@ describe('google sign-in', function () {
         $this->assertAuthenticatedAs($existing);
     });
 
+    test('Given a suspended known user, the callback rejects access without changing their profile', function () {
+        $suspended = User::factory()->create([
+            'email' => 'jane@example.com',
+            'name' => 'Original Name',
+            'suspended_at' => now(),
+        ]);
+        Http::fake(['googleapis.com/*' => Http::response(['name' => 'Jane Doe', 'email' => 'jane@example.com'])]);
+        Socialite::shouldReceive('driver->user')->andReturn(fakeGoogleUser());
+
+        $this->get(route('auth.google.callback'))
+            ->assertRedirect(route('home'))
+            ->assertSessionHas('error', 'Your account is unavailable. Please contact support.');
+
+        expect($suspended->fresh()->name)->toBe('Original Name');
+        $this->assertGuest();
+    });
+
     test('Given a deleted account, the same Google identity creates a new user', function () {
         Mail::fake();
         $deletedUser = User::factory()->create(['email' => 'jane@example.com']);
@@ -131,6 +148,26 @@ describe('google sign-in', function () {
             ->assertRedirect(route('home'))
             ->assertSessionHas('error');
     });
+
+    test('Given an existing user signs in successfully, the callback records activity', function () {
+        $existing = User::factory()->create(['email' => 'jane@example.com', 'last_active_at' => null]);
+        Http::fake(['googleapis.com/*' => Http::response(['name' => 'Jane Doe', 'email' => 'jane@example.com'])]);
+        Socialite::shouldReceive('driver->user')->andReturn(fakeGoogleUser());
+
+        $this->get(route('auth.google.callback'))->assertRedirect('/');
+
+        expect($existing->fresh()->last_active_at)->not->toBeNull();
+    });
+});
+
+test('testing login rejects a suspended account', function () {
+    $user = User::factory()->create(['email' => 'suspended-login@example.com', 'suspended_at' => now()]);
+
+    $this->post(route('testing.login'), ['email' => $user->email])
+        ->assertForbidden()
+        ->assertJsonPath('error', 'Your account is unavailable. Please contact support.');
+
+    $this->assertGuest();
 });
 
 describe('signing out', function () {

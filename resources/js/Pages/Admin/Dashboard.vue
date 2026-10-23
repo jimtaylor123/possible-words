@@ -3,6 +3,7 @@
     <div class="max-w-5xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <h1 class="text-3xl font-bold text-gray-900 mb-2">Report queue</h1>
       <p class="text-gray-600 mb-6">Review submitted reports and remove reported content when necessary.</p>
+      <a :href="route('admin.users.index')" class="mb-6 inline-block text-blue-600 hover:underline">User management</a>
 
       <p v-if="$page.props.flash?.success" role="status" class="mb-4 rounded border border-green-200 bg-green-50 p-3 text-green-800">
         {{ $page.props.flash.success }}
