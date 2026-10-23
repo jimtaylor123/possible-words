@@ -3,12 +3,19 @@
     <!-- Navigation -->
     <nav aria-label="Primary navigation" class="sticky top-0 z-50 bg-white shadow-sm border-b">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-          <div class="flex items-center">
-            <Logo />
+        <div class="flex min-w-0 flex-wrap items-center py-2 sm:h-16 sm:flex-nowrap sm:py-0">
+          <div class="min-w-0 shrink">
+            <Logo compact />
           </div>
 
-          <div class="flex items-center gap-4 sm:gap-6">
+          <div class="order-3 flex w-full shrink-0 items-center gap-2 pt-2 sm:order-none sm:ml-auto sm:w-auto sm:gap-4 sm:pt-0">
+            <Link
+              :href="route('home')"
+              :class="[navLinkClass('/'), 'sm:hidden']"
+              :aria-current="isCurrentPath('/') ? 'page' : undefined"
+            >
+              Home
+            </Link>
             <Link
               :href="route('about')"
               :class="navLinkClass('/about')"
@@ -31,6 +38,8 @@
             >
               Favourites
             </Link>
+          </div>
+          <div class="ml-auto flex shrink-0 items-center gap-2 sm:ml-4 sm:gap-4">
             <n-popover v-if="user" trigger="click" placement="bottom-end">
               <template #trigger>
                 <button type="button" aria-label="Notifications" class="relative p-2 text-gray-600 hover:text-gray-900" @click="unlockNotificationAudio">
@@ -112,7 +121,7 @@
               </button>
             </n-dropdown>
 
-            <GoogleSignInButton v-else @click="login" />
+            <GoogleSignInButton v-else mobile-label="Sign in with Google" @click="login" />
           </div>
         </div>
       </div>
