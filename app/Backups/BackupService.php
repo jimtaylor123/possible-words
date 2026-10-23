@@ -190,7 +190,7 @@ class BackupService
         }
 
         foreach ($expected as $table => $count) {
-            $actual = (int) trim($this->turso->query($database, 'SELECT COUNT(*) FROM '.$this->quoteIdentifier($table).';'));
+            $actual = $this->restoredTableCount($database, $table);
             if ($actual !== $count) {
                 throw new RuntimeException("Restored table [$table] has an unexpected row count.");
             }
@@ -207,7 +207,7 @@ class BackupService
         do {
             try {
                 foreach ($expected as $table => $count) {
-                    $actual = (int) trim($this->turso->query($database, 'SELECT COUNT(*) FROM '.$this->quoteIdentifier($table).';'));
+                    $actual = $this->restoredTableCount($database, $table);
                     if ($actual !== $count) {
                         throw new RuntimeException("Restored table [$table] is not ready.");
                     }
@@ -222,6 +222,16 @@ class BackupService
                 sleep($this->restorePollSeconds);
             }
         } while (true);
+    }
+
+    private function restoredTableCount(string $database, string $table): int
+    {
+        $output = trim($this->turso->query($database, 'SELECT COUNT(*) FROM '.$this->quoteIdentifier($table).';'));
+        if (preg_match('/(?:^|\R)\s*(\d+)\s*$/', $output, $matches) !== 1) {
+            throw new RuntimeException("Restored table [$table] returned an invalid row count.");
+        }
+
+        return (int) $matches[1];
     }
 
     /**

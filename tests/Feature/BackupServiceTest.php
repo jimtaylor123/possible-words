@@ -36,7 +36,7 @@ function successfulTurso(array $tables = ['example' => 0]): TursoCli
     $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => $database !== 'production' && str_starts_with($sql, 'SELECT COUNT(*)'))->andReturnUsing(function ($database, $sql) use ($tables): string {
         preg_match('/FROM "(.+)"/', $sql, $matches);
 
-        return (string) $tables[str_replace('""', '"', $matches[1] ?? '')];
+        return "COUNT(*)\n--------\n".$tables[str_replace('""', '"', $matches[1] ?? '')]."\n";
     });
     $turso->shouldReceive('delete')->once();
 
