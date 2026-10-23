@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Definition;
+use App\Models\Favourite;
 use App\Models\Report;
 use App\Models\ReportCase;
 use App\Models\User;
@@ -55,7 +56,7 @@ class E2eFixtureController extends Controller
     {
         $namespace = $this->namespace($request);
         $scenario = $request->string('scenario')->toString();
-        abort_unless(in_array($scenario, ['word', 'browse', 'notifications', 'users', 'reports', 'definitions'], true), 422);
+        abort_unless(in_array($scenario, ['word', 'browse', 'favourites', 'notifications', 'users', 'reports', 'definitions'], true), 422);
         $this->reset($request);
 
         $user = User::create([
@@ -65,7 +66,7 @@ class E2eFixtureController extends Controller
             'password' => null,
         ]);
         $words = collect();
-        $count = $scenario === 'browse' ? 24 : 1;
+        $count = in_array($scenario, ['browse', 'favourites'], true) ? 24 : 1;
         for ($index = 1; $index <= $count; $index++) {
             $suffix = str_pad((string) $index, 2, '0', STR_PAD_LEFT);
             $words->push(Word::create([
@@ -99,6 +100,10 @@ class E2eFixtureController extends Controller
                 'data' => ['title' => 'Read E2E notification', 'body' => 'Already read fixture'],
                 'read_at' => now()->subMinute(),
             ]);
+        }
+
+        if ($scenario === 'favourites') {
+            $words->each(fn (Word $word) => Favourite::create(['user_id' => $user->id, 'word_id' => $word->id]));
         }
 
         if ($scenario === 'reports') {
