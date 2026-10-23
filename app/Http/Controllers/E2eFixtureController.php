@@ -41,7 +41,7 @@ class E2eFixtureController extends Controller
     {
         $namespace = $this->namespace($request);
         $scenario = $request->string('scenario')->toString();
-        abort_unless(in_array($scenario, ['word', 'browse', 'notifications'], true), 422);
+        abort_unless(in_array($scenario, ['word', 'browse', 'notifications', 'users'], true), 422);
         $this->reset($request);
 
         $user = User::create([
@@ -76,9 +76,23 @@ class E2eFixtureController extends Controller
             ]);
         }
 
+        $users = collect();
+        if ($scenario === 'users') {
+            for ($index = 1; $index <= 22; $index++) {
+                $users->push(User::create([
+                    'name' => "Fixture User {$index}",
+                    'email' => "e2e-{$namespace}-target-{$index}@example.test",
+                    'provider' => 'google',
+                    'password' => null,
+                    'is_admin' => false,
+                ]));
+            }
+        }
+
         return response()->json([
             'user' => ['id' => $user->id, 'email' => $user->email],
             'words' => $words->map(fn (Word $word) => ['slug' => $word->slug, 'text' => $word->text]),
+            'users' => $users->map(fn (User $fixtureUser) => ['id' => $fixtureUser->id, 'email' => $fixtureUser->email, 'name' => $fixtureUser->name]),
         ]);
     }
 
