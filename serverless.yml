@@ -172,7 +172,7 @@ functions:
     backup:
         handler: artisan
         runtime: php-84-console
-        timeout: 720
+        timeout: 900
         role:
             Fn::GetAtt:
                 - BackupLambdaRole
@@ -197,7 +197,7 @@ functions:
                   input:
                       cli: 'backup:run'
             - schedule:
-                  rate: cron(15 * * * ? *)
+                  rate: cron(20 * * * ? *)
                   input:
                       cli: 'backup:check-freshness'
 
@@ -357,7 +357,7 @@ resources:
         BackupFreshnessAlarm:
             Type: AWS::CloudWatch::Alarm
             Properties:
-                AlarmDescription: No verified backup manifest is younger than six hours and fifteen minutes.
+                AlarmDescription: No verified backup manifest is younger than six hours and twenty minutes.
                 Namespace: PossibleWords/Backups
                 MetricName: BackupFreshness
                 Statistic: Minimum

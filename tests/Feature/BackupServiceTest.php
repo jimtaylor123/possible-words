@@ -228,8 +228,8 @@ describe('verified backups', function () {
         expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeTrue();
     });
 
-    test('Given a completion manifest is older than the fifteen-minute verification allowance, it is not fresh', function () {
-        putCompletionManifest('old', now('UTC')->subMinutes(375));
+    test('Given a completion manifest is older than the twenty-minute verification allowance, it is not fresh', function () {
+        putCompletionManifest('old', now('UTC')->subMinutes(380));
 
         expect(backupServiceWith(mock(TursoCli::class))->isFresh())->toBeFalse();
     });
