@@ -18,6 +18,6 @@ test.describe('Pronunciation feature', () => {
         await wordLink.waitFor({ state: 'visible' });
         await wordLink.click();
 
-        await expect(page.getByText('Play')).not.toBeVisible();
+        await expect(page.getByText('Play', { exact: true })).not.toBeVisible();
     });
 });

@@ -10,7 +10,7 @@
           :href="route('words.show', word.slug)"
           class="group block min-w-0 rounded-lg no-underline text-inherit focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
         >
-          <n-card class="h-full min-w-0 transition-shadow hover:shadow-lg">
+          <n-card class="h-full min-w-0 max-w-full overflow-hidden transition-shadow hover:shadow-lg">
             <template #header>
               <div class="flex items-center justify-between">
                 <span class="text-xl font-bold text-blue-600 group-hover:text-blue-800">

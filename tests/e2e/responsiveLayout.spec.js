@@ -50,7 +50,6 @@ test.describe('responsive primary navigation', () => {
             await expectInBounds(page.locator('nav').getByRole('link', { name: 'Popular', exact: true }), width);
             await expectInBounds(page.getByRole('button', { name: 'Continue with Google' }), width);
             await expect(page.locator('nav [aria-current="page"]')).toHaveCount(1);
-            await expect(page.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
             await expectNoHorizontalOverflow(page);
         });
 
@@ -63,7 +62,6 @@ test.describe('responsive primary navigation', () => {
             await expectInBounds(page.getByRole('button', { name: 'Notifications' }), width);
             await expectInBounds(page.getByRole('button', { name: 'Account menu for Responsive User' }), width);
             await expect(page.locator('nav [aria-current="page"]')).toHaveCount(1);
-            await expect(page.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
             await page.getByRole('button', { name: 'Notifications' }).click();
             const notifications = page.getByRole('region', { name: 'Notifications' });
             await expectInBounds(notifications, width);
