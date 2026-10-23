@@ -28,17 +28,20 @@ test('admin queue is case based and filters statuses', function () {
     }
 });
 
-test('admin queue preserves and displays legacy reviewed cases separately from dismissals', function () {
+test('admin queue does not accept the removed reviewed status filter', function () {
     $admin = User::factory()->create(['is_admin' => true]);
-    adminCase('reviewed');
     adminCase('dismissed');
 
     $this->actingAs($admin)->get(route('admin.dashboard', ['status' => 'reviewed']))
         ->assertInertia(fn ($page) => $page
-            ->where('filters.status', 'reviewed')
-            ->has('reports.data', 1)
-            ->where('reports.data.0.status', 'reviewed')
-            ->where('statusOptions.2', ['label' => 'Reviewed (legacy)', 'value' => 'reviewed']));
+            ->where('filters.status', 'open')
+            ->has('reports.data', 0)
+            ->where('statusOptions', [
+                ['label' => 'Open', 'value' => 'open'],
+                ['label' => 'Dismissed', 'value' => 'dismissed'],
+                ['label' => 'Muted', 'value' => 'muted'],
+                ['label' => 'All', 'value' => 'all'],
+            ]));
 });
 
 test('admin can mute unmute and dismiss a case with immutable actions', function () {
