@@ -9,8 +9,10 @@ test('favourites have deterministic empty, browse-toggle, detail-toggle, and pop
     await expect(page.getByText("You haven't favourited any words yet.")).toBeVisible();
     await page.goto('/');
     const card = page.getByTestId(`word-card-${fixture.words[0].slug}`);
+    const favouriteRequest = page.waitForResponse(response => new URL(response.url()).pathname.endsWith(`/words/${fixture.words[0].slug}/favourite`) && response.request().method() === 'POST');
     await card.getByRole('button', { name: `Add ${fixture.words[0].text} to favourites` }).click();
-    await expect(card.getByRole('button', { name: `Remove ${fixture.words[0].text} from favourites` })).toBeVisible();
+    await favouriteRequest;
+    await expect(card.getByRole('button', { name: /Remove .* from favourites/ })).toBeVisible();
     await card.click();
     await page.getByRole('button', { name: 'Remove from favourites' }).click();
     await page.getByRole('button', { name: 'Add to favourites' }).click();

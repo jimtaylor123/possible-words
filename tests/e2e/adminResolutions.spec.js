@@ -51,3 +51,20 @@ test('filtered queues render an explicit empty state', async ({ page, e2e }) => 
     await page.goto('/admin?reason=word_unfresh&status=open');
     await expect(page.getByText('No report cases match these filters.')).toBeVisible();
 });
+
+test('an administrator removes reported word content and reporters see the outcome', async ({ page, e2e }) => {
+    const fixture = await e2e.setup('reports');
+    await e2e.login(`e2e-${e2e.namespace}-admin@example.test`, true);
+    await page.goto('/admin?reason=word_offensive&status=open');
+    const card = page.locator('article').filter({ hasText: 'Deterministic fixture report' });
+    await card.getByRole('button', { name: 'Review' }).click();
+    await page.getByRole('button', { name: 'Remove content' }).click();
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByText('Report case removed.', { exact: true }).first()).toBeVisible();
+    await e2e.login(`e2e-${e2e.namespace}-reporter@example.test`);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Notifications' }).click();
+    await expect(page.getByText('Reported content removed')).toBeVisible();
+    const removed = await page.request.get(`/words/${fixture.words[0].slug}`);
+    expect(removed.status()).toBe(404);
+});
