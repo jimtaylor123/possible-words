@@ -9,7 +9,7 @@
               <Logo compact />
             </div>
             <div class="hidden sm:block">
-              <Logo :current="isCurrentPath('/')" />
+              <Logo />
             </div>
           </div>
 

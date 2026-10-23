@@ -46,8 +46,8 @@ test.describe('responsive primary navigation', () => {
             await page.goto('/');
 
             await expectInBounds(page.getByRole('link', { name: 'Possible Words' }), width);
-            await expectInBounds(page.getByRole('link', { name: 'About' }), width);
-            await expectInBounds(page.getByRole('link', { name: 'Popular' }), width);
+            await expectInBounds(page.locator('nav').getByRole('link', { name: 'About', exact: true }), width);
+            await expectInBounds(page.locator('nav').getByRole('link', { name: 'Popular', exact: true }), width);
             await expectInBounds(page.getByRole('button', { name: 'Continue with Google' }), width);
             await expect(page.locator('nav [aria-current="page"]')).toHaveCount(1);
             await expect(page.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
