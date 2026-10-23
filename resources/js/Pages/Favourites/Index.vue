@@ -68,7 +68,7 @@
               <div v-if="word.definitions.length > 0" class="text-gray-700">
                 "{{ word.definitions[0].text }}"
                 <div data-testid="definition-metadata" class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-                  <span class="inline-flex items-center gap-1 whitespace-nowrap">
+                  <span class="inline-flex min-w-0 max-w-full items-start gap-1">
                     <n-avatar
                       v-if="word.definitions[0].user?.avatar"
                       :src="word.definitions[0].user.avatar"
@@ -82,7 +82,7 @@
                     >
                       {{ word.definitions[0].user.name.charAt(0).toUpperCase() }}
                     </n-avatar>
-                    <span>{{ word.definitions[0].user ? word.definitions[0].user.name : 'Deleted user' }}</span>
+                    <span class="min-w-0 break-all">{{ word.definitions[0].user ? word.definitions[0].user.name : 'Deleted user' }}</span>
                   </span>
                   <span class="whitespace-nowrap">{{ word.definitions[0].votes_count }} votes</span>
                   <span v-if="word.definitions[0].part_of_speech" class="whitespace-nowrap">{{ word.definitions[0].part_of_speech }}</span>
