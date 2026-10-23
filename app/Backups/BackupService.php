@@ -206,8 +206,11 @@ class BackupService
 
         do {
             try {
-                foreach (array_keys($expected) as $table) {
-                    $this->turso->query($database, 'SELECT 1 FROM '.$this->quoteIdentifier($table).' LIMIT 1;');
+                foreach ($expected as $table => $count) {
+                    $actual = (int) trim($this->turso->query($database, 'SELECT COUNT(*) FROM '.$this->quoteIdentifier($table).';'));
+                    if ($actual !== $count) {
+                        throw new RuntimeException("Restored table [$table] is not ready.");
+                    }
                 }
 
                 return;
