@@ -116,4 +116,25 @@ describe('favourites lists', () => {
 
     expect(mounted.target.textContent).toContain('Deleted user')
   })
+
+  it('keeps complete definition metadata values together without separators', () => {
+    const mounted = mountFavourites(true, [{
+      text: 'A retained definition.',
+      user: { name: 'Definition Author' },
+      votes_count: 12,
+      part_of_speech: 'noun',
+      origin: 'ai',
+    }])
+    app = mounted.app
+
+    const metadata = mounted.target.querySelector('[data-testid="definition-metadata"]')
+
+    expect(metadata.textContent).toContain('Definition Author')
+    expect(metadata.textContent).toContain('12 votes')
+    expect(metadata.textContent).toContain('noun')
+    expect(metadata.textContent).toContain('AI-generated')
+    expect(metadata.textContent).not.toContain('•')
+    expect([...metadata.children]).toHaveLength(4)
+    expect([...metadata.children].every((item) => item.classList.contains('whitespace-nowrap'))).toBe(true)
+  })
 })
