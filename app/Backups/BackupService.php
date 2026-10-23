@@ -16,8 +16,8 @@ class BackupService
         private readonly BackupMetricPublisher $metrics,
         // Turso imports the 78 MB production dump asynchronously. Allow enough
         // time for all tables and rows to become queryable before declaring the
-        // restore invalid, while remaining within the 12-minute Lambda limit.
-        private readonly float $restoreDeadlineSeconds = 300.0,
+        // restore invalid, while remaining within the 15-minute Lambda limit.
+        private readonly float $restoreDeadlineSeconds = 600.0,
         private readonly int $restorePollSeconds = 1,
     ) {}
 
@@ -296,7 +296,7 @@ class BackupService
                 return false;
             }
             $verifiedAt = CarbonImmutable::parse($data['verified_at']);
-            if (($data['version'] ?? null) !== 1 || ! $verifiedAt->greaterThan(now('UTC')->subMinutes(375))
+            if (($data['version'] ?? null) !== 1 || ! $verifiedAt->greaterThan(now('UTC')->subMinutes(380))
                 || ! is_array($data['database'] ?? null) || ! is_array($data['objects'] ?? null)) {
                 return false;
             }

@@ -10,7 +10,7 @@ class CheckBackupFreshnessCommand extends Command
 {
     protected $signature = 'backup:check-freshness';
 
-    protected $description = 'Fail when no verified backup is younger than six hours and fifteen minutes';
+    protected $description = 'Fail when no verified backup is younger than six hours and twenty minutes';
 
     public function handle(BackupService $backup, BackupMetricPublisher $metrics): int
     {

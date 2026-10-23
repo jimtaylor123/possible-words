@@ -9,10 +9,10 @@ describe('backup infrastructure', function () {
 
         expect($serverless['functions']['backup']['events'])
             ->toContain(['schedule' => ['rate' => 'cron(0 */6 * * ? *)', 'enabled' => true, 'input' => ['cli' => 'backup:run']]])
-            ->toContain(['schedule' => ['rate' => 'cron(15 * * * ? *)', 'input' => ['cli' => 'backup:check-freshness']]]);
-        expect($serverless['functions']['backup']['timeout'])->toBe(720);
+            ->toContain(['schedule' => ['rate' => 'cron(20 * * * ? *)', 'input' => ['cli' => 'backup:check-freshness']]]);
+        expect($serverless['functions']['backup']['timeout'])->toBe(900);
         expect($serverless['resources']['Resources']['BackupFreshnessAlarm']['Properties']['AlarmDescription'])
-            ->toBe('No verified backup manifest is younger than six hours and fifteen minutes.');
+            ->toBe('No verified backup manifest is younger than six hours and twenty minutes.');
         expect($serverless['functions']['backup']['environment']['BROADCAST_CONNECTION'])->toBe('log');
         expect($serverless['resources']['Resources']['BackupBucket']['Properties'])
             ->toHaveKey('VersioningConfiguration')
@@ -64,7 +64,7 @@ describe('backup infrastructure', function () {
 
         expect($schedule)
             ->toContain("Schedule::command('backup:run')->everySixHours()->withoutOverlapping()")
-            ->toContain("Schedule::command('backup:check-freshness')->hourlyAt(15)->withoutOverlapping()")
+            ->toContain("Schedule::command('backup:check-freshness')->hourlyAt(20)->withoutOverlapping()")
             ->not->toContain("Schedule::command('backup:run')->everyThreeHours()")
             ->not->toContain("Schedule::command('backup:check-freshness')->hourly()");
     });
@@ -76,10 +76,10 @@ describe('backup infrastructure', function () {
 
         expect($documentation)
             ->toContain('an enabled backup runs every six hours')
-            ->toContain('six hours and fifteen minutes')
+            ->toContain('six hours and twenty minutes')
             ->toContain('--from-file ./restore.sqlite --group default --wait');
-        expect($command)->toContain('six hours and fifteen minutes');
-        expect($alarmDescription)->toBe('No verified backup manifest is younger than six hours and fifteen minutes.');
+        expect($command)->toContain('six hours and twenty minutes');
+        expect($alarmDescription)->toBe('No verified backup manifest is younger than six hours and twenty minutes.');
     });
 
     test('Given the pinned Turso installer, it uses the issue-02 verified Linux release archive', function () {
