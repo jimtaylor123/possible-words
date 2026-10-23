@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Definition;
+use App\Models\Report;
+use App\Models\ReportCase;
 use App\Models\User;
 use App\Models\Word;
 use Illuminate\Http\JsonResponse;
@@ -19,6 +21,12 @@ class E2eFixtureController extends Controller
         $userIds = User::where('email', 'like', "e2e-{$namespace}-%@example.test")->pluck('id');
 
         if ($wordIds->isNotEmpty()) {
+            $caseIds = ReportCase::where('reportable_type', Word::class)->whereIn('reportable_id', $wordIds)->pluck('id');
+            if ($caseIds->isNotEmpty()) {
+                DB::table('report_review_actions')->whereIn('report_case_id', $caseIds)->delete();
+                DB::table('reports')->whereIn('report_case_id', $caseIds)->delete();
+                DB::table('report_cases')->whereIn('id', $caseIds)->delete();
+            }
             DB::table('reports')->where('reportable_type', Word::class)->whereIn('reportable_id', $wordIds)->delete();
             Definition::whereIn('word_id', $wordIds)->each(function (Definition $definition): void {
                 DB::table('reports')->where('reportable_type', Definition::class)->where('reportable_id', $definition->id)->delete();
@@ -41,7 +49,7 @@ class E2eFixtureController extends Controller
     {
         $namespace = $this->namespace($request);
         $scenario = $request->string('scenario')->toString();
-        abort_unless(in_array($scenario, ['word', 'browse', 'notifications', 'users'], true), 422);
+        abort_unless(in_array($scenario, ['word', 'browse', 'notifications', 'users', 'reports'], true), 422);
         $this->reset($request);
 
         $user = User::create([
@@ -73,6 +81,23 @@ class E2eFixtureController extends Controller
                 'id' => (string) Str::uuid(),
                 'type' => 'App\\Notifications\\E2eNotification',
                 'data' => ['title' => 'Unread E2E notification', 'body' => 'Deterministic fixture', 'url' => route('words.show', $words->first())],
+            ]);
+        }
+
+        if ($scenario === 'reports') {
+            $reporter = User::create([
+                'name' => 'E2E Reporter', 'email' => "e2e-{$namespace}-reporter@example.test", 'provider' => 'google', 'password' => null,
+            ]);
+            $case = $words->first()->reportCases()->create([
+                'reason' => Report::REASON_WORD_OFFENSIVE,
+                'status' => ReportCase::STATUS_OPEN,
+                'active_key' => ReportCase::activeKey($words->first(), Report::REASON_WORD_OFFENSIVE),
+            ]);
+            $words->first()->reports()->create([
+                'reporter_id' => $reporter->id,
+                'reason' => Report::REASON_WORD_OFFENSIVE,
+                'explanation' => 'Deterministic fixture report',
+                'report_case_id' => $case->id,
             ]);
         }
 
