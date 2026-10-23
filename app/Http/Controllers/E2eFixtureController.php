@@ -82,6 +82,12 @@ class E2eFixtureController extends Controller
                 'type' => 'App\\Notifications\\E2eNotification',
                 'data' => ['title' => 'Unread E2E notification', 'body' => 'Deterministic fixture', 'url' => route('words.show', $words->first())],
             ]);
+            $user->notifications()->create([
+                'id' => (string) Str::uuid(),
+                'type' => 'App\\Notifications\\E2eNotification',
+                'data' => ['title' => 'Read E2E notification', 'body' => 'Already read fixture'],
+                'read_at' => now()->subMinute(),
+            ]);
         }
 
         if ($scenario === 'reports') {
