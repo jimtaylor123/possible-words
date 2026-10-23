@@ -55,7 +55,7 @@ class E2eFixtureController extends Controller
     {
         $namespace = $this->namespace($request);
         $scenario = $request->string('scenario')->toString();
-        abort_unless(in_array($scenario, ['word', 'browse', 'notifications', 'users', 'reports'], true), 422);
+        abort_unless(in_array($scenario, ['word', 'browse', 'notifications', 'users', 'reports', 'definitions'], true), 422);
         $this->reset($request);
 
         $user = User::create([
@@ -130,6 +130,25 @@ class E2eFixtureController extends Controller
             ]);
         }
 
+        $definitions = collect();
+        if ($scenario === 'definitions') {
+            $author = User::create([
+                'name' => 'E2E Definition Author', 'email' => "e2e-{$namespace}-author@example.test", 'provider' => 'google', 'password' => null,
+            ]);
+            $live = Definition::create([
+                'word_id' => $words->first()->id, 'user_id' => $author->id, 'text' => 'Deterministic live definition', 'part_of_speech' => 'noun', 'votes_count' => 0,
+            ]);
+            $ai = Definition::create([
+                'word_id' => $words->first()->id, 'user_id' => $author->id, 'text' => 'Deterministic AI definition', 'origin' => Definition::ORIGIN_AI, 'votes_count' => 0,
+            ]);
+            $removed = Definition::create([
+                'word_id' => $words->first()->id, 'user_id' => $author->id, 'text' => 'Hidden removed definition', 'votes_count' => 0,
+            ]);
+            $removed->removed_at = now();
+            $removed->save();
+            $definitions = collect([$live, $ai, $removed]);
+        }
+
         $users = collect();
         if ($scenario === 'users') {
             for ($index = 1; $index <= 22; $index++) {
@@ -147,6 +166,7 @@ class E2eFixtureController extends Controller
             'user' => ['id' => $user->id, 'email' => $user->email],
             'words' => $words->map(fn (Word $word) => ['slug' => $word->slug, 'text' => $word->text]),
             'users' => $users->map(fn (User $fixtureUser) => ['id' => $fixtureUser->id, 'email' => $fixtureUser->email, 'name' => $fixtureUser->name]),
+            'definitions' => $definitions->map(fn (Definition $definition) => ['id' => $definition->id, 'text' => $definition->text]),
         ]);
     }
 
