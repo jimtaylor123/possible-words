@@ -21,8 +21,8 @@ const expectNoHorizontalOverflow = async (page) => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
 };
 
-const expectCompleteMetadata = async (page, width) => {
-    const metadata = page.getByText('A fully populated responsive metadata fixture.').locator('..').getByTestId('definition-metadata');
+const expectCompleteMetadata = async (page, width, testId) => {
+    const metadata = page.getByText('A fully populated responsive metadata fixture.').locator('..').getByTestId(testId);
     const items = metadata.locator(':scope > span');
 
     await expect(metadata).toBeVisible();
@@ -80,7 +80,7 @@ test.describe('responsive definition metadata', () => {
             await page.setViewportSize({ width, height: 800 });
             await page.goto('/');
 
-            await expectCompleteMetadata(page, width);
+            await expectCompleteMetadata(page, width, 'home-definition-metadata');
             await expectNoHorizontalOverflow(page);
         });
 
@@ -88,7 +88,7 @@ test.describe('responsive definition metadata', () => {
             await page.setViewportSize({ width, height: 800 });
             await page.goto('/popular');
 
-            await expectCompleteMetadata(page, width);
+            await expectCompleteMetadata(page, width, 'favourites-definition-metadata');
             await expectNoHorizontalOverflow(page);
         });
     }
