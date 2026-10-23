@@ -22,6 +22,20 @@ test('definition modal validates blank, boundaries, unicode, categories, and ret
     await expect(page.getByText('Verb', { exact: true }).first()).toBeVisible();
 });
 
+test('every definition category is rendered from a deterministic draft', async ({ page, e2e }) => {
+    const fixture = await e2e.setup('definitions');
+    await e2e.login(fixture.user.email);
+    await openWord(page, fixture);
+    for (const [label, value] of [['Noun', 'noun'], ['Verb', 'verb'], ['Other', 'other']]) {
+        await page.getByRole('button', { name: 'Add a definition' }).click();
+        await page.locator('textarea[placeholder="What does this word mean?"]').fill(`Category ${value}`);
+        await page.getByLabel('Part of speech').click();
+        await page.getByText(label, { exact: true }).last().click();
+        await page.getByRole('button', { name: 'Submit Definition' }).click();
+        await expect(page.getByText(`Category ${value}`)).toBeVisible();
+    }
+});
+
 test('definition action access and votes follow visible ownership state', async ({ page, e2e }) => {
     const fixture = await e2e.setup('definitions');
     await openWord(page, fixture);
@@ -36,6 +50,19 @@ test('definition action access and votes follow visible ownership state', async 
     await expect(live.getByText('Remove', { exact: true })).toHaveCount(0);
     await expect(page.getByText('[deleted]')).toBeVisible();
     await expect(page.getByText('AI-generated')).toBeVisible();
+});
+
+test('the author can remove a definition and unavailable definition actions disappear', async ({ page, e2e }) => {
+    const fixture = await e2e.setup('definitions');
+    await e2e.login(`e2e-${e2e.namespace}-author@example.test`);
+    await openWord(page, fixture);
+    const live = page.locator('.border.rounded-lg.p-4').filter({ hasText: 'Deterministic live definition' });
+    await live.getByText('Remove', { exact: true }).click();
+    await page.getByRole('button', { name: 'Remove definition' }).click();
+    await expect(page.getByText('[deleted]')).toBeVisible();
+    const removed = page.locator('.border.rounded-lg.p-4').filter({ hasText: '[deleted]' });
+    await expect(removed.getByRole('button', { name: /Like|Remove like/ })).toHaveCount(0);
+    await expect(removed.getByRole('button', { name: 'Report this definition' })).toHaveCount(0);
 });
 
 test('word reports validate, cancel without retaining a draft, and show duplicate feedback', async ({ page, e2e }) => {
@@ -55,6 +82,24 @@ test('word reports validate, cancel without retaining a draft, and show duplicat
     await page.getByRole('button', { name: 'Report this word' }).click();
     await page.locator('#report-reason').click();
     await page.getByText('This word is offensive or obscene', { exact: true }).last().click();
+    await page.getByRole('button', { name: 'Submit report' }).click();
+    await expect(page.getByText('You have already reported this item.', { exact: true }).first()).toBeVisible();
+});
+
+test('definition reports cancel/reset and reject a duplicate submission', async ({ page, e2e }) => {
+    const fixture = await e2e.setup('definitions');
+    await e2e.login(fixture.user.email);
+    await openWord(page, fixture);
+    const live = page.locator('.border.rounded-lg.p-4').filter({ hasText: 'Deterministic live definition' });
+    await live.getByRole('button', { name: 'Report this definition' }).click();
+    const context = page.locator('textarea[placeholder="Tell us more about this report"]');
+    await context.fill('Discard this definition report');
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await live.getByRole('button', { name: 'Report this definition' }).click();
+    await expect(context).toHaveValue('');
+    await page.getByRole('button', { name: 'Submit report' }).click();
+    await expect(page.getByRole('status')).toHaveText('Report submitted.');
+    await live.getByRole('button', { name: 'Report this definition' }).click();
     await page.getByRole('button', { name: 'Submit report' }).click();
     await expect(page.getByText('You have already reported this item.', { exact: true }).first()).toBeVisible();
 });
