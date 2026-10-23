@@ -26,7 +26,7 @@ defineProps({
   },
   mobileLabel: {
     type: String,
-    default: '',
+    default: null,
   },
 })
 

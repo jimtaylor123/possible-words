@@ -170,7 +170,7 @@
 
               <div v-if="word.definitions.length > 0" class="text-gray-700">
                 "{{ word.definitions[0].text }}"
-                <div data-testid="definition-metadata" class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                <div data-testid="home-definition-metadata" class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
                   <span class="inline-flex min-w-0 max-w-full items-start gap-1">
                     <n-avatar
                       v-if="word.definitions[0].user?.avatar"

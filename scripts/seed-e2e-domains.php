@@ -17,6 +17,7 @@ use App\Models\Definition;
 use App\Models\Favourite;
 use App\Models\User;
 use App\Models\Word;
+use Illuminate\Support\Str;
 
 require __DIR__.'/../vendor/autoload.php';
 
@@ -46,10 +47,12 @@ if ($updated !== count($expected)) {
 
 echo "Marked {$updated} fixture words (".implode(', ', $expected).") as having a free .com.\n";
 
+$metadataAuthorName = Str::limit('Metadata Fixture Author with a deliberately long display name', 255, '');
+
 $author = User::firstOrCreate(
     ['email' => 'metadata-fixture@example.com'],
     [
-        'name' => 'Metadata Fixture Author with a deliberately long display name',
+        'name' => $metadataAuthorName,
         'provider' => 'testing',
         'provider_id' => 'metadata-fixture',
         'password' => null,

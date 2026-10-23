@@ -216,7 +216,7 @@ describe('domain availability ribbons', () => {
     })
     app = mounted.app
 
-    const metadata = mounted.target.querySelector('[data-testid="definition-metadata"]')
+    const metadata = mounted.target.querySelector('[data-testid="home-definition-metadata"]')
 
     expect(metadata.textContent).toContain('Definition Author')
     expect(metadata.textContent).toContain('12 votes')
