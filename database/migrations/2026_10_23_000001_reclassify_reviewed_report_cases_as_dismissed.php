@@ -14,6 +14,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        // The original reviewed cases cannot be identified after reclassification.
+        throw new \RuntimeException('Cannot restore reviewed report cases after they have been reclassified as dismissed.');
     }
 };
