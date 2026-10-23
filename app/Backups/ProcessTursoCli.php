@@ -48,8 +48,8 @@ class ProcessTursoCli implements TursoCli
             throw new RuntimeException("Unable to read Turso dump [$dumpPath].");
         }
 
-        $databasePath = tempnam(sys_get_temp_dir(), 'turso-restore-');
-        if ($databasePath === false) {
+        $databasePath = sys_get_temp_dir()."/$database.db";
+        if (file_exists($databasePath)) {
             throw new RuntimeException('Unable to create a temporary SQLite restore database.');
         }
 
@@ -61,14 +61,20 @@ class ProcessTursoCli implements TursoCli
             if ($localIntegrityCheck !== 'ok') {
                 throw new RuntimeException('Locally rebuilt database failed integrity_check.');
             }
+            $connection->exec('PRAGMA journal_mode = WAL;');
             unset($connection);
-            $this->run(['db', 'create', $database, '--from-file', $databasePath, '--group', 'default', '--wait']);
+            $checkpoint = new PDO('sqlite:'.$databasePath, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+            $checkpoint->query('PRAGMA wal_checkpoint(TRUNCATE);')->fetchAll();
+            unset($checkpoint);
+            $this->run(['db', 'import', $databasePath, '--group', 'default']);
 
             return new DatabaseValidation($tables, $localIntegrityCheck);
         } catch (PDOException $exception) {
             throw new RuntimeException('Unable to build SQLite restore database from Turso dump.', 0, $exception);
         } finally {
             @unlink($databasePath);
+            @unlink("$databasePath-shm");
+            @unlink("$databasePath-wal");
         }
     }
 

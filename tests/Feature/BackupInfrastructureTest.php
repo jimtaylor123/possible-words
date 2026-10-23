@@ -77,7 +77,7 @@ describe('backup infrastructure', function () {
         expect($documentation)
             ->toContain('an enabled backup runs every six hours')
             ->toContain('six hours and twenty minutes')
-            ->toContain('--from-file ./restore.sqlite --group default --wait');
+            ->toContain('turso db import ./<restore-db>.db --group default');
         expect($command)->toContain('six hours and twenty minutes');
         expect($alarmDescription)->toBe('No verified backup manifest is younger than six hours and twenty minutes.');
     });

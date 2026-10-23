@@ -85,15 +85,17 @@ Use a new database name and a Turso Platform token with `db:create` and
 ```bash
 aws s3 cp s3://<backup-bucket>/runs/<run-id>/database.sql ./database.sql
 sqlite3 ./restore.sqlite < ./database.sql
-turso db create <restore-db> --from-file ./restore.sqlite --group default --wait
+sqlite3 ./restore.sqlite 'PRAGMA journal_mode = WAL; PRAGMA wal_checkpoint(TRUNCATE);'
+mv ./restore.sqlite ./<restore-db>.db
+turso db import ./<restore-db>.db --group default
 turso db shell <restore-db> 'PRAGMA integrity_check;'
 turso db shell <restore-db> 'SELECT COUNT(*) FROM definitions;'
 turso db destroy <restore-db> --yes
 ```
 
 Turso shell import does not preserve foreign-key settings between statements,
-so do not pipe a dump directly into `turso db shell`. Build a SQLite file and
-use `--from-file --group default`, then compare every restored table count with
+so do not pipe a dump directly into `turso db shell`. Build a WAL SQLite file,
+checkpoint it, and use `db import`, then compare every restored table count with
 `completion.json` before using the restored database.
 
 To run an on-demand production backup and freshness check:

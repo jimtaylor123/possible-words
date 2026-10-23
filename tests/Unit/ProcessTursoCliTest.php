@@ -40,7 +40,7 @@ describe('Turso CLI process', function () {
         $database = tempnam(sys_get_temp_dir(), 'turso-database-');
         $arguments = tempnam(sys_get_temp_dir(), 'turso-arguments-');
         file_put_contents($dump, 'CREATE TABLE migrations (id INTEGER);');
-        config()->set('backups.turso_cli_path', tursoCliStub("cp \"\$5\" '$database'\nprintf '%s' \"\$*\" > '$arguments'"));
+        config()->set('backups.turso_cli_path', tursoCliStub("cp \"\$3\" '$database'\nprintf '%s' \"\$*\" > '$arguments'"));
         config()->set('backups.turso_api_token', 'backup-token');
         config()->set('backups.turso_organization', 'backup-org');
 
@@ -51,12 +51,13 @@ describe('Turso CLI process', function () {
             expect($validation->tableCounts)->toBe(['migrations' => 0])
                 ->and($validation->localIntegrityCheck)->toBe('ok');
             expect(file_get_contents($arguments))
-                ->toStartWith('db create restore-check --from-file ')
-                ->toEndWith(' --group default --wait');
+                ->toStartWith('db import ')
+                ->toContain('/restore-check.db --group default')
+                ->toEndWith(' --group default');
             expect((new PDO('sqlite:'.$database))->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'migrations'")->fetchColumn())
                 ->toBe('migrations');
             expect((new PDO('sqlite:'.$database))->query('PRAGMA journal_mode;')->fetchColumn())
-                ->toBe('delete');
+                ->toBe('wal');
         } finally {
             @unlink($dump);
             @unlink($database);
