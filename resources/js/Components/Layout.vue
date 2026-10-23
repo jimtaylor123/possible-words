@@ -5,7 +5,7 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex min-w-0 flex-wrap items-center py-2 sm:h-16 sm:flex-nowrap sm:py-0">
           <div class="min-w-0 shrink">
-            <Logo compact />
+            <Logo compact :current="isCurrentPath('/')" />
           </div>
 
           <div class="order-3 flex w-full shrink-0 items-center gap-2 pt-2 sm:order-none sm:ml-auto sm:w-auto sm:gap-4 sm:pt-0">
