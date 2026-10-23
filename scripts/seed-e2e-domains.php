@@ -13,6 +13,9 @@
  * Usage: APP_ENV=testing php scripts/seed-e2e-domains.php
  */
 
+use App\Models\Definition;
+use App\Models\Favourite;
+use App\Models\User;
 use App\Models\Word;
 
 require __DIR__.'/../vendor/autoload.php';
@@ -42,3 +45,50 @@ if ($updated !== count($expected)) {
 }
 
 echo "Marked {$updated} fixture words (".implode(', ', $expected).") as having a free .com.\n";
+
+$author = User::firstOrCreate(
+    ['email' => 'metadata-fixture@example.com'],
+    [
+        'name' => 'Metadata Fixture Author with a deliberately long display name',
+        'provider' => 'testing',
+        'provider_id' => 'metadata-fixture',
+        'password' => null,
+    ],
+);
+
+$populariser = User::firstOrCreate(
+    ['email' => 'metadata-fixture-popular@example.com'],
+    [
+        'name' => 'Metadata Fixture Populariser',
+        'provider' => 'testing',
+        'provider_id' => 'metadata-fixture-popular',
+        'password' => null,
+    ],
+);
+
+$word = Word::firstOrCreate(
+    ['slug' => 'metadataview'],
+    [
+        'text' => 'metadataview',
+        'syllables' => 4,
+        'status' => 'available',
+        'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
+        'published_at' => now(),
+        'ai_definition_status' => Word::AI_DEFINITION_GENERATED,
+    ],
+);
+
+Definition::updateOrCreate(
+    ['word_id' => $word->id, 'origin' => Definition::ORIGIN_AI],
+    [
+        'user_id' => $author->id,
+        'text' => 'A fully populated responsive metadata fixture.',
+        'votes_count' => 47,
+        'part_of_speech' => 'noun',
+    ],
+);
+
+Favourite::firstOrCreate(['user_id' => $author->id, 'word_id' => $word->id]);
+Favourite::firstOrCreate(['user_id' => $populariser->id, 'word_id' => $word->id]);
+
+echo "Seeded fully populated metadata fixture.\n";
