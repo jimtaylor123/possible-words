@@ -124,7 +124,7 @@ class AuthController extends Controller
      */
     public function testingLogin(Request $request)
     {
-        abort_unless(app()->environment('testing') || config('app.e2e_auth_enabled'), 404);
+        abort_unless(app()->environment('testing'), 404);
 
         $user = User::where('email', $request->input('email', 'e2e@example.com'))->first()
             ?? User::create([
@@ -152,7 +152,7 @@ class AuthController extends Controller
 
     public function testingLogout(Request $request)
     {
-        abort_unless(app()->environment('testing') || config('app.e2e_auth_enabled'), 404);
+        abort_unless(app()->environment('testing'), 404);
 
         Auth::logout();
         $request->session()->invalidate();

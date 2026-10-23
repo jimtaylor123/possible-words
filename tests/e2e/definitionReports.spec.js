@@ -14,6 +14,8 @@ test('definition modal validates blank, boundaries, unicode, categories, and ret
     await input.fill(oversized);
     await page.getByRole('button', { name: 'Submit Definition' }).click();
     await expect(input).toHaveValue(oversized);
+    await expect(page.getByRole('alert')).toHaveText('The text field must not be greater than 1000 characters.');
+    await expect(page.locator('.border.rounded-lg.p-4').filter({ hasText: oversized })).toHaveCount(0);
     await input.fill('A deterministic verb');
     await page.getByLabel('Part of speech').click();
     await page.getByText('Verb', { exact: true }).last().click();

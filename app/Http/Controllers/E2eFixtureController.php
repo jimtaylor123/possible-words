@@ -182,7 +182,7 @@ class E2eFixtureController extends Controller
 
     private function namespace(Request $request): string
     {
-        abort_unless(app()->environment('testing') || config('app.e2e_auth_enabled'), 404);
+        abort_unless(app()->environment('testing'), 404);
         $namespace = $request->string('namespace')->toString();
         abort_unless((bool) preg_match('/^[a-z0-9-]{1,80}$/', $namespace), 422);
 
