@@ -5,7 +5,12 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex min-w-0 flex-wrap items-center py-2 sm:h-16 sm:flex-nowrap sm:py-0">
           <div class="min-w-0 shrink">
-            <Logo compact :current="isCurrentPath('/')" />
+            <div class="sm:hidden">
+              <Logo compact />
+            </div>
+            <div class="hidden sm:block">
+              <Logo :current="isCurrentPath('/')" />
+            </div>
           </div>
 
           <div class="order-3 flex w-full shrink-0 items-center gap-2 pt-2 sm:order-none sm:ml-auto sm:w-auto sm:gap-6 sm:pt-0">
@@ -49,7 +54,7 @@
                   <span v-if="unreadCount" class="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
                 </button>
               </template>
-              <section class="w-[23rem] overflow-hidden rounded-xl bg-white" aria-label="Notifications">
+              <section class="w-[23rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-white" aria-label="Notifications">
                 <header class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
                   <div>
                     <p class="text-sm font-semibold text-gray-900">Notifications</p>
