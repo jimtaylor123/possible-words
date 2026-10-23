@@ -53,7 +53,6 @@ class AdminReportController extends Controller
             'statusOptions' => [
                 ['label' => 'Open', 'value' => ReportCase::STATUS_OPEN],
                 ['label' => 'Dismissed', 'value' => ReportCase::STATUS_DISMISSED],
-                ['label' => 'Reviewed (legacy)', 'value' => ReportCase::STATUS_REVIEWED],
                 ['label' => 'Muted', 'value' => ReportCase::STATUS_MUTED],
                 ['label' => 'All', 'value' => 'all'],
             ],

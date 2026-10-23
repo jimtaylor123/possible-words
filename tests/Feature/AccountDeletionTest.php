@@ -40,13 +40,13 @@ test('an account export includes account activity but excludes credentials and s
     $report = $word->reports()->create(['report_case_id' => $reportCase->id, 'reporter_id' => $user->id, 'reason' => Report::REASON_WORD_UNFRESH]);
     $processedReportCase = $word->reportCases()->create([
         'reason' => Report::REASON_WORD_OFFENSIVE,
-        'status' => ReportCase::STATUS_REVIEWED,
+        'status' => ReportCase::STATUS_DISMISSED,
         'processed_by_user_id' => $user->id,
-        'processing_action' => ReportCase::STATUS_REVIEWED,
+        'processing_action' => ReportCase::STATUS_DISMISSED,
         'processing_note' => 'Processed by this user.',
         'processed_at' => now(),
     ]);
-    ReportReviewAction::create(['report_case_id' => $reportCase->id, 'report_id' => $report->id, 'admin_user_id' => $user->id, 'action' => ReportCase::STATUS_REVIEWED]);
+    ReportReviewAction::create(['report_case_id' => $reportCase->id, 'report_id' => $report->id, 'admin_user_id' => $user->id, 'action' => 'reviewed']);
     DB::table('sessions')->insert(['id' => 'account-export-session', 'user_id' => $user->id, 'payload' => 'sensitive', 'last_activity' => now()->timestamp]);
 
     $response = $this->actingAs($user)->get(route('account.export'));
@@ -152,7 +152,7 @@ test('account deletion removes personal data, releases words, and retains anonym
         'report_case_id' => $reportCase->id,
         'report_id' => $report->id,
         'admin_user_id' => $user->id,
-        'action' => ReportCase::STATUS_REVIEWED,
+        'action' => 'reviewed',
         'note' => 'Retained review history.',
     ]);
     DB::table('sessions')->insert([
