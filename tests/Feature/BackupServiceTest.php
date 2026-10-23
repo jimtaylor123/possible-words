@@ -214,6 +214,50 @@ describe('verified backups', function () {
         expect(collect(Storage::disk('backups')->allFiles('runs'))->contains(fn ($path) => str_ends_with($path, '/completion.json')))->toBeFalse();
     });
 
+    test('Given a non-numeric count output, it raises an invalid row count error', function () {
+        $turso = mock(TursoCli::class);
+        $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
+        $turso->shouldReceive('createFromDump')->once()->andReturn(new DatabaseValidation(['example' => 1], 'ok'));
+        $turso->shouldReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT COUNT(*)'))
+            ->andReturn("error: table not found\n");
+        $turso->shouldReceive('delete')->once();
+        $metrics = mock(BackupMetricPublisher::class);
+        $metrics->shouldNotReceive('publish');
+
+        try {
+            (new BackupService($turso, $metrics, 0.0, 0))->run();
+            $this->fail('Expected a RuntimeException.');
+        } catch (RuntimeException $exception) {
+            expect($exception->getMessage())->toContain('did not become ready')
+                ->and($exception->getPrevious()?->getMessage())->toContain('returned an invalid row count');
+        }
+    });
+
+    test('Given no expected tables, it verifies the restored database without probing table counts', function () {
+        $turso = mock(TursoCli::class);
+        $turso->shouldReceive('dump')->once()->andReturn('CREATE TABLE example (id INTEGER);');
+        $turso->shouldReceive('createFromDump')->once()->andReturn(new DatabaseValidation([], 'ok'));
+        $turso->shouldReceive('query')->once()->withArgs(fn ($database, $sql) => $sql === 'PRAGMA integrity_check;')
+            ->andReturn("integrity_check\n---------------\nok\n");
+        $turso->shouldNotReceive('query')->withArgs(fn ($database, $sql) => str_starts_with($sql, 'SELECT COUNT(*)'));
+        $turso->shouldReceive('delete')->once();
+        $metrics = mock(BackupMetricPublisher::class);
+        $metrics->shouldReceive('publish')->once()->with('BackupVerified', 1);
+
+        $prefix = (new BackupService($turso, $metrics))->run();
+
+        $manifest = json_decode(Storage::disk('backups')->get("$prefix/completion.json"), true, 512, JSON_THROW_ON_ERROR);
+        expect($manifest['database']['tables'])->toBe([]);
+    });
+
+    test('Given a malicious table identifier, it is rejected before any SQL is generated', function () {
+        $service = backupServiceWith(mock(TursoCli::class));
+        $quoteIdentifier = new ReflectionMethod($service, 'quoteIdentifier');
+
+        expect(fn () => $quoteIdentifier->invoke($service, 'foo"; DROP TABLE user; --'))
+            ->toThrow(RuntimeException::class, 'Unsupported SQL identifier');
+    });
+
     test('Given a completion manifest younger than six hours, it is fresh', function () {
         putCompletionManifest('20260101T000000Z-a', now('UTC')->subHours(5), [['path' => 'audio/one.mp3', 'contents' => 'first']]);
 

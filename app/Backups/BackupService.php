@@ -224,6 +224,13 @@ class BackupService
         } while (true);
     }
 
+    /**
+     * Read a table's row count from the Turso shell's formatted output.
+     *
+     * The shell prints a column header, a separator row, then the value, e.g.
+     * "COUNT(*)\n--------\n42\n". The count is therefore the last numeric
+     * line; anything else means the CLI returned an unexpected response.
+     */
     private function restoredTableCount(string $database, string $table): int
     {
         $output = trim($this->turso->query($database, 'SELECT COUNT(*) FROM '.$this->quoteIdentifier($table).';'));
