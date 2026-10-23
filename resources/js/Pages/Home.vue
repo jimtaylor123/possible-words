@@ -131,6 +131,7 @@
                         size="small"
                         quaternary
                         circle
+                        :data-testid="`card-audio-${word.slug}`"
                         :aria-label="`Play pronunciation for ${word.text}`"
                         @click="playAudio(word)"
                       >
