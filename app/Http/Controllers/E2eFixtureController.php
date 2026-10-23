@@ -29,6 +29,12 @@ class E2eFixtureController extends Controller
             }
             DB::table('reports')->where('reportable_type', Word::class)->whereIn('reportable_id', $wordIds)->delete();
             Definition::whereIn('word_id', $wordIds)->each(function (Definition $definition): void {
+                $definitionCaseIds = ReportCase::where('reportable_type', Definition::class)->where('reportable_id', $definition->id)->pluck('id');
+                if ($definitionCaseIds->isNotEmpty()) {
+                    DB::table('report_review_actions')->whereIn('report_case_id', $definitionCaseIds)->delete();
+                    DB::table('reports')->whereIn('report_case_id', $definitionCaseIds)->delete();
+                    DB::table('report_cases')->whereIn('id', $definitionCaseIds)->delete();
+                }
                 DB::table('reports')->where('reportable_type', Definition::class)->where('reportable_id', $definition->id)->delete();
                 $definition->votes()->delete();
                 $definition->delete();
@@ -104,6 +110,23 @@ class E2eFixtureController extends Controller
                 'reason' => Report::REASON_WORD_OFFENSIVE,
                 'explanation' => 'Deterministic fixture report',
                 'report_case_id' => $case->id,
+            ]);
+            $definitionAuthor = User::create([
+                'name' => 'E2E Definition Author', 'email' => "e2e-{$namespace}-definition-author@example.test", 'provider' => 'google', 'password' => null,
+            ]);
+            $definition = Definition::create([
+                'word_id' => $words->first()->id, 'user_id' => $definitionAuthor->id, 'text' => 'Deterministic reported definition', 'votes_count' => 0,
+            ]);
+            $definitionCase = $definition->reportCases()->create([
+                'reason' => Report::REASON_DEFINITION_OFFENSIVE,
+                'status' => ReportCase::STATUS_OPEN,
+                'active_key' => ReportCase::activeKey($definition, Report::REASON_DEFINITION_OFFENSIVE),
+            ]);
+            $definition->reports()->create([
+                'reporter_id' => $reporter->id,
+                'reason' => Report::REASON_DEFINITION_OFFENSIVE,
+                'explanation' => 'Deterministic definition report',
+                'report_case_id' => $definitionCase->id,
             ]);
         }
 

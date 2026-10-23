@@ -28,4 +28,24 @@ test.describe('admin user management', () => {
         await page.getByRole('button', { name: 'Suspend account', exact: true }).last().click();
         await expect(page.getByRole('alert')).toHaveText('A suspension reason is required.');
     });
+
+    test('shows sortable pages, empty filters, activity details, and self guard', async ({ page, e2e }) => {
+        const fixture = await e2e.setup('users');
+        const adminEmail = `e2e-${e2e.namespace}-admin@example.test`;
+        await e2e.login(adminEmail, true);
+        await page.goto('/admin/users?sort=name&direction=asc&page=2');
+        expect(Object.fromEntries(new URL(page.url()).searchParams)).toEqual(expect.objectContaining({ sort: 'name', direction: 'asc', page: '2' }));
+        await expect(page.getByText(/Inactive or unknown activity/).first()).toBeVisible();
+        await page.goto('/admin/users?search=no-such-fixture-account');
+        await expect(page.getByText('No accounts match your search.')).toBeVisible();
+        await page.goto(`/admin/users?search=${encodeURIComponent(adminEmail)}`);
+        await expect(page.getByText('You cannot suspend your own account.')).toBeVisible();
+    });
+
+    test('a regular user sees an authorization response instead of user management', async ({ page, e2e }) => {
+        const fixture = await e2e.setup('users');
+        await e2e.login(fixture.user.email);
+        const response = await page.goto('/admin/users');
+        expect(response.status()).toBe(403);
+    });
 });
