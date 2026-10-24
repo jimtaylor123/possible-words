@@ -171,25 +171,27 @@
               <div v-if="word.definitions.length > 0" class="text-gray-700">
                 "{{ word.definitions[0].text }}"
                 <div data-testid="home-definition-metadata" class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-                  <span class="inline-flex min-w-0 max-w-full items-start gap-1">
+                  <span class="flex min-w-0 max-w-full items-center gap-1">
                     <n-avatar
                       v-if="word.definitions[0].user?.avatar"
                       :src="word.definitions[0].user.avatar"
                       :size="20"
                       round
+                      class="shrink-0"
                     />
                     <n-avatar
                       v-else-if="word.definitions[0].user"
                       :size="20"
                       round
+                      class="shrink-0"
                     >
                       {{ word.definitions[0].user.name.charAt(0).toUpperCase() }}
                     </n-avatar>
-                    <span class="min-w-0 break-all">{{ word.definitions[0].user ? word.definitions[0].user.name : 'Deleted user' }}</span>
+                    <span class="min-w-0 break-words">{{ word.definitions[0].user ? word.definitions[0].user.name : 'Deleted user' }}</span>
                   </span>
-                  <span class="whitespace-nowrap">{{ word.definitions[0].votes_count }} votes</span>
-                  <span v-if="word.definitions[0].part_of_speech" class="whitespace-nowrap">{{ word.definitions[0].part_of_speech }}</span>
-                  <span v-if="word.definitions[0].origin === 'ai'" class="whitespace-nowrap">AI-generated</span>
+                  <span class="shrink-0 whitespace-nowrap">{{ word.definitions[0].votes_count }} votes</span>
+                  <span v-if="word.definitions[0].part_of_speech" class="shrink-0 whitespace-nowrap">{{ word.definitions[0].part_of_speech }}</span>
+                  <span v-if="word.definitions[0].origin === 'ai'" class="shrink-0 whitespace-nowrap">AI-generated</span>
                 </div>
                 <div class="text-xs text-gray-400 mt-1">
                   {{ word.definitions_count }} definition{{ word.definitions_count !== 1 ? 's' : '' }} total

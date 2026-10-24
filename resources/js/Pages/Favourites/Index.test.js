@@ -137,6 +137,6 @@ describe('favourites lists', () => {
     expect([...metadata.children]).toHaveLength(4)
     expect(metadata.children[0].classList).toContain('max-w-full')
     expect(metadata.children[0].classList).not.toContain('whitespace-nowrap')
-    expect(metadata.children[0].lastElementChild.classList).toContain('break-all')
+    expect(metadata.children[0].lastElementChild.classList).toContain('break-words')
   })
 })
