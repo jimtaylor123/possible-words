@@ -99,6 +99,10 @@ class AccountController extends Controller
                 DB::table(config('session.table'))->where('user_id', $user->id)->delete();
             }
 
+            User::query()->where('suspended_by_user_id', $user->id)->update([
+                'suspended_by_user_id' => null,
+            ]);
+
             User::query()->whereKey($user->id)->delete();
 
             Vote::query()
