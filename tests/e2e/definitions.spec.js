@@ -38,7 +38,7 @@ test.describe('Adding definitions and voting', () => {
         await expect(page.getByText('0 / 1000 characters')).toBeVisible();
         await textarea.fill(phrase);
         await page.getByLabel('Part of speech').click();
-        await page.getByText('Noun', { exact: true }).last().click();
+        await page.locator('.n-base-select-option', { hasText: 'Noun' }).click();
         await page.getByRole('button', { name: 'Submit Definition' }).click();
 
         const definition = page.locator('.border.rounded-lg.p-4').filter({ hasText: phrase });

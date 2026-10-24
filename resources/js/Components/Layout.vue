@@ -1,14 +1,26 @@
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="min-h-screen overflow-x-hidden bg-gray-50">
     <!-- Navigation -->
     <nav aria-label="Primary navigation" class="sticky top-0 z-50 bg-white shadow-sm border-b">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-          <div class="flex items-center">
-            <Logo />
+        <div class="flex min-w-0 flex-wrap items-center py-2 sm:h-16 sm:flex-nowrap sm:py-0">
+          <div class="min-w-0 shrink">
+            <div class="sm:hidden">
+              <Logo compact />
+            </div>
+            <div class="hidden sm:block">
+              <Logo />
+            </div>
           </div>
 
-          <div class="flex items-center gap-4 sm:gap-6">
+          <div class="order-3 flex w-full shrink-0 items-center gap-2 pt-2 sm:order-none sm:ml-auto sm:w-auto sm:gap-6 sm:pt-0">
+            <Link
+              :href="route('home')"
+              :class="[navLinkClass('/'), 'sm:hidden']"
+              :aria-current="isCurrentPath('/') ? 'page' : undefined"
+            >
+              Home
+            </Link>
             <Link
               :href="route('about')"
               :class="navLinkClass('/about')"
@@ -31,6 +43,8 @@
             >
               Favourites
             </Link>
+          </div>
+          <div class="ml-auto flex shrink-0 items-center gap-2 sm:ml-6 sm:gap-6">
             <n-popover v-if="user" trigger="click" placement="bottom-end">
               <template #trigger>
                 <button type="button" aria-label="Notifications" class="relative p-2 text-gray-600 hover:text-gray-900" @click="unlockNotificationAudio">
@@ -40,7 +54,7 @@
                   <span v-if="unreadCount" class="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
                 </button>
               </template>
-              <section class="w-[23rem] overflow-hidden rounded-xl bg-white" aria-label="Notifications">
+              <section class="w-[23rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-white" aria-label="Notifications">
                 <header class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
                   <div>
                     <p class="text-sm font-semibold text-gray-900">Notifications</p>
@@ -112,7 +126,7 @@
               </button>
             </n-dropdown>
 
-            <GoogleSignInButton v-else @click="login" />
+            <GoogleSignInButton v-else mobile-label="Sign in with Google" @click="login" />
           </div>
         </div>
       </div>
