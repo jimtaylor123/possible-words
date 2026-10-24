@@ -43,6 +43,46 @@ test.describe('Admin area', () => {
         await expect(page.locator('.n-dropdown-option').filter({ hasText: 'Admin' })).toBeVisible();
     });
 
+    test('an admin can suspend and restore an account from user management', async ({ page, browser }) => {
+        const suffix = `${Date.now()}-${test.info().parallelIndex}`;
+        const targetEmail = `suspended-e2e-${suffix}@example.com`;
+        const targetContext = await browser.newContext();
+        const targetPage = await targetContext.newPage();
+
+        await login(targetPage, targetEmail);
+        await targetPage.goto('/account');
+        await expect(targetPage).toHaveURL(/\/account$/);
+
+        await login(page, `admin-users-${suffix}@example.com`, true);
+        await page.goto('/admin');
+        await page.getByRole('link', { name: 'User management' }).click();
+        await expect(page).toHaveURL(/\/admin\/users$/);
+        await page.locator('[aria-label="Search users"] input').fill(targetEmail);
+        await page.getByRole('button', { name: 'Search' }).click();
+        await expect(page.getByText(targetEmail)).toBeVisible();
+        const targetCard = page.locator('article').filter({ hasText: targetEmail });
+        await targetCard.getByRole('button', { name: 'Suspend account', exact: true }).click();
+        await page.locator('[aria-label="Suspension reason"] textarea').fill('Repeated abusive reports');
+        await page.getByRole('dialog').getByRole('button', { name: 'Suspend account', exact: true }).click();
+        await expect(page.locator('main').getByRole('status')).toHaveText('Account suspended.');
+
+        const blockedAccount = await targetPage.request.get('/account', { maxRedirects: 0 });
+        expect(blockedAccount.status()).toBe(302);
+        expect(blockedAccount.headers().location).toContain('/auth/google');
+        const rejectedLogin = await targetPage.request.post('/testing/login', { form: { email: targetEmail } });
+        expect(rejectedLogin.status()).toBe(403);
+
+        await targetCard.getByRole('button', { name: 'Restore account' }).click();
+        await page.getByRole('dialog').getByRole('button', { name: 'Restore account' }).click();
+        await expect(page.locator('main').getByRole('status')).toHaveText('Account restored.');
+        const restoredLogin = await targetPage.request.post('/testing/login', { form: { email: targetEmail } });
+        expect(restoredLogin.ok()).toBeTruthy();
+        await targetPage.goto('/account');
+        await expect(targetPage).toHaveURL(/\/account$/);
+
+        await targetContext.close();
+    });
+
     test('matching reports are grouped and an admin can mute and unmute a case', async ({ page }) => {
         const suffix = `${Date.now()}-${test.info().parallelIndex}-${test.info().repeatEachIndex}`;
         await login(page, `admin-queue-reporter-${suffix}@example.com`);

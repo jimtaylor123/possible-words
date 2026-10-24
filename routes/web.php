@@ -3,6 +3,7 @@
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminReportController;
+use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
@@ -79,6 +80,9 @@ Route::get('/build/{path}', function (string $path) {
 Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     Route::get('/', [AdminReportController::class, 'index'])->name('admin.dashboard');
     Route::patch('/reports/{reportCase}', [AdminReportController::class, 'update'])->name('admin.reports.update');
+    Route::get('/users', [AdminUserController::class, 'index'])->name('admin.users.index');
+    Route::patch('/users/{user}/suspend', [AdminUserController::class, 'suspend'])->name('admin.users.suspend');
+    Route::patch('/users/{user}/unsuspend', [AdminUserController::class, 'unsuspend'])->name('admin.users.unsuspend');
 });
 
 // Testing-only helpers. Registered only when running the Pest suite

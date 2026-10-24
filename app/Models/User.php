@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -51,6 +52,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'last_active_at' => 'datetime',
+            'suspended_at' => 'datetime',
         ];
     }
 
@@ -87,6 +90,16 @@ class User extends Authenticatable
     public function reportReviewActions(): HasMany
     {
         return $this->hasMany(ReportReviewAction::class, 'admin_user_id');
+    }
+
+    public function suspender(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'suspended_by_user_id');
+    }
+
+    public function accountSuspensionActions(): HasMany
+    {
+        return $this->hasMany(AccountSuspensionAction::class);
     }
 
     public function processedReportCases(): HasMany

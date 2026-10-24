@@ -62,6 +62,10 @@ class AuthController extends Controller
 
             $user = User::where('email', $email)->first();
 
+            if ($user?->suspended_at !== null) {
+                return redirect()->route('home')->with('error', 'Your account is unavailable. Please contact support.');
+            }
+
             if ($user === null) {
                 $user = User::create([
                     'provider' => 'google',
@@ -70,6 +74,7 @@ class AuthController extends Controller
                     'email' => $email,
                     'avatar' => $avatar,
                     'password' => null,
+                    'last_active_at' => now(),
                 ]);
 
                 $wasRecentlyCreated = true;
@@ -82,6 +87,7 @@ class AuthController extends Controller
                     'name' => $name,
                     'email' => $email,
                     'avatar' => $avatar,
+                    'last_active_at' => now(),
                 ])->save();
             }
 
@@ -133,6 +139,11 @@ class AuthController extends Controller
             $user->forceFill(['is_admin' => $request->boolean('is_admin')])->save();
         }
 
+        if ($user->suspended_at !== null) {
+            return response()->json(['ok' => false, 'error' => 'Your account is unavailable. Please contact support.'], 403);
+        }
+
+        $user->forceFill(['last_active_at' => now()])->save();
         Auth::login($user);
         $request->session()->regenerate();
 
