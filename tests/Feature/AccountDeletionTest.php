@@ -123,6 +123,10 @@ test('cookie sessions cannot access an account after it is deleted', function ()
 test('account deletion removes personal data, releases words, and retains anonymous public records', function () {
     $user = User::factory()->create();
     $otherUser = User::factory()->create();
+    $suspendedUser = User::factory()->create([
+        'suspended_at' => now(),
+        'suspended_by_user_id' => $user->id,
+    ]);
     $word = Word::factory()->create(['status' => 'owned', 'owner_user_id' => $user->id, 'owned_until' => now()->addMonth()]);
     $definition = $word->definitions()->create(['user_id' => $user->id, 'text' => 'A retained public definition.', 'votes_count' => 2]);
     $otherDefinition = $word->definitions()->create(['user_id' => $otherUser->id, 'text' => 'A voted definition.', 'votes_count' => 1]);
@@ -170,6 +174,7 @@ test('account deletion removes personal data, releases words, and retains anonym
     $this->assertDatabaseMissing('favourites', ['user_id' => $user->id]);
     $this->assertDatabaseMissing('ownerships', ['id' => $ownership->id]);
     $this->assertDatabaseMissing('sessions', ['user_id' => $user->id]);
+    $this->assertDatabaseHas('users', ['id' => $suspendedUser->id, 'suspended_by_user_id' => null]);
     $this->assertDatabaseHas('definitions', ['id' => $definition->id, 'user_id' => null, 'votes_count' => 1]);
     $this->assertDatabaseHas('definitions', ['id' => $otherDefinition->id, 'votes_count' => 0]);
     $this->assertDatabaseHas('words', ['id' => $word->id, 'status' => 'available', 'owner_user_id' => null, 'owned_until' => null]);
