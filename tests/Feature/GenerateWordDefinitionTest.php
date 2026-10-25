@@ -186,6 +186,31 @@ test('it gives a later batch slot its earlier AI definitions in slot order', fun
     expect($laterWord->definitions()->where('origin', Definition::ORIGIN_AI)->exists())->toBeTrue();
 });
 
+test('it defers when a predecessor slot is replaced during definition generation', function () {
+    $batch = WordBatch::create(['scheduled_for' => now(), 'target_count' => WordBatch::SIZE]);
+    $earlierWord = Word::factory()->create();
+    $laterWord = Word::factory()->create();
+    $earlierSlot = WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => 1, 'word_id' => $earlierWord->id, 'status' => WordBatchSlot::PROCESSING]);
+    WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => 2, 'word_id' => $laterWord->id, 'status' => WordBatchSlot::PROCESSING]);
+    $earlierWord->definitions()->create(['user_id' => \App\Models\User::factory()->create()->id, 'text' => 'A discarded predecessor meaning.', 'origin' => Definition::ORIGIN_AI, 'part_of_speech' => 'noun']);
+    $replacement = Word::factory()->create();
+    $generator = mock(DefinitionGenerator::class);
+    $generator->shouldReceive('generate')->once()->with($laterWord->text, ['A discarded predecessor meaning.'])
+        ->andReturnUsing(function () use ($earlierSlot, $replacement) {
+            $earlierSlot->update(['word_id' => $replacement->id]);
+
+            return new GeneratedDefinition('A stale later meaning.', 'verb', 'The stale definition must not be saved.');
+        });
+    $queueJob = mock(\Illuminate\Contracts\Queue\Job::class);
+    $queueJob->shouldReceive('release')->once()->with(5);
+    $job = new GenerateWordDefinition($laterWord->id);
+    $job->setJob($queueJob);
+
+    $job->handle($generator, app(\App\Services\Definitions\SystemAiUser::class));
+
+    expect($laterWord->definitions()->where('origin', Definition::ORIGIN_AI)->exists())->toBeFalse();
+});
+
 test('it rate-limits with the registered definitions-ai limiter', function () {
     $rateLimited = collect((new GenerateWordDefinition(1))->middleware())
         ->first(fn ($middleware) => $middleware instanceof RateLimited);

@@ -9,6 +9,7 @@ use App\Models\Definition;
 use App\Models\Word;
 use App\Models\WordBatchSlot;
 use App\Services\Definitions\SystemAiUser;
+use App\Services\WordBatchDefinitionLock;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\QueryException;
@@ -53,16 +54,29 @@ class GenerateWordDefinition implements ShouldQueue
             return;
         }
 
-        $excludedDefinitions = $this->lowerBatchDefinitions($word);
-        if ($excludedDefinitions === null) {
+        $context = $this->batchDefinitionContext($word);
+        if ($context === null) {
             $this->release(self::DEFER_DELAY);
 
             return;
         }
 
         try {
-            $generated = $generator->generate($word->text, $excludedDefinitions);
+            $generated = $generator->generate($word->text, $context['definitions']);
+            $lock = $context['batch_id'] === null ? null : WordBatchDefinitionLock::acquire($context['batch_id']);
+            if ($context['batch_id'] !== null && $lock === null) {
+                $this->release(self::DEFER_DELAY);
+
+                return;
+            }
+
             try {
+                if ($context['batch_id'] !== null && $this->batchDefinitionContext($word) !== $context) {
+                    $this->release(self::DEFER_DELAY);
+
+                    return;
+                }
+
                 $definition = Definition::firstOrCreate(
                     ['word_id' => $word->id, 'origin' => Definition::ORIGIN_AI],
                     [
@@ -82,6 +96,8 @@ class GenerateWordDefinition implements ShouldQueue
                 if ($definition === null) {
                     throw $exception;
                 }
+            } finally {
+                $lock?->release();
             }
 
             $word->update([
@@ -129,13 +145,13 @@ class GenerateWordDefinition implements ShouldQueue
     }
 
     /**
-     * @return list<string>|null Null means an earlier slot is not yet complete.
+     * @return array{batch_id: int|null, definitions: list<string>, word_ids: list<int>}|null Null means an earlier slot is not yet complete.
      */
-    private function lowerBatchDefinitions(Word $word): ?array
+    private function batchDefinitionContext(Word $word): ?array
     {
-        $slot = $word->batchSlot;
+        $slot = WordBatchSlot::query()->where('word_id', $word->id)->first();
         if ($slot === null) {
-            return [];
+            return ['batch_id' => null, 'definitions' => [], 'word_ids' => []];
         }
 
         $lowerSlots = WordBatchSlot::query()
@@ -150,16 +166,18 @@ class GenerateWordDefinition implements ShouldQueue
         }
 
         $definitions = [];
+        $wordIds = [];
         foreach ($lowerSlots as $lowerSlot) {
             $definition = $lowerSlot->word?->definitions->first();
-            if ($definition === null) {
+            if ($lowerSlot->word === null || $definition === null) {
                 return null;
             }
 
             $definitions[] = $definition->text;
+            $wordIds[] = $lowerSlot->word->id;
         }
 
-        return $definitions;
+        return ['batch_id' => $slot->word_batch_id, 'definitions' => $definitions, 'word_ids' => $wordIds];
     }
 
     private function recordFailure(Word $word, \Throwable $exception): void

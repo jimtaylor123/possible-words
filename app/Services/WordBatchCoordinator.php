@@ -42,6 +42,11 @@ class WordBatchCoordinator
 
             return;
         }
+        $lock = WordBatchDefinitionLock::acquire($batch->id);
+        if ($lock === null) {
+            return;
+        }
+
         try {
             $word = DB::transaction(function () use ($candidate, $slot) {
                 if (Word::withTrashed()->where('text', $candidate['text'])->exists()) {
@@ -62,6 +67,8 @@ class WordBatchCoordinator
             }
         } catch (\Throwable $exception) {
             $this->retrySlot($slot, 'persistence_failure', $exception);
+        } finally {
+            $lock->release();
         }
     }
 
@@ -155,7 +162,16 @@ class WordBatchCoordinator
 
     private function reject(WordBatchSlot $slot, string $reason): void
     {
-        $slot->update(['word_id' => null, 'status' => WordBatchSlot::REJECTED, 'retry_at' => now()->addSeconds($this->delay($slot->attempts + 1)), 'attempts' => $slot->attempts + 1, 'last_error' => ['reason' => $reason]]);
+        $lock = WordBatchDefinitionLock::acquire($slot->word_batch_id);
+        if ($lock === null) {
+            return;
+        }
+
+        try {
+            $slot->update(['word_id' => null, 'status' => WordBatchSlot::REJECTED, 'retry_at' => now()->addSeconds($this->delay($slot->attempts + 1)), 'attempts' => $slot->attempts + 1, 'last_error' => ['reason' => $reason]]);
+        } finally {
+            $lock->release();
+        }
     }
 
     private function retrySlot(WordBatchSlot $slot, string $reason, ?\Throwable $exception = null): void
