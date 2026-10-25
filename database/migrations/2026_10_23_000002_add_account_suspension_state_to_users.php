@@ -11,7 +11,9 @@ return new class extends Migration
         Schema::table('users', function (Blueprint $table) {
             $table->timestamp('last_active_at')->nullable()->index();
             $table->timestamp('suspended_at')->nullable()->index();
-            $table->foreignId('suspended_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+            // This deliberately remains an application-level reference. Turso
+            // rebuilds a table when adding a self-referencing foreign key.
+            $table->unsignedBigInteger('suspended_by_user_id')->nullable()->index();
             $table->text('suspension_reason')->nullable();
         });
 
@@ -33,10 +35,10 @@ return new class extends Migration
         Schema::dropIfExists('account_suspension_actions');
 
         Schema::table('users', function (Blueprint $table) {
-            $table->dropConstrainedForeignId('suspended_by_user_id');
+            $table->dropIndex(['suspended_by_user_id']);
             $table->dropIndex(['last_active_at']);
             $table->dropIndex(['suspended_at']);
-            $table->dropColumn(['last_active_at', 'suspended_at', 'suspension_reason']);
+            $table->dropColumn(['last_active_at', 'suspended_at', 'suspended_by_user_id', 'suspension_reason']);
         });
     }
 };

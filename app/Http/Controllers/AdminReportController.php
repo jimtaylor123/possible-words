@@ -16,8 +16,20 @@ use Illuminate\Validation\ValidationException;
 
 class AdminReportController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, AdminUserController $users)
     {
+        $tab = $request->query('tab') === 'users' ? 'users' : 'reports';
+
+        if ($tab === 'users') {
+            $directory = $users->directoryPayload($request);
+
+            return inertia('Admin/Dashboard', [
+                'tab' => $tab,
+                'users' => $directory['users'],
+                'userFilters' => $directory['filters'],
+            ]);
+        }
+
         $reason = $this->filter($request, 'reason', [
             Report::REASON_WORD_UNFRESH,
             Report::REASON_WORD_OFFENSIVE,
@@ -42,6 +54,7 @@ class AdminReportController extends Controller
             ->through(fn (ReportCase $case) => $this->casePayload($case));
 
         return inertia('Admin/Dashboard', [
+            'tab' => $tab,
             'reports' => $reports,
             'filters' => compact('reason', 'status'),
             'reasonOptions' => [

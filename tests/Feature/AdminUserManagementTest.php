@@ -20,19 +20,19 @@ test('user management requires an administrator', function () {
     $this->actingAs($user)->patch(route('admin.users.suspend', $user), ['reason' => 'No'])->assertForbidden();
 });
 
-test('admin directory exposes activity and account counts', function () {
+test('admin users tab exposes activity and account counts', function () {
     $admin = User::factory()->create(['is_admin' => true, 'name' => 'Moderator', 'email' => 'moderator@example.test']);
     $inactive = User::factory()->create(['name' => 'Ada Lovelace', 'last_active_at' => now()->subMinutes(6)]);
     User::factory()->create(['last_active_at' => now()->subSeconds(30)]);
 
-    $this->actingAs($admin)->get(route('admin.users.index', ['search' => 'Ada']))
-        ->assertInertia(fn ($page) => $page->component('Admin/Users/Index')->has('users.data', 1)
+    $this->actingAs($admin)->get(route('admin.dashboard', ['tab' => 'users', 'search' => 'Ada']))
+        ->assertInertia(fn ($page) => $page->component('Admin/Dashboard')->where('tab', 'users')->has('users.data', 1)
             ->where('users.data.0.id', $inactive->id)->where('users.data.0.activity_state', 'red'));
-    $this->actingAs($admin)->get(route('admin.users.index'))
+    $this->actingAs($admin)->get(route('admin.dashboard', ['tab' => 'users']))
         ->assertInertia(fn ($page) => $page->has('users.data', 3));
 });
 
-test('admin directory searches, sorts, paginates, and exposes report breakdowns', function () {
+test('admin users tab searches, sorts, paginates, and exposes report breakdowns', function () {
     $this->travelTo('2026-10-23 12:00:00');
     $admin = User::factory()->create(['is_admin' => true, 'name' => 'Moderator', 'email' => 'moderator@example.test', 'last_active_at' => now()->subMinute()]);
     $ada = User::factory()->create(['name' => 'Ada Lovelace', 'email' => 'ada@example.test', 'avatar' => 'https://example.test/ada.jpg', 'last_active_at' => now()->subSeconds(30)]);
@@ -44,7 +44,7 @@ test('admin directory searches, sorts, paginates, and exposes report breakdowns'
     $word->reports()->create(['reporter_id' => $ada->id, 'reason' => Report::REASON_WORD_OFFENSIVE]);
     $definition->reports()->create(['reporter_id' => $ada->id, 'reason' => Report::REASON_DEFINITION_OFFENSIVE]);
 
-    $this->actingAs($admin)->get(route('admin.users.index', ['search' => 'ada']))
+    $this->actingAs($admin)->get(route('admin.dashboard', ['tab' => 'users', 'search' => 'ada']))
         ->assertInertia(fn ($page) => $page
             ->has('users.data', 1)
             ->where('users.data.0.id', $ada->id)
@@ -55,16 +55,16 @@ test('admin directory searches, sorts, paginates, and exposes report breakdowns'
             ->where('users.data.0.definition_reports_count', 1)
             ->where('users.data.0.activity_state', 'green'));
 
-    $this->actingAs($admin)->get(route('admin.users.index', ['search' => 'example.test', 'sort' => 'email', 'direction' => 'asc']))
+    $this->actingAs($admin)->get(route('admin.dashboard', ['tab' => 'users', 'search' => 'example.test', 'sort' => 'email', 'direction' => 'asc']))
         ->assertInertia(fn ($page) => $page->has('users.data', 4)->where('users.data.0.id', $ada->id));
 
     foreach (['last_active', 'name', 'email', 'definitions', 'reports'] as $sort) {
-        $this->actingAs($admin)->get(route('admin.users.index', ['sort' => $sort, 'direction' => 'asc']))
+        $this->actingAs($admin)->get(route('admin.dashboard', ['tab' => 'users', 'sort' => $sort, 'direction' => 'asc']))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->where('filters.sort', $sort)->where('filters.direction', 'asc'));
+            ->assertInertia(fn ($page) => $page->where('userFilters.sort', $sort)->where('userFilters.direction', 'asc'));
     }
 
-    $this->actingAs($admin)->get(route('admin.users.index'))
+    $this->actingAs($admin)->get(route('admin.dashboard', ['tab' => 'users']))
         ->assertInertia(fn ($page) => $page
             ->where('users.data.1.id', $ada->id)
             ->where('users.data.2.id', $oneMinute->id)
@@ -73,9 +73,16 @@ test('admin directory searches, sorts, paginates, and exposes report breakdowns'
             ->where('users.data.4.activity_state', 'red'));
 
     User::factory()->count(20)->create();
-    $this->actingAs($admin)->get(route('admin.users.index', ['search' => 'example.test', 'page' => 1]))
+    $this->actingAs($admin)->get(route('admin.dashboard', ['tab' => 'users', 'search' => 'example.test', 'page' => 1]))
         ->assertInertia(fn ($page) => $page->where('users.current_page', 1)->where('users.per_page', 20));
     $this->travelBack();
+});
+
+test('legacy user management URL redirects to the users tab', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+
+    $this->actingAs($admin)->get(route('admin.users.index', ['search' => 'Ada']))
+        ->assertRedirect(route('admin.dashboard', ['search' => 'Ada', 'tab' => 'users']));
 });
 
 test('suspension validates a trimmed reason and revokes sessions from the configured session table', function () {

@@ -1,9 +1,12 @@
+<!-- eslint-disable vue/html-indent, vue/max-attributes-per-line -->
 <template>
   <Layout>
-    <div class="max-w-5xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <h1 class="text-3xl font-bold text-gray-900 mb-2">Report queue</h1>
-      <p class="text-gray-600 mb-6">Review submitted reports and remove reported content when necessary.</p>
-      <a :href="route('admin.users.index')" class="mb-6 inline-block text-blue-600 hover:underline">User management</a>
+    <div class="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <h1 class="text-3xl font-bold text-gray-900 mb-6">Administration</h1>
+      <nav class="mb-6 border-b" role="tablist" aria-label="Admin sections">
+        <button type="button" role="tab" :aria-selected="tab === 'reports'" class="border-b-2 px-4 py-3 font-medium" :class="tab === 'reports' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-600 hover:text-gray-900'" @click="selectTab('reports')">Reports</button>
+        <button type="button" role="tab" :aria-selected="tab === 'users'" class="border-b-2 px-4 py-3 font-medium" :class="tab === 'users' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-600 hover:text-gray-900'" @click="selectTab('users')">Users</button>
+      </nav>
 
       <p v-if="$page.props.flash?.success" role="status" class="mb-4 rounded border border-green-200 bg-green-50 p-3 text-green-800">
         {{ $page.props.flash.success }}
@@ -12,6 +15,11 @@
         {{ $page.props.flash.error }}
       </p>
 
+      <UserDirectory v-if="tab === 'users'" :users="users" :filters="userFilters" />
+
+      <template v-else>
+      <h2 class="text-2xl font-bold text-gray-900 mb-2">Report queue</h2>
+      <p class="text-gray-600 mb-6">Review submitted reports and remove reported content when necessary.</p>
       <div class="grid gap-4 sm:grid-cols-2 mb-6">
         <label class="block text-sm font-medium text-gray-700">
           Report type
@@ -63,6 +71,7 @@
       <div v-if="reports.last_page > 1" class="mt-6 flex justify-center">
         <n-pagination v-model:page="currentPage" :page-count="reports.last_page" @update:page="goToPage" />
       </div>
+      </template>
     </div>
 
     <n-modal v-model:show="showAction" preset="card" title="Update report case" class="max-w-lg" :mask-closable="!submitting">
@@ -97,17 +106,21 @@
 import { router } from '@inertiajs/vue3'
 import { computed, ref } from 'vue'
 import Layout from '@/Components/Layout.vue'
+import UserDirectory from '@/Components/Admin/UserDirectory.vue'
 
 const props = defineProps({
-  reports: { type: Object, required: true },
-  filters: { type: Object, required: true },
-  reasonOptions: { type: Array, required: true },
-  statusOptions: { type: Array, required: true },
+  tab: { type: String, default: 'reports' },
+  reports: { type: Object, default: null },
+  filters: { type: Object, default: null },
+  reasonOptions: { type: Array, default: () => [] },
+  statusOptions: { type: Array, default: () => [] },
+  users: { type: Object, default: null },
+  userFilters: { type: Object, default: null },
 })
 
-const selectedReason = ref(props.filters.reason)
-const selectedStatus = ref(props.filters.status)
-const currentPage = ref(props.reports.current_page)
+const selectedReason = ref(props.filters?.reason ?? null)
+const selectedStatus = ref(props.filters?.status ?? 'open')
+const currentPage = ref(props.reports?.current_page ?? 1)
 const showAction = ref(false)
 const selectedReport = ref(null)
 const selectedAction = ref('')
@@ -117,12 +130,14 @@ const submitting = ref(false)
 const isFiltered = computed(() => selectedReason.value || selectedStatus.value !== 'open')
 const applyFilters = () => {
   currentPage.value = 1
-  router.get(route('admin.dashboard'), { reason: selectedReason.value || undefined, status: selectedStatus.value }, { preserveState: true, replace: true })
+  router.get(route('admin.dashboard'), { tab: 'reports', reason: selectedReason.value || undefined, status: selectedStatus.value }, { preserveState: true, replace: true })
 }
 
 const goToPage = (page) => {
-  router.get(route('admin.dashboard'), { reason: selectedReason.value || undefined, status: selectedStatus.value, page }, { preserveState: true })
+  router.get(route('admin.dashboard'), { tab: 'reports', reason: selectedReason.value || undefined, status: selectedStatus.value, page }, { preserveState: true })
 }
+
+const selectTab = (nextTab) => router.get(route('admin.dashboard'), { tab: nextTab })
 
 const actionLabel = (report) => report.status === 'open' ? 'Review' : report.status === 'muted' ? 'Unmute' : null
 const openAction = (report) => {

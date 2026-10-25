@@ -19,7 +19,7 @@ describe('admin dashboard access', function () {
         $this->actingAs($admin)
             ->get(route('admin.dashboard'))
             ->assertStatus(200)
-            ->assertInertia(fn ($page) => $page->component('Admin/Dashboard'));
+            ->assertInertia(fn ($page) => $page->component('Admin/Dashboard')->where('tab', 'reports'));
     });
 
     test('Given a regular user, the dashboard is forbidden', function () {
