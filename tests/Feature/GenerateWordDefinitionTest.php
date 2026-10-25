@@ -6,6 +6,8 @@ use App\Exceptions\DefinitionGenerationException;
 use App\Jobs\GenerateWordDefinition;
 use App\Models\Definition;
 use App\Models\Word;
+use App\Models\WordBatch;
+use App\Models\WordBatchSlot;
 use Illuminate\Queue\Middleware\RateLimited;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\WorkerOptions;
@@ -19,7 +21,7 @@ uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 test('it creates one attributed AI definition with a valid category', function () {
     $word = Word::factory()->create();
     $generator = mock(DefinitionGenerator::class);
-    $generator->shouldReceive('generate')->once()->with($word->text)
+    $generator->shouldReceive('generate')->once()->with($word->text, [])
         ->andReturn(new GeneratedDefinition('A word for an unexpected delight.', 'noun', 'A blorg made the gathering brighter.'));
 
     app()->instance(DefinitionGenerator::class, $generator);
@@ -87,6 +89,65 @@ test('it skips deleted words and words that already have an AI definition', func
     app(GenerateWordDefinition::class, ['wordId' => $complete->id])->handle($generator, app(\App\Services\Definitions\SystemAiUser::class));
 
     expect($complete->fresh()->ai_definition_status)->toBe(Word::AI_DEFINITION_GENERATED);
+});
+
+test('it supplies no exclusion context for the first batch slot', function () {
+    $batch = WordBatch::create(['scheduled_for' => now(), 'target_count' => WordBatch::SIZE]);
+    $word = Word::factory()->create();
+    WordBatchSlot::create([
+        'word_batch_id' => $batch->id,
+        'slot_number' => 1,
+        'word_id' => $word->id,
+        'status' => WordBatchSlot::PROCESSING,
+    ]);
+    $generator = mock(DefinitionGenerator::class);
+    $generator->shouldReceive('generate')->once()->with($word->text, [])
+        ->andReturn(new GeneratedDefinition('A first batch meaning.', 'noun', 'The blorg started the batch.'));
+
+    (new GenerateWordDefinition($word->id))->handle($generator, app(\App\Services\Definitions\SystemAiUser::class));
+
+    expect($word->definitions()->where('origin', Definition::ORIGIN_AI)->exists())->toBeTrue();
+});
+
+test('it defers a later batch slot until every earlier slot has an AI definition', function () {
+    $batch = WordBatch::create(['scheduled_for' => now(), 'target_count' => WordBatch::SIZE]);
+    $earlierWord = Word::factory()->create();
+    $laterWord = Word::factory()->create();
+    WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => 1, 'word_id' => $earlierWord->id, 'status' => WordBatchSlot::PROCESSING]);
+    WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => 2, 'word_id' => $laterWord->id, 'status' => WordBatchSlot::PROCESSING]);
+    $generator = mock(DefinitionGenerator::class);
+    $generator->shouldNotReceive('generate');
+    $queueJob = mock(\Illuminate\Contracts\Queue\Job::class);
+    $queueJob->shouldReceive('release')->once()->with(5);
+    $job = new GenerateWordDefinition($laterWord->id);
+    $job->setJob($queueJob);
+
+    $job->handle($generator, app(\App\Services\Definitions\SystemAiUser::class));
+
+    expect($laterWord->fresh()->ai_definition_status)->toBe(Word::AI_DEFINITION_PENDING)
+        ->and($laterWord->definitions()->where('origin', Definition::ORIGIN_AI)->exists())->toBeFalse();
+});
+
+test('it gives a later batch slot its earlier AI definitions in slot order', function () {
+    $batch = WordBatch::create(['scheduled_for' => now(), 'target_count' => WordBatch::SIZE]);
+    $firstWord = Word::factory()->create();
+    $secondWord = Word::factory()->create();
+    $laterWord = Word::factory()->create();
+    WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => 1, 'word_id' => $firstWord->id, 'status' => WordBatchSlot::PROCESSING]);
+    WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => 2, 'word_id' => $secondWord->id, 'status' => WordBatchSlot::PROCESSING]);
+    WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => 3, 'word_id' => $laterWord->id, 'status' => WordBatchSlot::PROCESSING]);
+    $user = \App\Models\User::factory()->create();
+    $firstWord->definitions()->create(['user_id' => $user->id, 'text' => 'The first distinct meaning.', 'origin' => Definition::ORIGIN_AI, 'part_of_speech' => 'noun']);
+    $secondWord->definitions()->create(['user_id' => $user->id, 'text' => 'The second distinct meaning.', 'origin' => Definition::ORIGIN_AI, 'part_of_speech' => 'verb']);
+    $generator = mock(DefinitionGenerator::class);
+    $generator->shouldReceive('generate')->once()->with($laterWord->text, [
+        'The first distinct meaning.',
+        'The second distinct meaning.',
+    ])->andReturn(new GeneratedDefinition('A third distinct meaning.', 'other', 'The blorg became a third thing.'));
+
+    (new GenerateWordDefinition($laterWord->id))->handle($generator, app(\App\Services\Definitions\SystemAiUser::class));
+
+    expect($laterWord->definitions()->where('origin', Definition::ORIGIN_AI)->exists())->toBeTrue();
 });
 
 test('it rate-limits with the registered definitions-ai limiter', function () {
