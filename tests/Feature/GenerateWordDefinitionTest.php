@@ -128,6 +128,42 @@ test('it defers a later batch slot until every earlier slot has an AI definition
         ->and($laterWord->definitions()->where('origin', Definition::ORIGIN_AI)->exists())->toBeFalse();
 });
 
+test('the database queue retries an out-of-order batch job after its predecessor completes', function () {
+    $batch = WordBatch::create(['scheduled_for' => now(), 'target_count' => WordBatch::SIZE]);
+    $earlierWord = Word::factory()->create();
+    $laterWord = Word::factory()->create();
+    WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => 1, 'word_id' => $earlierWord->id, 'status' => WordBatchSlot::PROCESSING]);
+    WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => 2, 'word_id' => $laterWord->id, 'status' => WordBatchSlot::PROCESSING]);
+    $generator = mock(DefinitionGenerator::class);
+    $generator->shouldReceive('generate')->once()->with($earlierWord->text, [])
+        ->ordered()
+        ->andReturn(new GeneratedDefinition('A first queued meaning.', 'noun', 'The first blorg led the batch.'));
+    $generator->shouldReceive('generate')->once()->with($laterWord->text, ['A first queued meaning.'])
+        ->ordered()
+        ->andReturn(new GeneratedDefinition('A second queued meaning.', 'verb', 'The second blorg followed the first.'));
+    app()->instance(DefinitionGenerator::class, $generator);
+    $queue = Queue::connection('database');
+    $worker = app('queue.worker');
+    $options = new WorkerOptions(maxTries: 0);
+
+    $queue->push(new GenerateWordDefinition($laterWord->id));
+    $worker->process('database', $queue->pop(), $options);
+
+    expect(DB::table('jobs')->count())->toBe(1)
+        ->and($laterWord->fresh()->definitions()->where('origin', Definition::ORIGIN_AI)->exists())->toBeFalse();
+
+    $queue->push(new GenerateWordDefinition($earlierWord->id));
+    $worker->process('database', $queue->pop(), $options);
+
+    DB::table('jobs')->update(['available_at' => now()->timestamp]);
+    $worker->process('database', $queue->pop(), $options);
+
+    expect($earlierWord->fresh()->definitions()->where('origin', Definition::ORIGIN_AI)->value('text'))->toBe('A first queued meaning.')
+        ->and($laterWord->fresh()->definitions()->where('origin', Definition::ORIGIN_AI)->value('text'))->toBe('A second queued meaning.')
+        ->and(DB::table('jobs')->count())->toBe(0)
+        ->and(DB::table('failed_jobs')->count())->toBe(0);
+});
+
 test('it gives a later batch slot its earlier AI definitions in slot order', function () {
     $batch = WordBatch::create(['scheduled_for' => now(), 'target_count' => WordBatch::SIZE]);
     $firstWord = Word::factory()->create();
