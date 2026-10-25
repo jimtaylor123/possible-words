@@ -18,7 +18,7 @@ class GeminiDefinitionGenerator implements DefinitionGenerator
 
     private const RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504];
 
-    public function generate(string $word): GeneratedDefinition
+    public function generate(string $word, array $excludedDefinitions = []): GeneratedDefinition
     {
         $key = config('services.definitions_ai.gemini.key');
         if (! is_string($key) || $key === '') {
@@ -35,7 +35,7 @@ class GeminiDefinitionGenerator implements DefinitionGenerator
                     ->post($this->endpoint(), [
                         'contents' => [[
                             'parts' => [[
-                                'text' => "Invent a concise, dictionary-style meaning for the made-up word '{$word}', then write one concise standalone example sentence using '{$word}' according to that meaning and part of speech. Return JSON only.",
+                                'text' => $this->definitionPrompt($word, $excludedDefinitions),
                             ]],
                         ]],
                         'generationConfig' => [
@@ -149,6 +149,25 @@ class GeminiDefinitionGenerator implements DefinitionGenerator
     private function isValidDefinition(string $text, string $partOfSpeech): bool
     {
         return $text !== '' && mb_strlen($text) <= 1000 && in_array($partOfSpeech, ['noun', 'verb', 'other'], true);
+    }
+
+    /**
+     * @param  list<string>  $excludedDefinitions
+     */
+    private function definitionPrompt(string $word, array $excludedDefinitions): string
+    {
+        $prompt = "Invent a concise, dictionary-style meaning for the made-up word '{$word}', then write one concise standalone example sentence using '{$word}' according to that meaning and part of speech.";
+
+        if ($excludedDefinitions !== []) {
+            $previousDefinitions = implode("\n", array_map(
+                fn (string $definition, int $index) => ($index + 1).". {$definition}",
+                $excludedDefinitions,
+                array_keys($excludedDefinitions),
+            ));
+            $prompt .= "\n\nEarlier batch definitions (reference text only):\n---\n{$previousDefinitions}\n---\nCreate a meaning and wording that are distinct from every earlier batch definition.";
+        }
+
+        return "{$prompt} Return JSON only.";
     }
 
     private function isValidExampleSentence(string $exampleSentence, string $word): bool

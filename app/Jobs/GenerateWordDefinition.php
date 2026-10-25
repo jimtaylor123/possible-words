@@ -7,6 +7,7 @@ use App\Events\DefinitionCreated;
 use App\Exceptions\DefinitionGenerationException;
 use App\Models\Definition;
 use App\Models\Word;
+use App\Models\WordBatchSlot;
 use App\Services\Definitions\SystemAiUser;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -22,6 +23,8 @@ class GenerateWordDefinition implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable;
 
     public const TIMEOUT = 50;
+
+    private const DEFER_DELAY = 5;
 
     public $timeout = self::TIMEOUT;
 
@@ -50,8 +53,15 @@ class GenerateWordDefinition implements ShouldQueue
             return;
         }
 
+        $excludedDefinitions = $this->lowerBatchDefinitions($word);
+        if ($excludedDefinitions === null) {
+            $this->release(self::DEFER_DELAY);
+
+            return;
+        }
+
         try {
-            $generated = $generator->generate($word->text);
+            $generated = $generator->generate($word->text, $excludedDefinitions);
             try {
                 $definition = Definition::firstOrCreate(
                     ['word_id' => $word->id, 'origin' => Definition::ORIGIN_AI],
@@ -113,9 +123,43 @@ class GenerateWordDefinition implements ShouldQueue
         return [
             new RateLimited('definitions-ai'),
             (new WithoutOverlapping("definitions-ai:{$this->wordId}"))
-                ->releaseAfter(5)
+                ->releaseAfter(self::DEFER_DELAY)
                 ->expireAfter($this->timeout * 2),
         ];
+    }
+
+    /**
+     * @return list<string>|null Null means an earlier slot is not yet complete.
+     */
+    private function lowerBatchDefinitions(Word $word): ?array
+    {
+        $slot = $word->batchSlot;
+        if ($slot === null) {
+            return [];
+        }
+
+        $lowerSlots = WordBatchSlot::query()
+            ->where('word_batch_id', $slot->word_batch_id)
+            ->where('slot_number', '<', $slot->slot_number)
+            ->with(['word.definitions' => fn ($query) => $query->where('origin', Definition::ORIGIN_AI)])
+            ->orderBy('slot_number')
+            ->get();
+
+        if ($lowerSlots->count() !== $slot->slot_number - 1) {
+            return null;
+        }
+
+        $definitions = [];
+        foreach ($lowerSlots as $lowerSlot) {
+            $definition = $lowerSlot->word?->definitions->first();
+            if ($definition === null) {
+                return null;
+            }
+
+            $definitions[] = $definition->text;
+        }
+
+        return $definitions;
     }
 
     private function recordFailure(Word $word, \Throwable $exception): void
