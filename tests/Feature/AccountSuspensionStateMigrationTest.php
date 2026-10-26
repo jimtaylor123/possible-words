@@ -86,6 +86,8 @@ test('uses Turso-compatible metadata to recover and retry partial users and acti
         $migration->up();
         $migration->up();
 
+        Schema::swap($originalBuilder);
+
         expect($connection->queries)->toContain("PRAGMA table_info('users')")
             ->toContain("PRAGMA table_info('account_suspension_actions')")
             ->toContain("SELECT 1 FROM sqlite_schema WHERE type = 'index' AND tbl_name = ? AND name = ?")
