@@ -32,7 +32,7 @@ test('every definition category is rendered from a deterministic draft', async (
         await page.getByRole('button', { name: 'Add a definition' }).click();
         await page.locator('textarea[placeholder="What does this word mean?"]').fill(`Category ${value}`);
         await page.getByLabel('Part of speech').click();
-        await page.getByText(label, { exact: true }).last().click();
+        await page.locator('.n-base-select-option').filter({ hasText: label }).last().click();
         await page.getByRole('button', { name: 'Submit Definition' }).click();
         await expect(page.getByText(`Category ${value}`)).toBeVisible();
     }
@@ -59,10 +59,12 @@ test('the author can remove a definition and unavailable definition actions disa
     await e2e.login(`e2e-${e2e.namespace}-author@example.test`);
     await openWord(page, fixture);
     const live = page.locator('.border.rounded-lg.p-4').filter({ hasText: 'Deterministic live definition' });
+    const removedDefinitions = page.locator('.border.rounded-lg.p-4').filter({ hasText: '[deleted]' });
+    const removedCount = await removedDefinitions.count();
     await live.getByText('Remove', { exact: true }).click();
     await page.getByRole('button', { name: 'Remove definition' }).click();
-    await expect(page.getByText('[deleted]')).toBeVisible();
-    const removed = page.locator('.border.rounded-lg.p-4').filter({ hasText: '[deleted]' });
+    await expect(removedDefinitions).toHaveCount(removedCount + 1);
+    const removed = removedDefinitions.nth(removedCount);
     await expect(removed.getByRole('button', { name: /Like|Remove like/ })).toHaveCount(0);
     await expect(removed.getByRole('button', { name: 'Report this definition' })).toHaveCount(0);
 });

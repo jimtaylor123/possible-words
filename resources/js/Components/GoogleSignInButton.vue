@@ -3,7 +3,7 @@
     type="button"
     class="inline-flex items-center justify-center gap-3 rounded-full border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-900 shadow-sm transition hover:border-gray-300 hover:bg-gray-50 hover:shadow active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
     :aria-label="label"
-    @click="$emit('click')"
+    @click="signIn"
   >
     <span class="flex h-[18px] w-[18px] shrink-0 items-center justify-center" aria-hidden="true">
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -13,12 +13,15 @@
         <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.957L3.964 7.289C4.672 5.163 6.656 3.58 9 3.58z" />
       </svg>
     </span>
-    <span v-if="mobileLabel" class="sm:hidden">{{ mobileLabel }}</span>
-    <span :class="{ 'hidden sm:inline': mobileLabel }">{{ label }}</span>
+    <span v-if="mobileLabel" class="sm:hidden">{{ isTesting ? 'Test user' : mobileLabel }}</span>
+    <span :class="{ 'hidden sm:inline': mobileLabel }">{{ isTesting ? 'Continue as test user' : label }}</span>
   </button>
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import { usePage } from '@inertiajs/vue3'
+
 defineProps({
   label: {
     type: String,
@@ -30,5 +33,20 @@ defineProps({
   },
 })
 
-defineEmits(['click'])
+const emit = defineEmits(['click'])
+const page = usePage()
+const isTesting = computed(() => page.props.testing === true)
+
+const signIn = async () => {
+  if (!isTesting.value) {
+    emit('click')
+    return
+  }
+
+  await window.axios.post('/testing/login', {
+    email: 'local-tester@example.test',
+    name: 'Local Test User',
+  })
+  window.location.reload()
+}
 </script>

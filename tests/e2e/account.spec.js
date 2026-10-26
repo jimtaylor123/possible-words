@@ -59,13 +59,14 @@ test('logout and deletion end a fixture account session', async ({ page, e2e }) 
     expect(protectedResponse.headers().location).toContain('/auth/google');
 });
 
-test('protected routes and sign-in initiation stay local before OAuth', async ({ page }) => {
+test('protected routes redirect guests and local testing sign-in creates a session', async ({ page }) => {
     const protectedResponse = await page.request.get('/account', { maxRedirects: 0 });
     expect(protectedResponse.status()).toBe(302);
     expect(protectedResponse.headers().location).toContain('/auth/google');
-    await page.route('**/auth/google', route => route.abort());
     await page.goto('/');
-    const request = page.waitForRequest(request => new URL(request.url()).pathname === '/auth/google');
+
+    const login = page.waitForResponse(response => new URL(response.url()).pathname === '/testing/login' && response.status() === 200);
     await page.getByRole('button', { name: 'Continue with Google' }).click();
-    await request;
+    await login;
+    await expect(page.getByRole('button', { name: /Account menu for Local Test User/ })).toBeVisible();
 });

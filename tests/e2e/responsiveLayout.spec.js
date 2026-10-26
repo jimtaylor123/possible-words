@@ -58,7 +58,7 @@ test.describe('responsive primary navigation', () => {
             await page.setViewportSize({ width, height: 800 });
             await page.goto('/');
 
-            await expectInBounds(page.getByRole('link', { name: 'Favourites' }), width);
+            await expectInBounds(page.locator('nav').getByRole('link', { name: 'Favourites', exact: true }), width);
             await expectInBounds(page.getByRole('button', { name: 'Notifications' }), width);
             await expectInBounds(page.getByRole('button', { name: 'Account menu for Responsive User' }), width);
             await expect(page.locator('nav [aria-current="page"]')).toHaveCount(1);
