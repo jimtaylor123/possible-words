@@ -148,7 +148,7 @@ return new class extends Migration
             return Schema::hasIndex($table, $index);
         }
 
-        $indexName = is_array($index) ? implode('_', $index).'_index' : $index;
+        $indexName = is_array($index) ? $table.'_'.implode('_', $index).'_index' : $index;
 
         return Schema::getConnection()->selectOne(
             "SELECT 1 FROM sqlite_schema WHERE type = 'index' AND tbl_name = ? AND name = ?",

@@ -68,6 +68,9 @@ test('uses Turso-compatible metadata to recover and retry partial users and acti
         /** @var list<string> */
         public array $queries = [];
 
+        /** @var list<string> */
+        public array $statements = [];
+
         public function select($query, $bindings = [], $useReadPdo = true)
         {
             $this->queries[] = $query;
@@ -77,6 +80,13 @@ test('uses Turso-compatible metadata to recover and retry partial users and acti
             }
 
             return parent::select($query, $bindings, $useReadPdo);
+        }
+
+        public function statement($query, $bindings = [])
+        {
+            $this->statements[] = $query;
+
+            return parent::statement($query, $bindings);
         }
     };
     Schema::swap($connection->getSchemaBuilder());
@@ -91,6 +101,11 @@ test('uses Turso-compatible metadata to recover and retry partial users and acti
         expect($connection->queries)->toContain("PRAGMA table_info('users')")
             ->toContain("PRAGMA table_info('account_suspension_actions')")
             ->toContain("SELECT 1 FROM sqlite_schema WHERE type = 'index' AND tbl_name = ? AND name = ?")
+            ->and(collect($connection->statements)->contains(
+                fn (string $statement): bool => str_contains(strtolower($statement), 'create index')
+                    && (str_contains($statement, 'users_last_active_at_index')
+                        || str_contains($statement, 'users_suspended_at_index')),
+            ))->toBeFalse()
             ->and(Schema::hasColumn('users', 'last_active_at'))->toBeTrue()
             ->and(Schema::hasColumn('users', 'suspended_at'))->toBeTrue()
             ->and(Schema::hasColumn('users', 'suspended_by_user_id'))->toBeTrue()
