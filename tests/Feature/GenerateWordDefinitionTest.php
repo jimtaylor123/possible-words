@@ -2,6 +2,7 @@
 
 use App\Contracts\DefinitionGenerator;
 use App\Data\GeneratedDefinition;
+use App\Events\DefinitionCreated;
 use App\Exceptions\DefinitionGenerationException;
 use App\Jobs\GenerateWordDefinition;
 use App\Models\Definition;
@@ -13,6 +14,7 @@ use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -37,6 +39,54 @@ test('it creates one attributed AI definition with a valid category', function (
 
     app(GenerateWordDefinition::class, ['wordId' => $word->id])->handle($generator, app(\App\Services\Definitions\SystemAiUser::class));
     expect($word->definitions()->where('origin', Definition::ORIGIN_AI)->count())->toBe(1);
+});
+
+test('it broadcasts newly generated AI definitions only for publishable words', function () {
+    Event::fake([DefinitionCreated::class]);
+    $unpublishedWord = Word::factory()->create(['published_at' => null]);
+    $publishableWord = Word::factory()->create([
+        'status' => 'available',
+        'published_at' => now(),
+        'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
+    ]);
+    $generator = mock(DefinitionGenerator::class);
+    $generator->shouldReceive('generate')->twice()
+        ->andReturn(new GeneratedDefinition('A generated meaning.', 'noun', 'A blorg has a meaning.'));
+
+    (new GenerateWordDefinition($unpublishedWord->id))->handle($generator, app(\App\Services\Definitions\SystemAiUser::class));
+
+    expect($unpublishedWord->definitions()->where('origin', Definition::ORIGIN_AI)->exists())->toBeTrue();
+    Event::assertNotDispatched(DefinitionCreated::class);
+
+    (new GenerateWordDefinition($publishableWord->id))->handle($generator, app(\App\Services\Definitions\SystemAiUser::class));
+
+    $definition = $publishableWord->definitions()->where('origin', Definition::ORIGIN_AI)->firstOrFail();
+    Event::assertDispatched(DefinitionCreated::class, function (DefinitionCreated $event) use ($definition) {
+        return $event->definition->is($definition)
+            && $event->definition->text === 'A generated meaning.';
+    });
+    Event::assertDispatchedTimes(DefinitionCreated::class, 1);
+});
+
+test('it does not broadcast an AI definition when the word is unpublished during generation', function () {
+    Event::fake([DefinitionCreated::class]);
+    $word = Word::factory()->create([
+        'status' => 'available',
+        'published_at' => now(),
+        'dictionary_status' => Word::DICTIONARY_NOT_FOUND,
+    ]);
+    $generator = mock(DefinitionGenerator::class);
+    $generator->shouldReceive('generate')->once()
+        ->andReturnUsing(function () use ($word) {
+            Word::query()->whereKey($word->id)->update(['published_at' => null]);
+
+            return new GeneratedDefinition('A generated meaning.', 'noun', 'A blorg has a meaning.');
+        });
+
+    (new GenerateWordDefinition($word->id))->handle($generator, app(\App\Services\Definitions\SystemAiUser::class));
+
+    expect($word->fresh()->definitions()->where('origin', Definition::ORIGIN_AI)->exists())->toBeTrue();
+    Event::assertNotDispatched(DefinitionCreated::class);
 });
 
 test('a generation failure leaves the word and records an identifiable failure', function () {

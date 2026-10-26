@@ -564,34 +564,38 @@ const handleShortcut = (event) => {
 }
 
 const echoChannels = []
+const definitionVoteChannelIds = new Set()
+
+const listenForDefinitionVotes = (definitionId) => {
+  if (definitionVoteChannelIds.has(definitionId)) return
+
+  const channel = window.Echo.channel(`definition.${definitionId}`)
+  channel.listen('.definition.voted', (e) => {
+    const defToUpdate = definitions.value.find(d => d.id === e.definitionId)
+    if (defToUpdate) {
+      defToUpdate.votes_count = e.votesCount
+      if (e.userId === page.props.auth?.user?.id) {
+        const existingIndex = defToUpdate.votes.findIndex(v => v.user_id === e.userId)
+        if (e.liked) {
+          if (existingIndex === -1) {
+            defToUpdate.votes.push({
+              user_id: e.userId,
+              definition_id: e.definitionId,
+            })
+          }
+        } else if (existingIndex !== -1) {
+          defToUpdate.votes.splice(existingIndex, 1)
+        }
+      }
+    }
+  })
+  definitionVoteChannelIds.add(definitionId)
+  echoChannels.push(channel)
+}
 
 onMounted(() => {
   window.addEventListener('keydown', handleShortcut)
-  props.word.definitions.forEach(def => {
-    const channel = window.Echo.channel(`definition.${def.id}`)
-    channel.listen('.definition.voted', (e) => {
-      const defToUpdate = definitions.value.find(d => d.id === e.definitionId)
-      if (defToUpdate) {
-        defToUpdate.votes_count = e.votesCount
-        if (e.userId === page.props.auth?.user?.id) {
-          const existingIndex = defToUpdate.votes.findIndex(v => v.user_id === e.userId)
-          if (e.liked) {
-            if (existingIndex === -1) {
-              defToUpdate.votes.push({
-                user_id: e.userId,
-                definition_id: e.definitionId,
-              })
-            }
-          } else {
-            if (existingIndex !== -1) {
-              defToUpdate.votes.splice(existingIndex, 1)
-            }
-          }
-        }
-      }
-    })
-    echoChannels.push(channel)
-  })
+  props.word.definitions.forEach(def => listenForDefinitionVotes(def.id))
 
   const defChannel = window.Echo.channel(`word.${props.word.id}.definitions`)
   defChannel.listen('.definition.created', (e) => {
@@ -600,6 +604,7 @@ onMounted(() => {
         ...e.definition,
         votes: e.definition.votes ?? [],
       })
+      listenForDefinitionVotes(e.definition.id)
     }
   })
   defChannel.listen('.definition.updated', (e) => {

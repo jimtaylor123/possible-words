@@ -153,6 +153,39 @@ describe('word definition realtime updates', () => {
     expect(mounted.target.textContent).toContain('They blorged through the busy market.')
   })
 
+  it('listens for vote updates on definitions received over definition.created', async () => {
+    const mounted = mountShow({
+      id: 42,
+      text: 'blorg',
+      slug: 'blorg',
+      syllables: 1,
+      definitions: [],
+    }, { id: 5, name: 'Viewer' })
+    app = mounted.app
+
+    listeners['word.42.definitions:.definition.created']({
+      definition: {
+        id: 7,
+        text: 'A new meaning',
+        votes_count: 0,
+        user: { id: 3, name: 'Author', avatar: null },
+      },
+    })
+
+    expect(listeners['definition.7:.definition.voted']).toEqual(expect.any(Function))
+
+    listeners['definition.7:.definition.voted']({
+      definitionId: 7,
+      votesCount: 1,
+      userId: 5,
+      liked: true,
+    })
+    await nextTick()
+
+    expect(mounted.target.textContent).toContain('1 like')
+    expect(mounted.target.querySelector('svg.fill-blue-500')).not.toBeNull()
+  })
+
   it('renders examples only for AI definitions with a non-empty sentence', () => {
     const mounted = mountShow({
       id: 42,
