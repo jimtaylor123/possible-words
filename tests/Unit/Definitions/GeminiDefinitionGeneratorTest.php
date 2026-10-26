@@ -169,6 +169,25 @@ test('it encodes adversarial earlier definitions as reference data in the prompt
     });
 });
 
+test('it substitutes invalid UTF-8 in earlier definitions before adding them to the prompt', function () {
+    Http::fake(['*' => Http::response([
+        'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A new meaning.","part_of_speech":"noun","example_sentence":"The blorg received a new meaning."}']]]]],
+    ])]);
+    $invalidUtf8Definition = "A prior meaning with an invalid byte: \xB1";
+
+    app(GeminiDefinitionGenerator::class)->generate('blorg', [$invalidUtf8Definition]);
+
+    Http::assertSent(function ($request) use ($invalidUtf8Definition) {
+        $prompt = $request->data()['contents'][0]['parts'][0]['text'];
+        $encodedDefinition = json_encode(
+            [$invalidUtf8Definition],
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR,
+        );
+
+        return str_contains($prompt, $encodedDefinition);
+    });
+});
+
 test('it omits batch exclusion instructions when no earlier definitions are supplied', function () {
     Http::fake(['*' => Http::response([
         'candidates' => [['content' => ['parts' => [['text' => '{"definition":"A normal meaning.","part_of_speech":"noun","example_sentence":"The blorg has a normal meaning."}']]]]],
