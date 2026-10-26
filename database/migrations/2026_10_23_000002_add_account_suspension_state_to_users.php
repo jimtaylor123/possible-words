@@ -10,21 +10,30 @@ return new class extends Migration
 
     private const ACTION_ADMIN_USER_INDEX = 'account_suspension_actions_admin_user_id_index';
 
+    private const USER_COLUMNS = [
+        'last_active_at',
+        'suspended_at',
+        'suspended_by_user_id',
+        'suspension_reason',
+    ];
+
     public function up(): void
     {
-        if (! Schema::hasColumn('users', 'last_active_at')) {
+        $existingUserColumns = $this->existingUserColumns();
+
+        if (! in_array('last_active_at', $existingUserColumns, true)) {
             Schema::table('users', function (Blueprint $table) {
                 $table->timestamp('last_active_at')->nullable();
             });
         }
 
-        if (! Schema::hasColumn('users', 'suspended_at')) {
+        if (! in_array('suspended_at', $existingUserColumns, true)) {
             Schema::table('users', function (Blueprint $table) {
                 $table->timestamp('suspended_at')->nullable();
             });
         }
 
-        if (! Schema::hasColumn('users', 'suspended_by_user_id')) {
+        if (! in_array('suspended_by_user_id', $existingUserColumns, true)) {
             Schema::table('users', function (Blueprint $table) {
                 $table->foreignId('suspended_by_user_id')->nullable();
             });
@@ -36,7 +45,7 @@ return new class extends Migration
             });
         }
 
-        if (! Schema::hasColumn('users', 'suspension_reason')) {
+        if (! in_array('suspension_reason', $existingUserColumns, true)) {
             Schema::table('users', function (Blueprint $table) {
                 $table->text('suspension_reason')->nullable();
             });
@@ -89,6 +98,27 @@ return new class extends Migration
                 $table->index('admin_user_id', self::ACTION_ADMIN_USER_INDEX);
             });
         }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function existingUserColumns(): array
+    {
+        if (! $this->usesTursoConnection()) {
+            return array_values(array_filter(
+                self::USER_COLUMNS,
+                fn (string $column): bool => Schema::hasColumn('users', $column),
+            ));
+        }
+
+        return array_values(array_intersect(
+            self::USER_COLUMNS,
+            array_map(
+                fn (object $column): string => $column->name,
+                Schema::getConnection()->select('PRAGMA table_info(users)'),
+            ),
+        ));
     }
 
     private function usesTursoConnection(): bool
