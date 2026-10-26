@@ -55,13 +55,12 @@ test.describe('Admin area', () => {
 
         await login(page, `admin-users-${suffix}@example.com`, true);
         await page.goto('/admin');
-        await page.getByRole('link', { name: 'User management' }).click();
-        await expect(page).toHaveURL(/\/admin\/users$/);
+        await page.getByRole('tab', { name: 'Users' }).click();
+        await expect(page).toHaveURL(/\/admin\?tab=users$/);
         await page.locator('[aria-label="Search users"] input').fill(targetEmail);
-        await page.getByRole('button', { name: 'Search' }).click();
         await expect(page.getByText(targetEmail)).toBeVisible();
-        const targetCard = page.locator('article').filter({ hasText: targetEmail });
-        await targetCard.getByRole('button', { name: 'Suspend account', exact: true }).click();
+        const targetRow = page.locator('.n-data-table-tr').filter({ hasText: targetEmail });
+        await targetRow.getByRole('button', { name: `Suspend E2E User's account` }).click();
         await page.locator('[aria-label="Suspension reason"] textarea').fill('Repeated abusive reports');
         await page.getByRole('dialog').getByRole('button', { name: 'Suspend account', exact: true }).click();
         await expect(page.locator('main').getByRole('status')).toHaveText('Account suspended.');
@@ -72,7 +71,7 @@ test.describe('Admin area', () => {
         const rejectedLogin = await targetPage.request.post('/testing/login', { form: { email: targetEmail } });
         expect(rejectedLogin.status()).toBe(403);
 
-        await targetCard.getByRole('button', { name: 'Restore account' }).click();
+        await targetRow.getByRole('button', { name: 'Restore' }).click();
         await page.getByRole('dialog').getByRole('button', { name: 'Restore account' }).click();
         await expect(page.locator('main').getByRole('status')).toHaveText('Account restored.');
         const restoredLogin = await targetPage.request.post('/testing/login', { form: { email: targetEmail } });

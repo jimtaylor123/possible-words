@@ -9,6 +9,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\WordController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
@@ -80,7 +81,9 @@ Route::get('/build/{path}', function (string $path) {
 Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     Route::get('/', [AdminReportController::class, 'index'])->name('admin.dashboard');
     Route::patch('/reports/{reportCase}', [AdminReportController::class, 'update'])->name('admin.reports.update');
-    Route::get('/users', [AdminUserController::class, 'index'])->name('admin.users.index');
+    Route::get('/users', function (Request $request) {
+        return redirect()->route('admin.dashboard', [...$request->query(), 'tab' => 'users']);
+    })->name('admin.users.index');
     Route::patch('/users/{user}/suspend', [AdminUserController::class, 'suspend'])->name('admin.users.suspend');
     Route::patch('/users/{user}/unsuspend', [AdminUserController::class, 'unsuspend'])->name('admin.users.unsuspend');
 });

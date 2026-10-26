@@ -13,12 +13,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class AdminUserController extends Controller
 {
-    public function index(Request $request): Response
+    /** @return array{users: \Illuminate\Pagination\LengthAwarePaginator, filters: array{search: string, sort: string, direction: string}} */
+    public function directoryPayload(Request $request): array
     {
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
@@ -66,10 +65,10 @@ class AdminUserController extends Controller
             'suspended_by' => $user->suspender ? ['id' => $user->suspender->id, 'name' => $user->suspender->name] : null,
         ]);
 
-        return Inertia::render('Admin/Users/Index', [
+        return [
             'users' => $users,
             'filters' => ['search' => $search, 'sort' => $sort, 'direction' => $direction],
-        ]);
+        ];
     }
 
     public function suspend(Request $request, User $user): RedirectResponse
