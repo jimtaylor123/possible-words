@@ -106,7 +106,7 @@ class GenerateWordDefinition implements ShouldQueue
                 'ai_definition_error' => null,
             ]);
 
-            if ($definition->wasRecentlyCreated) {
+            if ($definition->wasRecentlyCreated && Word::query()->publishable()->whereKey($word->id)->exists()) {
                 try {
                     broadcast(new DefinitionCreated($definition))->toOthers();
                 } catch (\Throwable $exception) {

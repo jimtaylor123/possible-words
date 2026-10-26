@@ -1,6 +1,7 @@
 <?php
 
 use App\Events\DefinitionCreated;
+use App\Events\DefinitionVoted;
 use App\Models\Favourite;
 use App\Models\User;
 use App\Models\Word;
@@ -149,6 +150,7 @@ describe('liking a definition', function () {
     });
 
     test('Given a definition, a user can like it and the count increments', function () {
+        Event::fake([DefinitionVoted::class]);
         $author = User::factory()->create();
         $liker = User::factory()->create();
         $word = createWord();
@@ -160,9 +162,16 @@ describe('liking a definition', function () {
 
         expect($definition->fresh()->votes_count)->toBe(1);
         expect($definition->votes()->where('user_id', $liker->id)->exists())->toBeTrue();
+        Event::assertDispatched(DefinitionVoted::class, function (DefinitionVoted $event) use ($definition, $liker) {
+            return $event->definitionId === $definition->id
+                && $event->votesCount === 1
+                && $event->userId === $liker->id
+                && $event->liked === true;
+        });
     });
 
     test('Given a user who already liked, liking again unlikes and decrements', function () {
+        Event::fake([DefinitionVoted::class]);
         $author = User::factory()->create();
         $liker = User::factory()->create();
         $word = createWord();
@@ -175,6 +184,12 @@ describe('liking a definition', function () {
 
         expect($definition->fresh()->votes_count)->toBe(0);
         expect($definition->votes()->where('user_id', $liker->id)->exists())->toBeFalse();
+        Event::assertDispatched(DefinitionVoted::class, function (DefinitionVoted $event) use ($definition, $liker) {
+            return $event->definitionId === $definition->id
+                && $event->votesCount === 0
+                && $event->userId === $liker->id
+                && $event->liked === false;
+        });
     });
 
     test('Given a concurrent double-like race, the unique constraint rejects the duplicate vote', function () {
