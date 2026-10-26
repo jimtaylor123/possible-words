@@ -51,19 +51,19 @@ return new class extends Migration
             });
         }
 
-        if (! Schema::hasIndex('users', ['last_active_at'])) {
+        if (! $this->hasIndex('users', ['last_active_at'])) {
             Schema::table('users', function (Blueprint $table) {
                 $table->index('last_active_at');
             });
         }
 
-        if (! Schema::hasIndex('users', ['suspended_at'])) {
+        if (! $this->hasIndex('users', ['suspended_at'])) {
             Schema::table('users', function (Blueprint $table) {
                 $table->index('suspended_at');
             });
         }
 
-        if (! Schema::hasTable('account_suspension_actions')) {
+        if (! $this->hasTable('account_suspension_actions')) {
             Schema::create('account_suspension_actions', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('user_id')->constrained()->cascadeOnDelete();
@@ -75,7 +75,7 @@ return new class extends Migration
                 $table->index(['user_id', 'created_at', 'id'], self::ACTION_USER_CREATED_ID_INDEX);
                 $table->index('admin_user_id', self::ACTION_ADMIN_USER_INDEX);
             });
-        } elseif (! Schema::hasColumns('account_suspension_actions', [
+        } elseif (! $this->hasColumns('account_suspension_actions', [
             'id',
             'user_id',
             'admin_user_id',
@@ -87,13 +87,13 @@ return new class extends Migration
             throw new RuntimeException('The existing account_suspension_actions table does not match the account suspension migration schema.');
         }
 
-        if (! Schema::hasIndex('account_suspension_actions', self::ACTION_USER_CREATED_ID_INDEX)) {
+        if (! $this->hasIndex('account_suspension_actions', self::ACTION_USER_CREATED_ID_INDEX)) {
             Schema::table('account_suspension_actions', function (Blueprint $table) {
                 $table->index(['user_id', 'created_at', 'id'], self::ACTION_USER_CREATED_ID_INDEX);
             });
         }
 
-        if (! Schema::hasIndex('account_suspension_actions', self::ACTION_ADMIN_USER_INDEX)) {
+        if (! $this->hasIndex('account_suspension_actions', self::ACTION_ADMIN_USER_INDEX)) {
             Schema::table('account_suspension_actions', function (Blueprint $table) {
                 $table->index('admin_user_id', self::ACTION_ADMIN_USER_INDEX);
             });
@@ -114,11 +114,57 @@ return new class extends Migration
 
         return array_values(array_intersect(
             self::USER_COLUMNS,
-            array_map(
-                fn (object $column): string => $column->name,
-                Schema::getConnection()->select('PRAGMA table_info(users)'),
-            ),
+            $this->tableColumns('users'),
         ));
+    }
+
+    private function hasTable(string $table): bool
+    {
+        if (! $this->usesTursoConnection()) {
+            return Schema::hasTable($table);
+        }
+
+        return Schema::getConnection()->selectOne(
+            "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?",
+            [$table],
+        ) !== null;
+    }
+
+    /**
+     * @param  list<string>  $columns
+     */
+    private function hasColumns(string $table, array $columns): bool
+    {
+        if (! $this->usesTursoConnection()) {
+            return Schema::hasColumns($table, $columns);
+        }
+
+        return array_diff($columns, $this->tableColumns($table)) === [];
+    }
+
+    private function hasIndex(string $table, string|array $index): bool
+    {
+        if (! $this->usesTursoConnection()) {
+            return Schema::hasIndex($table, $index);
+        }
+
+        $indexName = is_array($index) ? implode('_', $index).'_index' : $index;
+
+        return Schema::getConnection()->selectOne(
+            "SELECT 1 FROM sqlite_schema WHERE type = 'index' AND tbl_name = ? AND name = ?",
+            [$table, $indexName],
+        ) !== null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tableColumns(string $table): array
+    {
+        return array_map(
+            fn (object $column): string => $column->name,
+            Schema::getConnection()->select("PRAGMA table_info('{$table}')"),
+        );
     }
 
     private function usesTursoConnection(): bool

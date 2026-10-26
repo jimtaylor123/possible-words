@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\SQLiteConnection;
 use Illuminate\Support\Facades\Schema;
 
 test('recovers from a partially applied account suspension migration', function () {
@@ -45,7 +45,7 @@ test('recovers from a partially applied account suspension migration', function 
         ->and($suspendedByUserForeignKeys[0]['on_delete'])->toBe('set null');
 });
 
-test('uses Turso column metadata to recover and retry a partial account suspension migration', function () {
+test('uses Turso-compatible metadata to recover and retry partial users and actions table states', function () {
     Schema::drop('account_suspension_actions');
 
     Schema::table('users', function (Blueprint $table) {
@@ -62,21 +62,33 @@ test('uses Turso column metadata to recover and retry a partial account suspensi
         $table->timestamps();
     });
 
-    $connection = Schema::getConnection();
-    $configProperty = new ReflectionProperty($connection, 'config');
-    $config = $configProperty->getValue($connection);
-    $configProperty->setValue($connection, [...$config, 'driver' => 'turso']);
-    $queries = [];
-    DB::listen(function ($query) use (&$queries) {
-        $queries[] = $query->sql;
-    });
+    $originalBuilder = Schema::getFacadeRoot();
+    $connection = new class (Schema::getConnection()->getPdo(), ':memory:', '', ['driver' => 'turso']) extends SQLiteConnection
+    {
+        /** @var list<string> */
+        public array $queries = [];
+
+        public function select($query, $bindings = [], $useReadPdo = true)
+        {
+            $this->queries[] = $query;
+
+            if (str_contains(strtolower($query), 'pragma_table_xinfo') || str_contains(strtolower($query), 'pragma_index_list')) {
+                throw new RuntimeException("Turso does not support table-valued pragma queries: {$query}");
+            }
+
+            return parent::select($query, $bindings, $useReadPdo);
+        }
+    };
+    Schema::swap($connection->getSchemaBuilder());
 
     try {
         $migration = require database_path('migrations/2026_10_23_000002_add_account_suspension_state_to_users.php');
         $migration->up();
         $migration->up();
 
-        expect($queries)->toContain('PRAGMA table_info(users)')
+        expect($connection->queries)->toContain("PRAGMA table_info('users')")
+            ->toContain("PRAGMA table_info('account_suspension_actions')")
+            ->toContain("SELECT 1 FROM sqlite_schema WHERE type = 'index' AND tbl_name = ? AND name = ?")
             ->and(Schema::hasColumn('users', 'last_active_at'))->toBeTrue()
             ->and(Schema::hasColumn('users', 'suspended_at'))->toBeTrue()
             ->and(Schema::hasColumn('users', 'suspended_by_user_id'))->toBeTrue()
@@ -87,6 +99,6 @@ test('uses Turso column metadata to recover and retry a partial account suspensi
             ->and(Schema::hasIndex('account_suspension_actions', 'account_suspension_actions_user_id_created_at_id_index'))->toBeTrue()
             ->and(Schema::hasIndex('account_suspension_actions', 'account_suspension_actions_admin_user_id_index'))->toBeTrue();
     } finally {
-        $configProperty->setValue($connection, $config);
+        Schema::swap($originalBuilder);
     }
 });
