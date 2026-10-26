@@ -23,7 +23,7 @@ test('user management requires an administrator', function () {
 test('admin users tab exposes activity and account counts', function () {
     $admin = User::factory()->create(['is_admin' => true, 'name' => 'Moderator', 'email' => 'moderator@example.test']);
     $inactive = User::factory()->create(['name' => 'Ada Lovelace', 'last_active_at' => now()->subMinutes(6)]);
-    User::factory()->create(['last_active_at' => now()->subSeconds(30)]);
+    User::factory()->create(['name' => 'Active User', 'email' => 'active@example.test', 'last_active_at' => now()->subSeconds(30)]);
 
     $this->actingAs($admin)->get(route('admin.dashboard', ['tab' => 'users', 'search' => 'Ada']))
         ->assertInertia(fn ($page) => $page->component('Admin/Dashboard')->where('tab', 'users')->has('users.data', 1)
