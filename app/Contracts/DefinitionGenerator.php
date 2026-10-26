@@ -6,7 +6,10 @@ use App\Data\GeneratedDefinition;
 
 interface DefinitionGenerator
 {
-    public function generate(string $word): GeneratedDefinition;
+    /**
+     * @param  list<string>  $excludedDefinitions
+     */
+    public function generate(string $word, array $excludedDefinitions = []): GeneratedDefinition;
 
     public function generateExampleSentence(string $word, string $definition, string $partOfSpeech): string;
 }
