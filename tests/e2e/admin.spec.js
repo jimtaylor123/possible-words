@@ -58,9 +58,8 @@ test.describe('Admin area', () => {
         await page.getByRole('tab', { name: 'Users' }).click();
         await expect(page).toHaveURL(/\/admin\?tab=users$/);
         await page.locator('[aria-label="Search users"] input').fill(targetEmail);
-        await page.getByRole('button', { name: 'Search' }).click();
         await expect(page.getByText(targetEmail)).toBeVisible();
-        const targetRow = page.getByRole('listitem').filter({ hasText: targetEmail });
+        const targetRow = page.locator('.n-data-table-tr').filter({ hasText: targetEmail });
         await targetRow.getByRole('button', { name: `Suspend E2E User's account` }).click();
         await page.locator('[aria-label="Suspension reason"] textarea').fill('Repeated abusive reports');
         await page.getByRole('dialog').getByRole('button', { name: 'Suspend account', exact: true }).click();
