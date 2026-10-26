@@ -9,8 +9,10 @@
         "lint:fix": "eslint resources/js --fix",
         "test": "vitest run",
         "test:watch": "vitest",
-        "test:e2e": "playwright test",
-        "test:e2e:ui": "playwright test --ui",
+        "test:e2e": "node scripts/run-e2e-shard.mjs",
+        "test:e2e:ci": "node scripts/run-e2e-shard.mjs",
+        "test:e2e:ui": "node scripts/run-e2e-shard.mjs --ui",
+        "test:e2e:debug": "node scripts/run-e2e-shard.mjs --debug",
         "db:e2e": "node scripts/seed-e2e-db.mjs"
     },
     "devDependencies": {

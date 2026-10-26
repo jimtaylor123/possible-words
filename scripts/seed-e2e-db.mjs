@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const source = resolve(root, '.snapshots/dev-data.sqlite');
-const target = resolve(root, 'database/testing.sqlite');
+const target = resolve(root, process.env.E2E_DATABASE ?? 'database/testing.sqlite');
 
 if (!existsSync(source)) {
     console.error(`Missing fixture ${source}. Restore it from version control and retry.`);

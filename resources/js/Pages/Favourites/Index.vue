@@ -23,6 +23,7 @@
                         size="small"
                         quaternary
                         circle
+                        :aria-label="`Play pronunciation for ${word.text}`"
                         @click.prevent.stop="playAudio(word)"
                       >
                         <template #icon>

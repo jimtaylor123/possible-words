@@ -15,7 +15,7 @@
           Download your data
         </a>
       </section>
-      <section class="mt-6 bg-white rounded-lg border shadow-sm p-6"><h2 class="text-xl font-semibold text-gray-900">Notification emails</h2><label class="block mt-4 text-sm font-medium">General notifications<n-select v-model:value="notificationEmailMode" class="mt-1" :options="emailOptions" /></label><label v-if="user?.is_admin" class="block mt-4 text-sm font-medium">Admin report alerts<n-select v-model:value="adminReportEmailMode" class="mt-1" :options="emailOptions" /></label><div class="mt-6"><n-button type="primary" :loading="savingPreferences" @click="savePreferences">Save preferences</n-button></div></section>
+      <section class="mt-6 bg-white rounded-lg border shadow-sm p-6"><h2 class="text-xl font-semibold text-gray-900">Notification emails</h2><label class="block mt-4 text-sm font-medium">General notifications<n-select v-model:value="notificationEmailMode" data-testid="general-notification-preference" class="mt-1" :options="emailOptions" /></label><label v-if="user?.is_admin" class="block mt-4 text-sm font-medium">Admin report alerts<n-select v-model:value="adminReportEmailMode" data-testid="admin-notification-preference" class="mt-1" :options="emailOptions" /></label><div class="mt-6"><n-button type="primary" :loading="savingPreferences" @click="savePreferences">Save preferences</n-button></div></section>
 
       <section class="mt-6 bg-red-50 rounded-lg border border-red-200 p-6">
         <h2 class="text-xl font-semibold text-red-900">Delete account</h2>
@@ -31,7 +31,7 @@
         <p class="text-gray-700">
           This action is permanent. Type <strong>DELETE</strong> to confirm account deletion.
         </p>
-        <n-input v-model:value="confirmation" class="mt-4" aria-label="Type DELETE to confirm" placeholder="DELETE" />
+        <n-input v-model:value="confirmation" class="mt-4" :input-props="{ 'aria-label': 'Type DELETE to confirm' }" placeholder="DELETE" />
         <p v-if="confirmationError" class="mt-2 text-sm text-red-600" role="alert">{{ confirmationError }}</p>
         <div class="flex justify-end gap-3 mt-6">
           <n-button @click="closeDeleteModal">Cancel</n-button>

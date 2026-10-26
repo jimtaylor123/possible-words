@@ -48,13 +48,13 @@
             <n-popover v-if="user" trigger="click" placement="bottom-end">
               <template #trigger>
                 <button type="button" aria-label="Notifications" class="relative p-2 text-gray-600 hover:text-gray-900" @click="unlockNotificationAudio">
-                  <svg :class="['h-6 w-6 origin-top', { 'notification-bell-ring': jiggle }]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg data-testid="notification-bell" :class="['h-6 w-6 origin-top', { 'notification-bell-ring': jiggle }]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 00-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 01-6 0" />
                   </svg>
-                  <span v-if="unreadCount" class="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
+                  <span v-if="unreadCount" data-testid="notification-badge" class="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
                 </button>
               </template>
-              <section class="w-[23rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-white" aria-label="Notifications">
+              <section class="w-[23rem] max-w-[calc(100vw-5rem)] overflow-hidden rounded-xl bg-white" aria-label="Notifications">
                 <header class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
                   <div>
                     <p class="text-sm font-semibold text-gray-900">Notifications</p>

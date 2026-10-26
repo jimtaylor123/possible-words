@@ -33,8 +33,8 @@ return [
     | Testing-only auth helpers
     |--------------------------------------------------------------------------
     |
-    | Enables the /testing/login and /testing/logout routes used by the
-    | Playwright e2e suite. Never set to true in production.
+    | Legacy compatibility setting. Testing helper routes are hard-gated by
+    | APP_ENV=testing and this value never enables them in another environment.
     |
     */
 
