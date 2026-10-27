@@ -86,6 +86,9 @@ jobs:
       - name: Deploy migration runner
         run: npx serverless@$SERVERLESS_VERSION deploy function -f artisan
 
+      - name: Smoke-test artisan runner (blocking)
+        run: npx serverless@$SERVERLESS_VERSION invoke -f artisan --data '{"cli":"about --only=environment"}'
+
       - name: Run production migrations
         run: npx serverless@$SERVERLESS_VERSION invoke -f artisan --data '{"cli":"migrate --force"}'
 

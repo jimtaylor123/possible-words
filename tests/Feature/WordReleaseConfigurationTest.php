@@ -17,6 +17,10 @@ describe('word release configuration', function () {
         expect($deployWorkflow)
             ->toContain('deploy function -f artisan')
             ->and(strpos($deployWorkflow, 'name: Deploy migration runner'))
+            ->toBeLessThan(strpos($deployWorkflow, 'name: Smoke-test artisan runner (blocking)'))
+            ->and($deployWorkflow)
+            ->toContain('about --only=environment')
+            ->and(strpos($deployWorkflow, 'name: Smoke-test artisan runner (blocking)'))
             ->toBeLessThan(strpos($deployWorkflow, 'name: Run production migrations'))
             ->and(strpos($deployWorkflow, 'name: Run production migrations'))
             ->toBeLessThan(strpos($deployWorkflow, 'name: Deploy with Serverless'));
