@@ -63,7 +63,8 @@ test('uses Turso-compatible metadata to recover and retry partial users and acti
     });
 
     $originalBuilder = Schema::getFacadeRoot();
-    $connection = new class (Schema::getConnection()->getPdo(), ':memory:', '', ['driver' => 'turso']) extends SQLiteConnection {
+    $connection = new class(Schema::getConnection()->getPdo(), ':memory:', '', ['driver' => 'turso']) extends SQLiteConnection
+    {
         /** @var list<string> */
         public array $queries = [];
 
