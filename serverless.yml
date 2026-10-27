@@ -4,6 +4,8 @@ provider:
     name: aws
     region: eu-west-1
     stage: prod
+    tags:
+        Application: possiblewords
     iam:
         role:
             statements:
@@ -79,8 +81,11 @@ provider:
         PUSHER_PORT: 443
         PUSHER_SCHEME: https
 
-        QUEUE_CONNECTION: sync
-        CACHE_STORE: array
+        QUEUE_CONNECTION: sqs
+        CACHE_STORE: database
+        SQS_QUEUE: ${construct:default.queueUrl}
+        SQS_BROADCASTS_QUEUE: ${construct:broadcasts.queueUrl}
+        SQS_DEFINITIONS_QUEUE: ${construct:definitions.queueUrl}
         MAIL_MAILER: smtp
         MAIL_SCHEME: smtps
         MAIL_HOST: smtp.resend.com
@@ -102,6 +107,7 @@ custom:
     # BACKUP_RETENTION_DAYS without changing the infrastructure definition.
     backupRetentionDays: ${env:BACKUP_RETENTION_DAYS, 7}
     wordBatchStaleSeconds: ${env:WORD_BATCH_STALE_SECONDS, 21600}
+    budgetAmount: '10'
     # Do not place these in provider.environment: Serverless merges that map
     # into every function, including the deliberately isolated backup Lambda.
     applicationEnvironment:
@@ -119,6 +125,39 @@ custom:
         GOOGLE_CLIENT_SECRET: ${env:GOOGLE_CLIENT_SECRET}
         VITE_PUSHER_APP_KEY: ${env:PUSHER_APP_KEY}
         VITE_PUSHER_APP_CLUSTER: ${env:PUSHER_APP_CLUSTER}
+
+constructs:
+    default:
+        type: queue
+        alarm: jimtayloremail@gmail.com
+        maxConcurrency: 2
+        batchSize: 1
+        worker:
+            handler: Bref\LaravelBridge\Queue\QueueHandler
+            runtime: php-84
+            timeout: 45
+            environment: ${self:custom.applicationEnvironment}
+    broadcasts:
+        type: queue
+        alarm: jimtayloremail@gmail.com
+        maxConcurrency: 2
+        batchSize: 1
+        worker:
+            handler: Bref\LaravelBridge\Queue\QueueHandler
+            runtime: php-84
+            timeout: 15
+            environment: ${self:custom.applicationEnvironment}
+    definitions:
+        type: queue
+        alarm: jimtayloremail@gmail.com
+        maxConcurrency: 2
+        batchSize: 1
+        worker:
+            handler: Bref\LaravelBridge\Queue\QueueHandler
+            runtime: php-84
+            timeout: 60
+            reservedConcurrency: 1
+            environment: ${self:custom.applicationEnvironment}
 
 functions:
     web:
@@ -202,11 +241,48 @@ functions:
                       cli: 'backup:check-freshness'
 
 resources:
+    # Lift 1.37's queue schema rejects construct-level `extensions`. Extend the
+    # generated resources through Serverless instead, keeping the queue schema
+    # valid while tagging each primary queue and DLQ for cost allocation.
+    extensions:
+        defaultDlq6C3DE6DA:
+            Properties:
+                Tags:
+                    - Key: Application
+                      Value: possiblewords
+        defaultQueueBCC593CA:
+            Properties:
+                Tags:
+                    - Key: Application
+                      Value: possiblewords
+        broadcastsDlq771590A0:
+            Properties:
+                Tags:
+                    - Key: Application
+                      Value: possiblewords
+        broadcastsQueue00A097D4:
+            Properties:
+                Tags:
+                    - Key: Application
+                      Value: possiblewords
+        definitionsDlqE9C0983B:
+            Properties:
+                Tags:
+                    - Key: Application
+                      Value: possiblewords
+        definitionsQueue3EB2B92D:
+            Properties:
+                Tags:
+                    - Key: Application
+                      Value: possiblewords
     Resources:
         BackupBucket:
             Type: AWS::S3::Bucket
             Properties:
                 BucketName: possiblewords-${sls:stage}-${aws:accountId}-backups
+                Tags:
+                    - Key: Application
+                      Value: possiblewords
                 BucketEncryption:
                     ServerSideEncryptionConfiguration:
                         - ServerSideEncryptionByDefault:
@@ -235,6 +311,9 @@ resources:
             Type: AWS::SNS::Topic
             Properties:
                 TopicName: possiblewords-${sls:stage}-backup-alarms
+                Tags:
+                    - Key: Application
+                      Value: possiblewords
                 Subscription:
                     - Endpoint: jimtayloremail@gmail.com
                       Protocol: email
@@ -242,6 +321,9 @@ resources:
             Type: AWS::SNS::Topic
             Properties:
                 TopicName: possiblewords-${sls:stage}-word-batch-alarms
+                Tags:
+                    - Key: Application
+                      Value: possiblewords
                 Subscription:
                     - Endpoint: jimtayloremail@gmail.com
                       Protocol: email
@@ -368,6 +450,55 @@ resources:
                 TreatMissingData: breaching
                 AlarmActions:
                     - Ref: BackupAlarmTopic
+        ApplicationMonthlyBudget:
+            Type: AWS::Budgets::Budget
+            Properties:
+                Budget:
+                    BudgetName: possiblewords-${sls:stage}-monthly
+                    BudgetType: COST
+                    TimeUnit: MONTHLY
+                    BudgetLimit:
+                        Amount: ${self:custom.budgetAmount}
+                        Unit: USD
+                    CostFilters:
+                        TagKeyValue:
+                            - user:Application$possiblewords
+                    NotificationsWithSubscribers:
+                        - Notification:
+                              NotificationType: ACTUAL
+                              ComparisonOperator: GREATER_THAN
+                              Threshold: 10
+                              ThresholdType: PERCENTAGE
+                          Subscribers:
+                              - SubscriptionType: EMAIL
+                                Address: jimtayloremail@gmail.com
+                        - Notification:
+                              NotificationType: ACTUAL
+                              ComparisonOperator: GREATER_THAN
+                              Threshold: 30
+                              ThresholdType: PERCENTAGE
+                          Subscribers:
+                              - SubscriptionType: EMAIL
+                                Address: jimtayloremail@gmail.com
+                        - Notification:
+                              NotificationType: ACTUAL
+                              ComparisonOperator: GREATER_THAN
+                              Threshold: 50
+                              ThresholdType: PERCENTAGE
+                          Subscribers:
+                              - SubscriptionType: EMAIL
+                                Address: jimtayloremail@gmail.com
+                        - Notification:
+                              NotificationType: ACTUAL
+                              ComparisonOperator: GREATER_THAN
+                              Threshold: 100
+                              ThresholdType: PERCENTAGE
+                          Subscribers:
+                              - SubscriptionType: EMAIL
+                                Address: jimtayloremail@gmail.com
+                ResourceTags:
+                    - Key: Application
+                      Value: possiblewords
 
 package:
     patterns:
@@ -408,3 +539,4 @@ package:
 
 plugins:
     - ./vendor/bref/bref
+    - serverless-lift

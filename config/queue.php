@@ -15,6 +15,13 @@ return [
 
     'default' => env('QUEUE_CONNECTION', 'database'),
 
+    // Full Lift queue URLs are required by Laravel's SQS driver in production;
+    // the friendly names keep the local database queue easy to inspect.
+    'queues' => [
+        'broadcasts' => env('SQS_BROADCASTS_QUEUE', 'broadcasts'),
+        'definitions' => env('SQS_DEFINITIONS_QUEUE', 'definitions'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Queue Connections

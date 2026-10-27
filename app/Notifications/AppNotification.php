@@ -33,6 +33,7 @@ class AppNotification extends Notification implements ShouldBroadcast
 
     public function toBroadcast(object $notifiable): BroadcastMessage
     {
-        return new BroadcastMessage(['id' => $this->id, 'data' => $this->data, 'created_at' => now()->toISOString()]);
+        return (new BroadcastMessage(['id' => $this->id, 'data' => $this->data, 'created_at' => now()->toISOString()]))
+            ->onQueue(config('queue.queues.broadcasts'));
     }
 }
