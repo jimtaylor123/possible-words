@@ -56,7 +56,7 @@ describe('queue routing and infrastructure', function () {
 
         $budget = $serverless['resources']['Resources']['ApplicationMonthlyBudget']['Properties'];
         $budgetNotificationThresholds = array_column(
-            array_column($budget['Budget']['NotificationsWithSubscribers'], 'Notification'),
+            array_column($budget['NotificationsWithSubscribers'], 'Notification'),
             'Threshold',
         );
 
