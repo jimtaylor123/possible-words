@@ -73,6 +73,10 @@ describe('queue routing and infrastructure', function () {
     });
 
     test('local example configuration defaults to the database queue', function () {
-        expect(file_get_contents(base_path('.env.example')))->toContain('QUEUE_CONNECTION=database');
+        expect(file_get_contents(base_path('.env.example')))->toContain('QUEUE_CONNECTION=database')
+            ->and(config('queue.queues'))->toBe([
+                'broadcasts' => 'broadcasts',
+                'definitions' => 'definitions',
+            ]);
     });
 });
