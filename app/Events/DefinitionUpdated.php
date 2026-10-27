@@ -33,4 +33,9 @@ class DefinitionUpdated implements ShouldBroadcast
     {
         return 'definition.updated';
     }
+
+    public function broadcastQueue(): string
+    {
+        return config('queue.queues.broadcasts');
+    }
 }

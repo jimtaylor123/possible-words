@@ -107,7 +107,8 @@ The app uses [Pusher](https://pusher.com/) (via Laravel Echo + `pusher-js`) for 
 If you don't see live updates:
 - Make sure your `.env` has `BROADCAST_CONNECTION=pusher` and the `PUSHER_*`/`VITE_PUSHER_*` values set
 - Ensure the queue worker is running (`make dev` starts it) — broadcasts are dispatched as queued jobs
-- On production, `QUEUE_CONNECTION=sync` runs broadcasts inline, so no worker is needed
+- In production, SQS invokes the dedicated `broadcasts` Lambda worker; inspect
+  that Lambda's CloudWatch logs and its Lift-managed DLQ if delivery fails.
 
 ## Word Generation
 
@@ -139,9 +140,9 @@ aws lambda invoke \
 cat /tmp/possiblewords-definition-backfill.json
 ```
 
-The command reports how many definitions were selected. Production uses the synchronous queue,
-so each selected generation runs within that Lambda invocation; inspect the response and CloudWatch
-logs for failures before starting another batch. Do not run concurrent batches or increase the cap.
+The command reports how many definitions were selected and enqueues them to the dedicated SQS
+`definitions` worker. Inspect that worker's CloudWatch logs, Laravel `failed_jobs`, and its
+Lift-managed DLQ before starting another batch. Do not run concurrent batches or increase the cap.
 
 Failed attempts are excluded by default. After investigating a failure, retry a bounded combined
 set of pending and failed attempts (also in ascending ID order) with:
@@ -159,6 +160,29 @@ cat /tmp/possiblewords-definition-retry.json
 
 Repeat only after checking failures; `--retry-failed` does not bypass the 10-word cap and still
 excludes words that already received an AI definition.
+
+## Production queues and cost budget
+
+Production uses Bref queue handlers backed by three Serverless Lift SQS queues: `default` for
+ordinary queued work, `broadcasts` for Pusher events and notifications, and `definitions` for AI
+generation. Each queue has a Lift-managed DLQ after three receives and emails the operations address
+when a DLQ message becomes visible. Failed Laravel jobs also remain in Turso's `failed_jobs` table;
+inspect and retry from both places as appropriate.
+
+The deployment creates a $10 monthly actual-spend AWS Budget filtered to
+`Application=possiblewords` and emails the operations address at $1, $3, $5, and $10 actual
+spend. Before relying on those alerts, activate the user-defined **Application** cost-allocation
+tag in AWS Billing → Cost Allocation Tags. AWS can take up to 24 hours to make newly activated tag
+data available; until then the tag-filtered budget can under-report usage.
+
+Useful production diagnostics:
+
+```bash
+npx serverless info --stage prod
+npx serverless definitions:failed --stage prod
+npx serverless broadcasts:failed --stage prod
+aws budgets describe-budgets --account-id "$(aws sts get-caller-identity --query Account --output text)"
+```
 
 ## .com domain availability checks
 

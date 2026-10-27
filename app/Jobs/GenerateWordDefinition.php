@@ -34,7 +34,10 @@ class GenerateWordDefinition implements ShouldQueue
 
     public $maxExceptions = 3;
 
-    public function __construct(public int $wordId) {}
+    public function __construct(public int $wordId)
+    {
+        $this->onQueue(config('queue.queues.definitions'));
+    }
 
     public function handle(DefinitionGenerator $generator, SystemAiUser $systemAiUser): void
     {

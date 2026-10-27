@@ -25,7 +25,10 @@ class GenerateDefinitionExampleSentence implements ShouldQueue
 
     public $maxExceptions = 3;
 
-    public function __construct(public int $definitionId) {}
+    public function __construct(public int $definitionId)
+    {
+        $this->onQueue(config('queue.queues.definitions'));
+    }
 
     public function handle(DefinitionGenerator $generator): void
     {

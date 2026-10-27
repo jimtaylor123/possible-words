@@ -14,8 +14,10 @@ server. This includes private in-app notification broadcasts.
 - Definition channels remain public. Notification broadcasts subscribe to the
   private `App.Models.User.{id}` channel. Echo sends an authenticated request to
   `/broadcasting/auth`; `routes/channels.php` allows only the matching user.
-- `QUEUE_CONNECTION=sync` sends broadcasts in the current request. It is the
-  required local setting and remains the production deployment setting.
+- Local development uses Laravel's `database` queue. Production uses three
+  Lambda/SQS workers: `default`, `broadcasts`, and `definitions`. Broadcasts
+  and notification broadcasts are dispatched by the short-lived `broadcasts`
+  worker rather than during a web request.
 
 ## Local development
 
@@ -29,9 +31,12 @@ make realtime
 ```
 
 This starts Laravel at `http://localhost:8011`, Vite, and Reverb at
-`ws://localhost:8080`; it does not need a queue worker. After changing an
-existing `.env`, run `php artisan config:clear` and restart Vite, because Vite
-embeds `VITE_*` settings into the browser bundle.
+`ws://localhost:8080`. Run `make dev` in another terminal (or run
+`php artisan queue:listen database --queue=default,broadcasts,definitions`)
+to consume all local queues. The `jobs`, `failed_jobs`, `cache`, and
+`cache_locks` migrations must be applied. After changing an existing `.env`,
+run `php artisan config:clear` and restart Vite, because Vite embeds `VITE_*`
+settings into the browser bundle.
 
 ## Verify notifications end-to-end
 
@@ -53,7 +58,7 @@ embeds `VITE_*` settings into the browser bundle.
 - **Private notification will not subscribe:** inspect `/broadcasting/auth`.
   It must use the same authenticated session as the browser and may only
   authorize its own user-channel ID.
-- **Socket connects but no event arrives:** confirm `QUEUE_CONNECTION=sync` and
-  check the Laravel/Reverb logs for broadcast errors.
+- **Socket connects but no event arrives:** confirm the database queue listener
+  is consuming `broadcasts` and check the Laravel/Reverb logs for errors.
 - **No sound:** browser autoplay policy requires one prior page interaction.
   The visual notification always remains available even if audio is blocked.

@@ -33,4 +33,9 @@ class DefinitionCreated implements ShouldBroadcast
     {
         return 'definition.created';
     }
+
+    public function broadcastQueue(): string
+    {
+        return config('queue.queues.broadcasts');
+    }
 }

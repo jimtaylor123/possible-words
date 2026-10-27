@@ -40,4 +40,9 @@ class DefinitionVoted implements ShouldBroadcast
     {
         return 'definition.voted';
     }
+
+    public function broadcastQueue(): string
+    {
+        return config('queue.queues.broadcasts');
+    }
 }
