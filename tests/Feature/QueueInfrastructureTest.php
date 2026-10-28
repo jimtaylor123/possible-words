@@ -60,7 +60,7 @@ describe('queue routing and infrastructure', function () {
             'Threshold',
         );
 
-        expect($serverless['constructs']['definitions']['worker']['reservedConcurrency'])->toBe(1)
+        expect($serverless['constructs']['definitions']['worker'])->not->toHaveKey('reservedConcurrency')
             ->and($serverless['provider']['tags'])->toBe(['Application' => 'possiblewords'])
             ->and($budget['Budget']['BudgetLimit'])->toBe(['Amount' => '${self:custom.budgetAmount}', 'Unit' => 'USD'])
             ->and($budget['Budget']['CostFilters'])->toBe(['TagKeyValue' => ['user:Application$possiblewords']])
