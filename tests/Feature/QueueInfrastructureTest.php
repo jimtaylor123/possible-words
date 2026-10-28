@@ -89,6 +89,7 @@ describe('queue routing and infrastructure', function () {
                 'AlarmName' => 'possiblewords-${sls:stage}-artisan-errors',
                 'AlarmDescription' => 'The scheduled Artisan runner failed; the alert includes its recent error detail.',
             ])
+            // Serverless generates AlarmNotifierLambdaFunction from functions.alarmNotifier.
             ->and($serverless['resources']['Resources']['AlarmNotifierSubscription']['Properties'])->toMatchArray([
                 'TopicArn' => ['Ref' => 'WordBatchAlarmTopic'],
                 'Protocol' => 'lambda',
