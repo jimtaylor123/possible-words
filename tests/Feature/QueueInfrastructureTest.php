@@ -72,6 +72,30 @@ describe('queue routing and infrastructure', function () {
         }
     });
 
+    test('production formats word-batch alarms before emailing them', function () {
+        $serverless = Yaml::parseFile(base_path('serverless.yml'));
+
+        expect($serverless['functions']['alarmNotifier'])->toMatchArray([
+            'handler' => 'alerts/alarm-notifier.handler',
+            'runtime' => 'nodejs20.x',
+            'timeout' => 30,
+            'environment' => ['ALERT_EMAIL_TOPIC_ARN' => ['Ref' => 'WordBatchAlarmEmailTopic']],
+        ])
+            ->and($serverless['resources']['Resources']['WordBatchAlarmTopic']['Properties'])->not->toHaveKey('Subscription')
+            ->and($serverless['resources']['Resources']['WordBatchAlarmEmailTopic']['Properties']['Subscription'])->toBe([
+                ['Endpoint' => 'jimtayloremail@gmail.com', 'Protocol' => 'email'],
+            ])
+            ->and($serverless['resources']['Resources']['ArtisanLambdaErrorsAlarm']['Properties'])->toMatchArray([
+                'AlarmName' => 'possiblewords-${sls:stage}-artisan-errors',
+                'AlarmDescription' => 'The scheduled Artisan runner failed; the alert includes its recent error detail.',
+            ])
+            ->and($serverless['resources']['Resources']['AlarmNotifierSubscription']['Properties'])->toMatchArray([
+                'TopicArn' => ['Ref' => 'WordBatchAlarmTopic'],
+                'Protocol' => 'lambda',
+                'Endpoint' => ['Fn::GetAtt' => ['AlarmNotifierLambdaFunction', 'Arn']],
+            ]);
+    });
+
     test('local example configuration defaults to the database queue', function () {
         expect(file_get_contents(base_path('.env.example')))->toContain('QUEUE_CONNECTION=database')
             ->and(config('queue.queues'))->toBe([
