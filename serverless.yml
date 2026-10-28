@@ -25,6 +25,15 @@ provider:
                   Condition:
                       StringEquals:
                           cloudwatch:namespace: PossibleWords/WordBatches
+                # The alarm formatter reads the affected function's recent log
+                # lines and sends a human-readable notification through SNS.
+                - Effect: Allow
+                  Action: logs:FilterLogEvents
+                  Resource: arn:aws:logs:${aws:region}:${aws:accountId}:log-group:/aws/lambda/*
+                - Effect: Allow
+                  Action: sns:Publish
+                  Resource:
+                      Ref: WordBatchAlarmEmailTopic
     environment:
         APP_ENV: production
         APP_DEBUG: 0
@@ -207,6 +216,14 @@ functions:
                   input:
                       cli: 'notifications:prune'
 
+    alarmNotifier:
+        handler: alerts/alarm-notifier.handler
+        runtime: nodejs20.x
+        timeout: 30
+        environment:
+            ALERT_EMAIL_TOPIC_ARN:
+                Ref: WordBatchAlarmEmailTopic
+
     backup:
         handler: artisan
         runtime: php-84-console
@@ -323,13 +340,38 @@ resources:
                 Tags:
                     - Key: Application
                       Value: possiblewords
+        WordBatchAlarmEmailTopic:
+            Type: AWS::SNS::Topic
+            Properties:
+                TopicName: possiblewords-${sls:stage}-word-batch-alert-emails
+                Tags:
+                    - Key: Application
+                      Value: possiblewords
                 Subscription:
                     - Endpoint: jimtayloremail@gmail.com
                       Protocol: email
+        AlarmNotifierSubscription:
+            Type: AWS::SNS::Subscription
+            Properties:
+                TopicArn:
+                    Ref: WordBatchAlarmTopic
+                Protocol: lambda
+                Endpoint:
+                    Fn::GetAtt: [AlarmNotifierLambdaFunction, Arn]
+        AlarmNotifierPermission:
+            Type: AWS::Lambda::Permission
+            Properties:
+                Action: lambda:InvokeFunction
+                FunctionName:
+                    Ref: AlarmNotifierLambdaFunction
+                Principal: sns.amazonaws.com
+                SourceArn:
+                    Ref: WordBatchAlarmTopic
         ArtisanLambdaErrorsAlarm:
             Type: AWS::CloudWatch::Alarm
             Properties:
-                AlarmDescription: The application Artisan Lambda failed.
+                AlarmName: possiblewords-${sls:stage}-artisan-errors
+                AlarmDescription: The scheduled Artisan runner failed; the alert includes its recent error detail.
                 Namespace: AWS/Lambda
                 MetricName: Errors
                 Statistic: Sum

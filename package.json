@@ -5,8 +5,8 @@
     "scripts": {
         "build": "vite build",
         "dev": "vite",
-        "lint": "eslint resources/js scripts --max-warnings=0",
-        "lint:fix": "eslint resources/js --fix",
+        "lint": "eslint resources/js scripts alerts --max-warnings=0",
+        "lint:fix": "eslint resources/js alerts --fix",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:e2e": "node scripts/run-e2e-shard.mjs",
