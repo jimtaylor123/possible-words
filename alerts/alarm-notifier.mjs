@@ -1,28 +1,53 @@
-import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
-import { PublishCommand, SNSClient } from '@aws-sdk/client-sns';
-
-const logs = new CloudWatchLogsClient({});
-const sns = new SNSClient({});
-
 export async function handler(event) {
-    await Promise.all(event.Records.map(async ({ Sns: { Message } }) => {
-        const alarm = JSON.parse(Message);
-        const state = alarm.NewStateValue;
-        const functionName = alarm.Trigger?.Dimensions?.find(({ name }) => name === 'FunctionName')?.value;
-        const logGroup = functionName ? `/aws/lambda/${functionName}` : null;
-        const errors = state === 'ALARM' && logGroup ? await recentErrors(logGroup, alarm.StateChangeTime) : [];
-        const subject = `[Possible Words] ${state}: ${alarm.AlarmDescription ?? alarm.AlarmName}`;
+    const dependencies = await awsDependencies();
 
-        await sns.send(new PublishCommand({
-            TopicArn: process.env.ALERT_EMAIL_TOPIC_ARN,
-            Subject: subject.slice(0, 100),
-            Message: formatAlert(alarm, logGroup, errors),
-        }));
-    }));
+    return createNotifier(dependencies)(event);
 }
 
-async function recentErrors(logGroupName, stateChangeTime) {
-    const changedAt = Date.parse(stateChangeTime);
+export function createNotifier({ recentErrorsForLogGroup, publish }) {
+    return async (event) => {
+        await Promise.all((event.Records ?? []).map(async ({ Sns: { Message } }) => {
+            const alarm = JSON.parse(Message);
+            const state = alarm.NewStateValue;
+            const functionName = alarm.Trigger?.Dimensions?.find(({ name }) => name === 'FunctionName')?.value;
+            const logGroup = functionName ? `/aws/lambda/${functionName}` : null;
+            const errors = state === 'ALARM' && logGroup ? await recentErrorsForLogGroup(logGroup, alarm.StateChangeTime) : [];
+            const subject = `[Possible Words] ${state}: ${alarm.AlarmDescription ?? alarm.AlarmName}`;
+
+            await publish({
+                Subject: subject.slice(0, 100),
+                Message: formatAlert(alarm, logGroup, errors),
+            });
+        }));
+    };
+}
+
+let dependencies;
+
+async function awsDependencies() {
+    dependencies ??= Promise.all([
+        importAwsSdk('@aws-sdk/client-cloudwatch-logs'),
+        importAwsSdk('@aws-sdk/client-sns'),
+    ]).then(([{ CloudWatchLogsClient, FilterLogEventsCommand }, { PublishCommand, SNSClient }]) => {
+        const logs = new CloudWatchLogsClient({});
+        const sns = new SNSClient({});
+
+        return {
+            recentErrorsForLogGroup: (logGroup, stateChangeTime) => recentErrors(logs, FilterLogEventsCommand, logGroup, stateChangeTime),
+            publish: (message) => sns.send(new PublishCommand({ TopicArn: process.env.ALERT_EMAIL_TOPIC_ARN, ...message })),
+        };
+    });
+
+    return dependencies;
+}
+
+function importAwsSdk(packageName) {
+    return import(/* @vite-ignore */ packageName);
+}
+
+export async function recentErrors(logs, FilterLogEventsCommand, logGroupName, stateChangeTime) {
+    const parsedStateChangeTime = Date.parse(stateChangeTime);
+    const changedAt = Number.isNaN(parsedStateChangeTime) ? Date.now() : parsedStateChangeTime;
     const response = await logs.send(new FilterLogEventsCommand({
         logGroupName,
         startTime: changedAt - 10 * 60 * 1000,
@@ -30,31 +55,37 @@ async function recentErrors(logGroupName, stateChangeTime) {
         limit: 1000,
     }));
 
-    return (response.events ?? [])
-        .map(({ message }) => message?.trim())
+    return summarizeErrors((response.events ?? []).map(({ message }) => message?.trim()));
+}
+
+export function summarizeErrors(messages) {
+    return messages
         .filter((message) => message && /\b(?:ERROR|Exception|Invoke Error|Task timed out|Fatal error)\b/i.test(message))
         .map(compactError)
-        .filter((message, index, messages) => messages.indexOf(message) === index)
+        .filter((message, index, entries) => entries.indexOf(message) === index)
         .slice(0, 3);
 }
 
-function compactError(message) {
+export function compactError(message) {
     const relevantLine = message.split('\n').find((line) => /\b(?:ERROR|Exception|Invoke Error|Task timed out|Fatal error)\b/i.test(line));
 
     return (relevantLine ?? message).replace(/\s+/g, ' ').slice(0, 700);
 }
 
-function formatAlert(alarm, logGroup, errors) {
-    const region = alarm.Region ?? process.env.AWS_REGION;
+export function formatAlert(alarm, logGroup, errors) {
+    const region = process.env.AWS_REGION ?? alarm.Region;
     const lines = [
         'Possible Words production alert',
         '',
         `Status: ${alarm.NewStateValue}`,
         `Alarm: ${alarm.AlarmName}`,
-        `What it means: ${alarm.AlarmDescription}`,
         `When: ${alarm.StateChangeTime}`,
         `Reason: ${alarm.NewStateReason}`,
     ];
+
+    if (alarm.AlarmDescription) {
+        lines.splice(4, 0, `What it means: ${alarm.AlarmDescription}`);
+    }
 
     if (errors.length > 0) {
         lines.push('', 'Recent error detail:', ...errors.map((error) => `- ${error}`));
