@@ -1,5 +1,5 @@
-export async function handler(event) {
-    const dependencies = await awsDependencies();
+export async function handler(event, _context, loadDependencies = awsDependencies) {
+    const dependencies = await loadDependencies();
 
     return createNotifier(dependencies)(event);
 }
@@ -7,7 +7,10 @@ export async function handler(event) {
 export function createNotifier({ recentErrorsForLogGroup, publish }) {
     return async (event) => {
         await Promise.all((event.Records ?? []).map(async ({ Sns: { Message } }) => {
-            const alarm = JSON.parse(Message);
+            const alarm = parseAlarm(Message);
+            if (alarm === null) {
+                return;
+            }
             const state = alarm.NewStateValue;
             const functionName = alarm.Trigger?.Dimensions?.find(({ name }) => name === 'FunctionName')?.value;
             const logGroup = functionName ? `/aws/lambda/${functionName}` : null;
@@ -38,7 +41,13 @@ async function awsDependencies() {
         };
     });
 
-    return dependencies;
+    try {
+        return await dependencies;
+    } catch (error) {
+        dependencies = undefined;
+
+        throw error;
+    }
 }
 
 function importAwsSdk(packageName) {
@@ -50,7 +59,7 @@ export async function recentErrors(logs, FilterLogEventsCommand, logGroupName, s
     const changedAt = Number.isNaN(parsedStateChangeTime) ? Date.now() : parsedStateChangeTime;
     const response = await logs.send(new FilterLogEventsCommand({
         logGroupName,
-        startTime: changedAt - 10 * 60 * 1000,
+        startTime: Math.max(0, changedAt - 10 * 60 * 1000),
         endTime: changedAt + 60 * 1000,
         limit: 1000,
     }));
@@ -73,7 +82,7 @@ export function compactError(message) {
 }
 
 export function formatAlert(alarm, logGroup, errors) {
-    const region = process.env.AWS_REGION ?? alarm.Region;
+    const region = process.env.AWS_REGION ?? 'eu-west-1';
     const lines = [
         'Possible Words production alert',
         '',
@@ -104,4 +113,14 @@ export function formatAlert(alarm, logGroup, errors) {
 
 function logGroupUrl(region, logGroup) {
     return `https://${region}.console.aws.amazon.com/cloudwatch/home?region=${region}#logsV2:log-groups/log-group/${encodeURIComponent(logGroup)}`;
+}
+
+function parseAlarm(message) {
+    try {
+        return JSON.parse(message);
+    } catch {
+        console.error('Ignoring invalid CloudWatch alarm SNS message.');
+
+        return null;
+    }
 }

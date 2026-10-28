@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createNotifier, formatAlert, recentErrors, summarizeErrors } from './alarm-notifier.mjs';
+import { createNotifier, formatAlert, handler, recentErrors, summarizeErrors } from './alarm-notifier.mjs';
 
 describe('alarm notifier', () => {
     it('publishes a clear alert with its recent error detail', async () => {
@@ -36,6 +36,15 @@ describe('alarm notifier', () => {
         }, null, [])).not.toContain('undefined');
     });
 
+    it('uses the Lambda region rather than the alarm display-region in console links', () => {
+        const alert = formatAlert({
+            NewStateValue: 'OK', AlarmName: 'example', StateChangeTime: 'now', NewStateReason: 'recovered', Region: 'EU (Ireland)',
+        }, '/aws/lambda/example', []);
+
+        expect(alert).toContain('https://eu-west-1.console.aws.amazon.com');
+        expect(alert).not.toContain('EU (Ireland)');
+    });
+
     it('compacts duplicate error lines', () => {
         expect(summarizeErrors([
             'ERROR database unavailable\ntrace',
@@ -57,5 +66,41 @@ describe('alarm notifier', () => {
         const [{ input }] = logs.send.mock.calls.map(([command]) => command);
         expect(input.startTime).toEqual(expect.any(Number));
         expect(Number.isNaN(input.startTime)).toBe(false);
+    });
+
+    it('handles an empty log group without throwing', async () => {
+        class FilterLogEventsCommand {
+            constructor(input) {
+                this.input = input;
+            }
+        }
+
+        await expect(recentErrors({ send: vi.fn().mockResolvedValue({}) }, FilterLogEventsCommand, '/aws/lambda/example', '2026-10-28T16:44:51.178Z'))
+            .resolves.toEqual([]);
+    });
+
+    it('exercises the Lambda handler with injected AWS dependencies', async () => {
+        const publish = vi.fn().mockResolvedValue();
+        const loadDependencies = vi.fn().mockResolvedValue({ recentErrorsForLogGroup: vi.fn().mockResolvedValue([]), publish });
+
+        await handler({
+            Records: [{
+                Sns: { Message: JSON.stringify({ NewStateValue: 'OK', AlarmName: 'example', StateChangeTime: 'now', NewStateReason: 'recovered' }) },
+            }],
+        }, undefined, loadDependencies);
+
+        expect(loadDependencies).toHaveBeenCalledOnce();
+        expect(publish).toHaveBeenCalledWith(expect.objectContaining({ Subject: '[Possible Words] OK: example' }));
+    });
+
+    it('logs and ignores malformed SNS messages', async () => {
+        const publish = vi.fn();
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        await createNotifier({ recentErrorsForLogGroup: vi.fn(), publish })({ Records: [{ Sns: { Message: 'not-json' } }] });
+
+        expect(publish).not.toHaveBeenCalled();
+        expect(error).toHaveBeenCalledWith('Ignoring invalid CloudWatch alarm SNS message.');
+        error.mockRestore();
     });
 });

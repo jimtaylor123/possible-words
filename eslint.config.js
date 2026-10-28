@@ -19,7 +19,7 @@ export default [
     },
     {
         // Node tooling scripts, not browser code.
-        files: ['scripts/**/*.mjs', 'alerts/**/*.mjs'],
+        files: ['scripts/**/*.mjs', 'alerts/**/*.{js,mjs}'],
         languageOptions: {
             globals: {
                 console: 'readonly',
