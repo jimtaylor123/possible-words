@@ -21,6 +21,18 @@ test.describe('Browsing and filtering', () => {
         await expect(searchInput(page)).toBeVisible();
     });
 
+    test('primary navigation remains visible while scrolling', async ({ page }) => {
+        await page.goto('/');
+
+        const navigation = page.getByRole('navigation', { name: 'Primary navigation' });
+        await expect(navigation).toBeVisible();
+
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await expect(navigation).toHaveCSS('position', 'sticky');
+        await expect(navigation).toHaveCSS('top', '0px');
+        await expect(navigation).toBeInViewport();
+    });
+
     test('search filters the word list to matching words only', async ({ page }) => {
         await page.goto('/');
 
