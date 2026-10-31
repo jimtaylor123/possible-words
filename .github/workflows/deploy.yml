@@ -80,6 +80,9 @@ jobs:
           unzip -l /tmp/sls-package/possiblewords.zip \
             | grep -q 'bin/sqlite3' \
             || { echo '::error::bin/sqlite3 is missing from the backup deployment package'; exit 1; }
+          unzip -l /tmp/sls-package/possiblewords.zip \
+            | grep -q 'vendor/aws/aws-sdk-php/src/data/sqs/2012-11-05/api-2.json.php' \
+           || { echo '::error::AWS SQS API model is missing from the deployment package'; exit 1; }
 
       # Update the migration runner first. This ensures new schema is available
       # before the web Lambda can receive code that queries it.
