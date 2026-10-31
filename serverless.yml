@@ -572,6 +572,7 @@ package:
         - 'vendor/aws/aws-sdk-php/src/data/sdk-default-configuration.json.php'
         - 'vendor/aws/aws-sdk-php/src/data/endpoints_prefix_history.json.php'
         - 'vendor/aws/aws-sdk-php/src/data/aliases.json.php'
+        - 'vendor/aws/aws-sdk-php/src/data/sqs/**'
         - 'vendor/aws/aws-sdk-php/src/data/s3/**'
         - 'vendor/aws/aws-sdk-php/src/data/cloudwatch/**'
         - 'vendor/aws/aws-sdk-php/src/data/monitoring/**'
