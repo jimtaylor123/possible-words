@@ -9,3 +9,115 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+/* Purple Word Lab palette, shared across pages and controls. */
+:root {
+    --canvas: #191725; --surface: #262236; --ink: #faf5ff; --muted: #bcb2d1;
+    --line: #4e4567; --accent: #c5b4ff; --accent-ink: #241544; --display: ui-sans-serif, system-ui, sans-serif;
+}
+:root[data-mode='light'] { --canvas: #f1eaff; --surface: #fffaf1; --ink: #2b1b43; --muted: #6b587d; --line: #c9b7e1; --accent: #6344b8; --accent-ink: #fff; }
+@theme inline {
+    --color-gray-50: var(--canvas); --color-gray-100: var(--line); --color-gray-200: var(--line); --color-gray-300: var(--muted);
+    --color-gray-400: var(--muted); --color-gray-500: var(--muted); --color-gray-600: var(--muted); --color-gray-700: var(--ink); --color-gray-800: var(--ink); --color-gray-900: var(--ink);
+    --color-blue-500: var(--accent); --color-blue-600: var(--accent); --color-blue-700: var(--accent); --color-blue-800: var(--accent); --color-blue-900: var(--accent);
+}
+html { scroll-behavior: smooth; scroll-padding-top: 120px; background: var(--canvas); }
+body { color: var(--ink); background: var(--canvas); font-family: ui-sans-serif, system-ui, sans-serif; }
+.bg-white { background-color: var(--surface); }
+a, button, input, textarea { -webkit-tap-highlight-color: transparent; }
+button, a { transition: color .18s, background-color .18s, transform .18s, box-shadow .18s; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+nav { border-color: var(--line); box-shadow: none !important; }
+nav > div { max-width: 1320px !important; }
+nav a[aria-current='page'] { color: var(--accent); }
+footer { border-color: var(--line); }
+.discovery-hero { position: relative; display: grid; grid-template-columns: 1.3fr 1fr; gap: 30px; max-width: 1280px; margin: 0 auto; padding: 64px 32px 0; overflow: hidden; }
+.hero-eyebrow { display: flex; align-items: center; gap: 9px; color: var(--accent); font: 10px ui-monospace, monospace; letter-spacing: .13em; margin-bottom: 24px; }
+.hero-eyebrow > span { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.discovery-hero h1 { position: relative; font-family: var(--display); font-size: clamp(44px, 5.3vw, 72px); line-height: 1.04; letter-spacing: -.065em; font-weight: 750; margin: 0; }
+.discovery-hero h1 em { color: var(--accent); font-style: normal; }
+.hero-description { color: var(--muted); max-width: 445px; font-size: 15px; line-height: 1.8; margin: 24px 0; }
+.hero-cta { display: inline-flex; align-items: center; gap: 36px; background: var(--accent); color: var(--accent-ink); border-radius: 8px; padding: 14px 20px; font-size: 13px; font-weight: 700; }
+.hero-cta:hover { transform: translateY(-3px); box-shadow: 0 5px 0 var(--line); }
+.hero-art { position: relative; min-height: 330px; }
+.hero-footnote { grid-column: 1 / -1; display: flex; justify-content: space-between; padding: 22px 0; margin-top: 24px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font: 9px ui-monospace, monospace; letter-spacing: .08em; }
+.orbit { position: absolute; width: 300px; height: 300px; border: 1px solid var(--line); border-radius: 50%; top: 18px; left: 60px; }
+.orbit-two { transform: rotate(-35deg) scaleX(.55); border-color: var(--accent); opacity: .45; }
+.orbit-one::before { content: ''; position: absolute; width: 12px; height: 12px; background: var(--accent); border-radius: 50%; top: 40px; right: 26px; }
+.lab-core { position: absolute; top: 100px; left: 110px; color: var(--accent); font: 82px ui-monospace, monospace; letter-spacing: -.15em; }
+.lab-core span { display: inline-block; transform: rotate(-10deg); }
+.lab-core small { display: block; font-size: 8px; letter-spacing: .17em; text-align: center; margin-top: 6px; color: var(--muted); }
+.floating-letter { position: absolute; font-family: Georgia, serif; }
+.letter-one { left: 50px; top: 55px; font-size: 43px; transform: rotate(-18deg); }
+.letter-two { right: 40px; top: 220px; font-size: 55px; color: var(--accent); transform: rotate(16deg); }
+.letter-three { left: 45px; bottom: 20px; font-size: 42px; }
+.art-coordinate, .art-caption { position: absolute; font: 8px ui-monospace, monospace; color: var(--muted); letter-spacing: .1em; }
+.art-coordinate { top: 0; right: 0; }.art-caption { bottom: 0; right: 0; }
+.discovery-controls { padding-top: 8px; }
+.discovery-controls h2 { font-size: 20px; letter-spacing: -.03em; margin-bottom: 0; }
+.discovery-controls > .search-toolbar { padding: 12px; border: 1px solid var(--line); background: var(--surface); border-radius: 15px; }
+.word-discovery-card .n-card { border-radius: 14px; min-height: 225px; border-color: var(--line); }
+.word-discovery-card .n-card-header { padding-top: 25px; }
+.word-discovery-card .text-xl { font-size: 29px; font-family: var(--display); letter-spacing: -.04em; }
+.word-discovery-card:hover { transform: translateY(-4px); }
+.word-discovery-card:hover .n-card { border-color: var(--accent); }
+.word-discovery-card .n-card__content { padding-bottom: 42px; }
+@media (min-width: 1500px) { .discovery-hero { padding-top: 78px; } }
+@media (max-width: 900px) {
+    .discovery-hero { grid-template-columns: 1.3fr 1fr; gap: 12px; padding-top: 42px; }.hero-art { transform: scale(.8); transform-origin: center; }
+}
+@media (max-width: 640px) {
+    .discovery-hero { padding: 32px 20px 0; grid-template-columns: 1fr; gap: 0; }.discovery-hero h1 { font-size: 48px; }.hero-description { font-size: 14px; margin: 20px 0; }.hero-art { min-height: 240px; max-width: 340px; width: 100%; justify-self: center; transform: scale(.72); margin: -20px 0; }.orbit { left: 20px; }.lab-core { left: 70px; }.letter-one { left: 10px; }.letter-three { left: 0; }.art-coordinate { top: -10px; }.art-caption { bottom: -55px; }
+    .hero-footnote { margin-top: 30px; font-size: 7px; gap: 12px; line-height: 1.7; }.hero-footnote span { max-width: 55%; }
+    .discovery-controls h2 { font-size: 19px; }.discovery-controls > .search-toolbar { padding: 8px; }.word-discovery-card .n-card { min-height: 210px; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition: none !important; animation: none !important; } }
+
+nav a[aria-current="page"] { background: var(--canvas); }
+main > div > .text-center h1 { font-family: var(--display); font-size: clamp(42px, 7vw, 76px); letter-spacing: -.05em; color: var(--accent); }
+main h1, main h2, main h3 { font-family: var(--display); }
+@theme inline {
+    --color-blue-50: var(--surface); --color-blue-100: var(--line); --color-blue-200: var(--line); --color-blue-300: var(--accent);
+}
+@layer base { *, ::before, ::after { border-color: var(--line); } }
+.bg-blue-600, .bg-blue-700 { color: var(--accent-ink); }
+main h1 { overflow-wrap: anywhere; }
+
+/* Give Word Lab definitions a clearer, raised surface in dark mode. */
+[data-design='lab'][data-mode='dark'] .word-definitions {
+    background-color: #302a41;
+    border-color: #67577e;
+}
+[data-design='lab'][data-mode='dark'] .word-definition {
+    --ink: #faf5ff;
+    --muted: #dfd5ed;
+    background-color: #40364f;
+    border-color: #806b98;
+}
+
+/* Keep the discovery search distinct from its surrounding dark toolbar. */
+[data-design='lab'][data-mode='dark'] .discovery-controls .n-auto-complete {
+    --surface: #40364f;
+    --ink: #faf5ff;
+    --line: #9580af;
+}
+[data-design='lab'][data-mode='dark'] .discovery-controls .n-auto-complete .n-input {
+    --n-placeholder-color: #ded3ec !important;
+    --n-icon-color: #ded3ec !important;
+    --n-icon-color-hover: #faf5ff !important;
+}
+.shortcut-key {
+    display: inline-flex;
+    min-width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line);
+    border-bottom-width: 3px;
+    border-radius: 6px;
+    background: var(--canvas);
+    color: var(--ink);
+    font: 13px ui-monospace, monospace;
+}
+
+.discovery-heading > button { flex-shrink: 0; }

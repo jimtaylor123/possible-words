@@ -173,7 +173,7 @@
       </div>
 
       <!-- Definitions Section -->
-      <div class="bg-white rounded-lg shadow-sm border p-6 mb-8">
+      <div class="word-definitions bg-white rounded-lg shadow-sm border p-6 mb-8">
         <div class="flex items-center justify-between gap-4 mb-6">
           <h2 class="text-2xl font-bold text-gray-900">Definitions</h2>
           <n-button v-if="isAuthenticated" type="primary" @click="openDefinitionModal">
@@ -185,7 +185,7 @@
           <div
             v-for="definition in definitions"
             :key="definition.id"
-            class="border rounded-lg p-4"
+            class="word-definition border rounded-lg p-4"
           >
             <div class="flex justify-between items-start mb-2">
               <div>
@@ -540,6 +540,7 @@ const targetIsEditable = (target) => {
 
 const handleShortcut = (event) => {
   if (
+    window.document.querySelector('[role="dialog"], [aria-modal="true"]') ||
     definitionModalOpen.value ||
     showReportDialog.value ||
     selectedDefinitionId.value !== null ||
