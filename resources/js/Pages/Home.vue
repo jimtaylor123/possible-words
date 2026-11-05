@@ -1,9 +1,10 @@
 <template>
   <Layout>
+    <DiscoveryHero />
     <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <!-- Search and Controls -->
-      <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900 mb-4">Discover Available Words</h1>
+      <div id="word-discovery" class="discovery-controls mb-8">
+        <h2 class="text-3xl font-bold text-gray-900 mb-4">Find your next favourite word</h2>
 
         <div class="flex items-center gap-3">
           <n-auto-complete
@@ -112,7 +113,7 @@
           v-for="word in allWords"
           :key="word.id"
           :data-testid="`word-card-${word.slug}`"
-          class="group block rounded-lg no-underline text-inherit cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+          class="word-discovery-card group block rounded-lg no-underline text-inherit cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
           role="link"
           :tabindex="0"
           @click="handleCardClick(word, $event)"
@@ -239,6 +240,7 @@
 import { router, usePage } from '@inertiajs/vue3'
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { mdiFilter, mdiFilterOff, mdiMagnify, mdiPlay, mdiStar } from '@mdi/js'
+import DiscoveryHero from '@/Components/DiscoveryHero.vue'
 import Layout from '@/Components/Layout.vue'
 
 const page = usePage()

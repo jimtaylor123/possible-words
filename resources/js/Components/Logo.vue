@@ -1,14 +1,14 @@
 <template>
   <Link :href="route('home')" class="flex items-center gap-2" aria-label="Possible Words">
     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 64 64" class="shrink-0">
-      <rect width="64" height="64" rx="14" fill="#0891b2" />
+      <rect width="64" height="64" rx="14" fill="var(--accent)" />
       <text
         x="32"
         y="43"
         font-family="system-ui, -apple-system, sans-serif"
         font-size="34"
         font-weight="700"
-        fill="white"
+        fill="var(--accent-ink)"
         text-anchor="middle"
       >[P]</text>
     </svg>

@@ -1,5 +1,6 @@
 <template>
   <div class="min-h-screen overflow-x-clip bg-gray-50">
+    <DesignPreview />
     <!-- Navigation -->
     <nav aria-label="Primary navigation" class="sticky top-0 z-50 bg-white shadow-sm border-b">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -156,7 +157,7 @@
     <footer class="bg-white border-t mt-12">
       <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <p class="text-center text-gray-500">
-          Discover available words and help define them
+          A dictionary of the imaginary. Written by all of us.
         </p>
       </div>
     </footer>
@@ -168,6 +169,7 @@ import { computed, h, onMounted, onUnmounted, ref } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import { playNotificationPing, unlockNotificationAudio } from '@/audio/notificationPing'
 import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
+import DesignPreview from '@/Components/DesignPreview.vue'
 import Logo from '@/Components/Logo.vue'
 
 const page = usePage()
