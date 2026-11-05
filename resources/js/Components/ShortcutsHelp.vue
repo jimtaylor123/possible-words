@@ -1,6 +1,6 @@
 <template>
   <button type="button" class="text-xs text-gray-500 hover:text-gray-900 underline-offset-4 hover:underline" aria-haspopup="dialog" @click="open = true">shortcuts</button>
-  <n-modal v-model:show="open" preset="card" title="Keyboard shortcuts" class="w-[360px] max-w-[calc(100vw-32px)]" :bordered="true">
+  <n-modal v-model:show="open" preset="card" title="Keyboard shortcuts" :style="{ width: 'min(360px, calc(100vw - 32px))', maxWidth: '360px' }" :bordered="true">
     <section aria-labelledby="browse-shortcuts">
       <h3 id="browse-shortcuts" class="mb-3 text-sm font-semibold text-gray-900">Main word list</h3>
       <dl class="space-y-3 text-sm">

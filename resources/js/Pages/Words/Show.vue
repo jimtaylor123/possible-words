@@ -198,7 +198,7 @@
                 </span>
                 <span
                   v-if="definition.origin === 'ai'"
-                  class="inline-block mt-1 ml-2 text-xs font-medium text-violet-600"
+                  class="definition-ai-badge inline-block mt-1 ml-2 rounded px-1.5 py-0.5 text-xs font-medium"
                 >
                   AI-generated
                 </span>
@@ -262,19 +262,8 @@
                 </n-tooltip>
               </div>
             </div>
-            <div class="text-sm text-gray-500 flex items-center gap-1.5">
-              <n-avatar
-                v-if="definition.user"
-                round
-                size="small"
-                :src="definition.user.avatar || undefined"
-                :alt="definition.user.name"
-                :img-props="{ referrerPolicy: 'no-referrer' }"
-              >
-                <template #fallback>
-                  {{ definition.user.name.charAt(0).toUpperCase() }}
-                </template>
-              </n-avatar>
+            <div class="definition-attribution text-sm flex items-center gap-2">
+              <DefinitionAvatar v-if="definition.user" :user="definition.user" :origin="definition.origin" />
               {{ definition.user ? definition.user.name : 'Deleted user' }}
             </div>
           </div>
@@ -343,6 +332,7 @@
 import { router, usePage } from '@inertiajs/vue3'
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { mdiFlag, mdiPlay, mdiStar, mdiThumbUp, mdiWhatsapp, mdiFacebook, mdiLinkedin } from '@mdi/js'
+import DefinitionAvatar from '@/Components/DefinitionAvatar.vue'
 import Layout from '@/Components/Layout.vue'
 import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
 import ReportDialog from '@/Components/ReportDialog.vue'
