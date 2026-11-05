@@ -24,6 +24,7 @@ test('search shortcut focuses without inserting a character and pauses in the he
     await expect(search).toHaveValue('ss');
     await page.locator('.discovery-heading').getByRole('button', { name: 'shortcuts', exact: true }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
+    expect((await page.getByRole('dialog').boundingBox()).width).toBeLessThanOrEqual(360);
     await expect(page.getByRole('dialog').locator('kbd')).toHaveText(['s', 'f', 'p', 'l', '+', 'Esc']);
     await page.keyboard.press('s');
     await expect(search).not.toBeFocused();
@@ -50,4 +51,7 @@ test('Word Lab fits a 320px screen in both modes', async ({ page }) => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole('button', { name: 'Switch to light mode' }).click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.getByRole('button', { name: 'shortcuts', exact: true }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    expect((await page.getByRole('dialog').boundingBox()).width).toBeLessThanOrEqual(288);
 });

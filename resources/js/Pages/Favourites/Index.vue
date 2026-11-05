@@ -68,23 +68,9 @@
 
               <div v-if="word.definitions.length > 0" class="text-gray-700">
                 "{{ word.definitions[0].text }}"
-                <div data-testid="favourites-definition-metadata" class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                <div data-testid="favourites-definition-metadata" class="definition-attribution mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                   <span class="flex min-w-0 max-w-full items-center gap-1">
-                    <n-avatar
-                      v-if="word.definitions[0].user?.avatar"
-                      :src="word.definitions[0].user.avatar"
-                      :size="20"
-                      round
-                      class="shrink-0"
-                    />
-                    <n-avatar
-                      v-else-if="word.definitions[0].user"
-                      :size="20"
-                      round
-                      class="shrink-0"
-                    >
-                      {{ word.definitions[0].user.name.charAt(0).toUpperCase() }}
-                    </n-avatar>
+                    <DefinitionAvatar v-if="word.definitions[0].user" :user="word.definitions[0].user" :origin="word.definitions[0].origin" :size="20" />
                     <span class="min-w-0 break-words">{{ word.definitions[0].user ? word.definitions[0].user.name : 'Deleted user' }}</span>
                   </span>
                   <span class="shrink-0 whitespace-nowrap">{{ word.definitions[0].votes_count }} votes</span>
@@ -128,6 +114,7 @@
 import { router, Link, usePage } from '@inertiajs/vue3'
 import { ref, computed } from 'vue'
 import { mdiPlay, mdiStar } from '@mdi/js'
+import DefinitionAvatar from '@/Components/DefinitionAvatar.vue'
 import Layout from '@/Components/Layout.vue'
 
 const props = defineProps({
