@@ -8,6 +8,8 @@ use App\Models\Report;
 use App\Models\ReportCase;
 use App\Models\User;
 use App\Models\Word;
+use App\Models\WordBatch;
+use App\Models\WordBatchSlot;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +24,7 @@ class E2eFixtureController extends Controller
         $userIds = User::where('email', 'like', "e2e-{$namespace}-%@example.test")->pluck('id');
 
         if ($wordIds->isNotEmpty()) {
+            WordBatch::whereHas('slots', fn ($query) => $query->whereIn('word_id', $wordIds))->delete();
             $caseIds = ReportCase::where('reportable_type', Word::class)->whereIn('reportable_id', $wordIds)->pluck('id');
             if ($caseIds->isNotEmpty()) {
                 DB::table('report_review_actions')->whereIn('report_case_id', $caseIds)->delete();
@@ -56,7 +59,7 @@ class E2eFixtureController extends Controller
     {
         $namespace = $this->namespace($request);
         $scenario = $request->string('scenario')->toString();
-        abort_unless(in_array($scenario, ['word', 'browse', 'favourites', 'notifications', 'users', 'reports', 'definitions'], true), 422);
+        abort_unless(in_array($scenario, ['word', 'browse', 'favourites', 'notifications', 'batch_notifications', 'users', 'reports', 'definitions'], true), 422);
         $this->reset($request);
 
         $user = User::create([
@@ -66,7 +69,7 @@ class E2eFixtureController extends Controller
             'password' => null,
         ]);
         $words = collect();
-        $count = in_array($scenario, ['browse', 'favourites'], true) ? 24 : 1;
+        $count = $scenario === 'batch_notifications' ? 5 : (in_array($scenario, ['browse', 'favourites'], true) ? 24 : 1);
         for ($index = 1; $index <= $count; $index++) {
             $suffix = str_pad((string) $index, 2, '0', STR_PAD_LEFT);
             $words->push(Word::create([
@@ -86,6 +89,19 @@ class E2eFixtureController extends Controller
                 'ipa' => $index === 1 ? '/iː tuː iː/' : null,
                 'audio_url' => $index === 1 ? '/audio/e2e.mp3' : null,
             ]));
+        }
+
+        if ($scenario === 'batch_notifications') {
+            $batch = WordBatch::create(['scheduled_for' => now()->subYears(10), 'target_count' => 5, 'status' => WordBatch::PUBLISHED]);
+            foreach ($words as $index => $word) {
+                WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => $index + 1, 'word_id' => $word->id]);
+            }
+            // Deliberately retain the historical, incorrect first-word destination.
+            $user->notifications()->create([
+                'id' => (string) Str::uuid(), 'type' => 'App\\Notifications\\E2eNotification',
+                'kind' => 'new_word_batch', 'subject_type' => $batch->getMorphClass(), 'subject_id' => $batch->id,
+                'data' => ['title' => 'Five new Possible Words', 'body' => 'A new five-word cohort is ready to explore.', 'url' => route('words.show', $words->first())],
+            ]);
         }
 
         if ($scenario === 'notifications') {

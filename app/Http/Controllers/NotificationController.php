@@ -46,7 +46,9 @@ class NotificationController extends Controller
                 'data' => array_filter([
                     'title' => $notification->data['title'] ?? null,
                     'body' => $notification->data['body'] ?? null,
-                    'url' => $notification->data['url'] ?? null,
+                    'url' => $notification->kind === 'new_word_batch' && $notification->subject_id
+                        ? route('home', ['batch' => $notification->subject_id])
+                        : ($notification->data['url'] ?? null),
                     'words' => ($notification->kind ?? null) === 'new_word_batch'
                         ? collect($notification->data['words'] ?? [])->map(fn (array $word) => array_filter([
                             'text' => $word['text'] ?? null,
