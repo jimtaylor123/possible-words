@@ -10,16 +10,12 @@
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
-/* Shared preview tokens keep the real application coherent in every direction. */
+/* Purple Word Lab palette, shared across pages and controls. */
 :root {
-    --canvas: #111710; --surface: #1a2219; --ink: #f0f3e8; --muted: #a6b2a0;
-    --line: #354331; --accent: #bafd64; --accent-ink: #17210e; --display: ui-sans-serif, system-ui, sans-serif;
+    --canvas: #191725; --surface: #262236; --ink: #faf5ff; --muted: #bcb2d1;
+    --line: #4e4567; --accent: #c5b4ff; --accent-ink: #241544; --display: ui-sans-serif, system-ui, sans-serif;
 }
-:root[data-design='folio'] { --canvas: #201c19; --surface: #2a2520; --ink: #f6eddd; --muted: #bfb09c; --line: #514538; --accent: #efac79; --accent-ink: #291b12; --display: Georgia, 'Times New Roman', serif; }
-:root[data-design='play'] { --canvas: #191725; --surface: #262236; --ink: #faf5ff; --muted: #bcb2d1; --line: #4e4567; --accent: #c5b4ff; --accent-ink: #241544; --display: 'Arial Rounded MT Bold', ui-sans-serif, system-ui, sans-serif; }
-:root[data-mode='light'] { --canvas: #f5f7ef; --surface: #fff; --ink: #1a2617; --muted: #53634a; --line: #d1daca; --accent: #466b17; --accent-ink: #fff; }
-:root[data-design='folio'][data-mode='light'] { --canvas: #f4eee2; --surface: #fcf8ee; --ink: #2d241c; --muted: #70604f; --line: #d9cbb5; --accent: #994718; --accent-ink: #fff7e8; }
-:root[data-design='play'][data-mode='light'] { --canvas: #f1eaff; --surface: #fffaf1; --ink: #2b1b43; --muted: #6b587d; --line: #c9b7e1; --accent: #6344b8; --accent-ink: #fff; }
+:root[data-mode='light'] { --canvas: #f1eaff; --surface: #fffaf1; --ink: #2b1b43; --muted: #6b587d; --line: #c9b7e1; --accent: #6344b8; --accent-ink: #fff; }
 @theme inline {
     --color-gray-50: var(--canvas); --color-gray-100: var(--line); --color-gray-200: var(--line); --color-gray-300: var(--muted);
     --color-gray-400: var(--muted); --color-gray-500: var(--muted); --color-gray-600: var(--muted); --color-gray-700: var(--ink); --color-gray-800: var(--ink); --color-gray-900: var(--ink);
@@ -35,16 +31,6 @@ nav { border-color: var(--line); box-shadow: none !important; }
 nav > div { max-width: 1320px !important; }
 nav a[aria-current='page'] { color: var(--accent); }
 footer { border-color: var(--line); }
-.design-preview { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px max(24px, calc((100vw - 1256px)/2)); background: var(--ink); color: var(--canvas); }
-.preview-label { display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 750; letter-spacing: .12em; white-space: nowrap; }
-.preview-dot { width: 6px; height: 6px; background: currentColor; border-radius: 50%; }
-.preview-hint { font-weight: 400; letter-spacing: 0; opacity: .6; margin-left: 12px; }
-.preview-options { display: flex; gap: 4px; flex-wrap: wrap; }
-.preview-options button { cursor: pointer; border: 1px solid transparent; border-radius: 5px; padding: 6px 10px; font-size: 11px; font-weight: 650; }
-.preview-options button span { opacity: .55; margin-right: 4px; }
-.preview-options button[aria-pressed='true'] { background: var(--canvas); color: var(--ink); }
-.preview-options button:hover { border-color: currentColor; }
-.preview-options .mode-toggle { border-left-color: currentColor; border-radius: 0; margin-left: 8px; }
 .discovery-hero { position: relative; display: grid; grid-template-columns: 1.3fr 1fr; gap: 30px; max-width: 1280px; margin: 0 auto; padding: 64px 32px 0; overflow: hidden; }
 .hero-eyebrow { display: flex; align-items: center; gap: 9px; color: var(--accent); font: 10px ui-monospace, monospace; letter-spacing: .13em; margin-bottom: 24px; }
 .hero-eyebrow > span { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
@@ -68,64 +54,22 @@ footer { border-color: var(--line); }
 .art-coordinate, .art-caption { position: absolute; font: 8px ui-monospace, monospace; color: var(--muted); letter-spacing: .1em; }
 .art-coordinate { top: 0; right: 0; }.art-caption { bottom: 0; right: 0; }
 .discovery-controls { padding-top: 8px; }
-.discovery-controls h2 { font-size: 20px; letter-spacing: -.03em; margin-bottom: 20px; }
-.discovery-controls > .flex { padding: 12px; border: 1px solid var(--line); background: var(--surface); border-radius: 15px; }
+.discovery-controls h2 { font-size: 20px; letter-spacing: -.03em; margin-bottom: 0; }
+.discovery-controls > .search-toolbar { padding: 12px; border: 1px solid var(--line); background: var(--surface); border-radius: 15px; }
 .word-discovery-card .n-card { border-radius: 14px; min-height: 225px; border-color: var(--line); }
 .word-discovery-card .n-card-header { padding-top: 25px; }
 .word-discovery-card .text-xl { font-size: 29px; font-family: var(--display); letter-spacing: -.04em; }
 .word-discovery-card:hover { transform: translateY(-4px); }
 .word-discovery-card:hover .n-card { border-color: var(--accent); }
 .word-discovery-card .n-card__content { padding-bottom: 42px; }
-[data-design='folio'] .discovery-hero { padding-top: 58px; }
-[data-design='folio'] .discovery-hero h1 { font-weight: 400; letter-spacing: -.055em; font-size: clamp(46px, 5.5vw, 76px); }
-[data-design='folio'] .discovery-hero h1 em { font-style: italic; }
-[data-design='folio'] .hero-cta { border-radius: 0; background: transparent; border-bottom: 1px solid var(--accent); color: var(--accent); padding-left: 0; padding-right: 0; }
-[data-design='folio'] .hero-footnote { border-top: 3px double var(--line); }
-[data-design='folio'] .word-discovery-card .n-card { border-radius: 0; border-left: 0; border-right: 0; background: transparent; }
-[data-design='folio'] .word-discovery-card .text-xl { font-size: 34px; font-weight: 400; }
-[data-design='folio'] .discovery-controls h2 { font-family: Georgia, serif; font-size: 26px; font-weight: 400; }
-[data-design='folio'] .discovery-controls > .flex { border-radius: 0; }
-.folio-page { position: absolute; inset: 6px 25px 10px 35px; border: 1px solid var(--line); padding: 30px; transform: rotate(-5deg); background: var(--surface); box-shadow: 9px 9px 0 var(--line); }
-.folio-page > span { font: 8px ui-monospace, monospace; letter-spacing: .15em; }
-.folio-page strong { display: block; margin-top: 40px; font: 52px Georgia, serif; letter-spacing: -.05em; }
-.folio-page i { font: italic 13px Georgia, serif; color: var(--accent); }
-.folio-page p { margin-top: 20px; font: 15px/1.6 Georgia, serif; color: var(--muted); }
-.folio-page small { font: 7px ui-monospace, monospace; letter-spacing: .12em; }.folio-rule { height: 1px; background: var(--line); margin: 20px 0 12px; }
-.folio-seal { position: absolute; bottom: 5px; right: 5px; display: grid; place-content: center; width: 95px; height: 95px; border: 1px solid var(--accent); border-radius: 50%; color: var(--accent); font: 9px/1.6 ui-monospace, monospace; text-align: center; transform: rotate(12deg); background: var(--canvas); }
-[data-design='play'] .discovery-hero { margin-top: 32px; border: 1px solid var(--line); border-radius: 32px; padding: 42px 40px 0; background: var(--surface); max-width: 1216px; }
-[data-design='play'] .discovery-hero h1 { font-weight: 900; letter-spacing: -.07em; }
-[data-design='play'] .discovery-hero h1 em { display: inline-block; transform: rotate(-3deg); color: #ffd17f; }
-[data-design='play'][data-mode='light'] .discovery-hero h1 em { color: #8b4213; }
-[data-design='play'] .hero-cta { border-radius: 30px; box-shadow: 3px 4px 0 var(--ink); border: 1px solid var(--ink); }
-[data-design='play'] .hero-footnote { border-bottom: 0; }
-.hero-spark { position: absolute; color: var(--accent); font-size: 60px; top: 0; right: 20px; }
-.sticker { position: absolute; color: #241544; box-shadow: 5px 6px 0 #0d0a17; border: 2px solid #241544; }
-.sticker-one { background: #c5b4ff; border-radius: 30px; padding: 20px 45px; font: 800 56px/.95 ui-sans-serif, system-ui, sans-serif; letter-spacing: -.07em; transform: rotate(-12deg); left: 25px; top: 5px; }
-.sticker-one i { font-family: Georgia, serif; font-weight: 400; }
-.sticker-two { display: grid; place-content: center; width: 135px; height: 135px; border-radius: 50%; background: #ffd17f; font-size: 34px; font-weight: 900; right: 10px; top: 40px; transform: rotate(14deg); text-align: center; }
-.sticker-two small { font-size: 10px; letter-spacing: .12em; }
-.sticker-three { left: 60px; bottom: 15px; font: 55px Georgia, serif; background: #d0edb2; padding: 5px 27px 18px; border-radius: 8px; transform: rotate(7deg); }
-.sticker-three span { display: block; font: 12px ui-monospace, monospace; text-align: center; }
-.play-star { position: absolute; font-size: 100px; color: #ffd17f; top: 160px; right: 30px; }
-[data-design='play'] .word-discovery-card .n-card { border-radius: 22px; border: 1px solid var(--line); box-shadow: 3px 4px 0 var(--line); }
-[data-design='play'] .word-discovery-card:nth-child(3n + 2) .text-xl { color: #ffd17f; }
-[data-design='play'][data-mode='light'] .word-discovery-card:nth-child(3n + 2) .text-xl { color: #8b4213; }
-[data-design='play'] .word-discovery-card:nth-child(3n) .text-xl { color: #d0edb2; }
-[data-design='play'][data-mode='light'] .word-discovery-card:nth-child(3n) .text-xl { color: #3c6324; }
 @media (min-width: 1500px) { .discovery-hero { padding-top: 78px; } }
 @media (max-width: 900px) {
-    .preview-hint { display: none; }.design-preview { padding: 10px 20px; }.preview-label { font-size: 8px; }
-    .discovery-hero { grid-template-columns: 1.3fr 1fr; gap: 12px; padding-top: 42px; }.hero-art { transform: scale(.8); transform-origin: center; }.hero-spark { display: none; }
-    .folio-page { left: 0; right: 0; padding: 20px; }.folio-page strong { font-size: 44px; }
-    [data-design='play'] .discovery-hero { margin: 24px 20px 0; padding: 32px 24px 0; }.sticker-one { left: 0; }.sticker-two { right: -30px; }.sticker-three { left: 0; }
+    .discovery-hero { grid-template-columns: 1.3fr 1fr; gap: 12px; padding-top: 42px; }.hero-art { transform: scale(.8); transform-origin: center; }
 }
 @media (max-width: 640px) {
-    .design-preview { display: block; padding: 10px 12px; }.preview-label { margin-bottom: 8px; }.preview-options { gap: 2px; justify-content: space-between; }.preview-options button { padding: 6px; font-size: 10px; }.preview-options .mode-toggle { margin-left: 0; }
     .discovery-hero { padding: 32px 20px 0; grid-template-columns: 1fr; gap: 0; }.discovery-hero h1 { font-size: 48px; }.hero-description { font-size: 14px; margin: 20px 0; }.hero-art { min-height: 240px; max-width: 340px; width: 100%; justify-self: center; transform: scale(.72); margin: -20px 0; }.orbit { left: 20px; }.lab-core { left: 70px; }.letter-one { left: 10px; }.letter-three { left: 0; }.art-coordinate { top: -10px; }.art-caption { bottom: -55px; }
     .hero-footnote { margin-top: 30px; font-size: 7px; gap: 12px; line-height: 1.7; }.hero-footnote span { max-width: 55%; }
-    [data-design='folio'] .discovery-hero { padding-top: 32px; }[data-design='folio'] .discovery-hero h1 { font-size: 52px; }[data-design='folio'] .hero-art { margin: 12px 0 -10px; transform: scale(.9); min-height: 300px; }.folio-page { inset: 10px 15px; }.folio-page strong { margin-top: 25px; }.folio-seal { right: 0; bottom: -15px; }
-    [data-design='play'] .discovery-hero { margin: 16px 12px 0; padding: 26px 20px 0; border-radius: 22px; }[data-design='play'] .discovery-hero h1 { font-size: 46px; }[data-design='play'] .hero-art { margin: 25px 0 0; min-height: 270px; transform: scale(.85); }.sticker-two { right: 0; }.sticker-three { bottom: 0; }
-    .discovery-controls h2 { font-size: 19px; }.discovery-controls > .flex { padding: 8px; }.word-discovery-card .n-card { min-height: 210px; }
+    .discovery-controls h2 { font-size: 19px; }.discovery-controls > .search-toolbar { padding: 8px; }.word-discovery-card .n-card { min-height: 210px; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition: none !important; animation: none !important; } }
 
@@ -138,3 +82,42 @@ main h1, main h2, main h3 { font-family: var(--display); }
 @layer base { *, ::before, ::after { border-color: var(--line); } }
 .bg-blue-600, .bg-blue-700 { color: var(--accent-ink); }
 main h1 { overflow-wrap: anywhere; }
+
+/* Give Word Lab definitions a clearer, raised surface in dark mode. */
+[data-design='lab'][data-mode='dark'] .word-definitions {
+    background-color: #302a41;
+    border-color: #67577e;
+}
+[data-design='lab'][data-mode='dark'] .word-definition {
+    --ink: #faf5ff;
+    --muted: #dfd5ed;
+    background-color: #40364f;
+    border-color: #806b98;
+}
+
+/* Keep the discovery search distinct from its surrounding dark toolbar. */
+[data-design='lab'][data-mode='dark'] .discovery-controls .n-auto-complete {
+    --surface: #40364f;
+    --ink: #faf5ff;
+    --line: #9580af;
+}
+[data-design='lab'][data-mode='dark'] .discovery-controls .n-auto-complete .n-input {
+    --n-placeholder-color: #ded3ec !important;
+    --n-icon-color: #ded3ec !important;
+    --n-icon-color-hover: #faf5ff !important;
+}
+.shortcut-key {
+    display: inline-flex;
+    min-width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line);
+    border-bottom-width: 3px;
+    border-radius: 6px;
+    background: var(--canvas);
+    color: var(--ink);
+    font: 13px ui-monospace, monospace;
+}
+
+.discovery-heading > button { flex-shrink: 0; }

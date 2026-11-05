@@ -4,10 +4,13 @@
     <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <!-- Search and Controls -->
       <div id="word-discovery" class="discovery-controls mb-8">
-        <h2 class="text-3xl font-bold text-gray-900 mb-4">Find your next favourite word</h2>
-
-        <div class="flex items-center gap-3">
+        <div class="discovery-heading mb-5 flex items-center justify-between gap-3">
+          <h2 class="text-3xl font-bold text-gray-900">Find your next favourite word</h2>
+          <ShortcutsHelp />
+        </div>
+        <div class="search-toolbar flex items-center gap-3">
           <n-auto-complete
+            ref="searchInputRef"
             v-model:value="filters.search"
             :options="suggestionOptions"
             :loading="suggestionsLoading"
@@ -83,6 +86,8 @@
             />
             <n-input
               v-model:value="filters.starts_with"
+              :theme-overrides="startsWithTheme"
+              :input-props="{ 'aria-label': 'Starts with' }"
               placeholder="Starts with..."
               clearable
             />
@@ -240,8 +245,16 @@
 import { router, usePage } from '@inertiajs/vue3'
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { mdiFilter, mdiFilterOff, mdiMagnify, mdiPlay, mdiStar } from '@mdi/js'
+import { mode } from '@/design/theme'
+import ShortcutsHelp from '@/Components/ShortcutsHelp.vue'
 import DiscoveryHero from '@/Components/DiscoveryHero.vue'
 import Layout from '@/Components/Layout.vue'
+
+const startsWithTheme = computed(() => ({
+  heightMedium: '34px',
+  color: mode.value === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#fff',
+  border: mode.value === 'dark' ? '1px solid transparent' : '1px solid rgb(224, 224, 230)',
+}))
 
 const page = usePage()
 const favouriteIds = computed(() => page.props.auth?.favourite_ids ?? [])
@@ -438,6 +451,7 @@ const suggestionsVisible = computed(
 
 const suggestionInputProps = computed(() => ({
   'aria-label': 'Search words',
+  'aria-keyshortcuts': 's',
   role: 'combobox',
   'aria-autocomplete': 'list',
   'aria-expanded': suggestionsVisible.value ? 'true' : 'false',
@@ -569,6 +583,8 @@ const toggleAdvanced = () => {
   }
 }
 
+const searchInputRef = ref(null)
+
 const targetIsEditable = (target) => {
   if (!(target instanceof window.Element)) return false
 
@@ -577,7 +593,10 @@ const targetIsEditable = (target) => {
 
 const handleShortcut = (event) => {
   if (
+    window.document.querySelector('[role="dialog"], [aria-modal="true"]') ||
     event.repeat ||
+    event.defaultPrevented ||
+    event.isComposing ||
     targetIsEditable(event.target) ||
     event.ctrlKey ||
     event.altKey ||
@@ -585,7 +604,10 @@ const handleShortcut = (event) => {
     event.shiftKey
   ) return
 
-  if (event.key.toLowerCase() === 'f') {
+  if (event.key.toLowerCase() === 's') {
+    event.preventDefault()
+    searchInputRef.value?.focus()
+  } else if (event.key.toLowerCase() === 'f') {
     event.preventDefault()
     toggleAdvanced()
   }

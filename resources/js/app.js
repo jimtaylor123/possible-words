@@ -2,7 +2,7 @@ import './bootstrap';
 import { createApp, h } from 'vue';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
-import { theme, overrides } from './design/preview';
+import { theme, overrides } from './design/theme';
 import { NConfigProvider } from 'naive-ui';
 import { ZiggyVue } from 'ziggy-js';
 import {

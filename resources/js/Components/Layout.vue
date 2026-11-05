@@ -1,6 +1,5 @@
 <template>
   <div class="min-h-screen overflow-x-clip bg-gray-50">
-    <DesignPreview />
     <!-- Navigation -->
     <nav aria-label="Primary navigation" class="sticky top-0 z-50 bg-white shadow-sm border-b">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -46,6 +45,9 @@
             </Link>
           </div>
           <div class="ml-auto flex shrink-0 items-center gap-2 sm:ml-6 sm:gap-6">
+            <button type="button" class="rounded-lg p-2 text-sm text-gray-500 hover:text-gray-900" :aria-label="`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`" @click="mode = mode === 'dark' ? 'light' : 'dark'">
+              <span aria-hidden="true">{{ mode === 'dark' ? '☀' : '☾' }}</span><span class="ml-1 hidden sm:inline">{{ mode === 'dark' ? 'Light' : 'Dark' }}</span>
+            </button>
             <n-popover v-if="user" trigger="click" placement="bottom-end">
               <template #trigger>
                 <button type="button" aria-label="Notifications" class="relative p-2 text-gray-600 hover:text-gray-900" @click="unlockNotificationAudio">
@@ -159,6 +161,9 @@
         <p class="text-center text-gray-500">
           A dictionary of the imaginary. Written by all of us.
         </p>
+        <div v-if="page.component === 'Words/Show'" class="mt-3 text-center">
+          <ShortcutsHelp />
+        </div>
       </div>
     </footer>
   </div>
@@ -169,7 +174,8 @@ import { computed, h, onMounted, onUnmounted, ref } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 import { playNotificationPing, unlockNotificationAudio } from '@/audio/notificationPing'
 import GoogleSignInButton from '@/Components/GoogleSignInButton.vue'
-import DesignPreview from '@/Components/DesignPreview.vue'
+import { mode } from '@/design/theme'
+import ShortcutsHelp from '@/Components/ShortcutsHelp.vue'
 import Logo from '@/Components/Logo.vue'
 
 const page = usePage()
