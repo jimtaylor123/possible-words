@@ -168,7 +168,7 @@ test('it defers a later batch slot until every earlier slot has an AI definition
     $generator = mock(DefinitionGenerator::class);
     $generator->shouldNotReceive('generate');
     $queueJob = mock(\Illuminate\Contracts\Queue\Job::class);
-    $queueJob->shouldReceive('release')->once()->with(5);
+    $queueJob->shouldNotReceive('release');
     $job = new GenerateWordDefinition($laterWord->id);
     $job->setJob($queueJob);
 
@@ -178,7 +178,7 @@ test('it defers a later batch slot until every earlier slot has an AI definition
         ->and($laterWord->definitions()->where('origin', Definition::ORIGIN_AI)->exists())->toBeFalse();
 });
 
-test('the database queue retries an out-of-order batch job after its predecessor completes', function () {
+test('an out-of-order job finishes and a fresh scheduled attempt can complete later', function () {
     $batch = WordBatch::create(['scheduled_for' => now(), 'target_count' => WordBatch::SIZE]);
     $earlierWord = Word::factory()->create();
     $laterWord = Word::factory()->create();
@@ -199,13 +199,13 @@ test('the database queue retries an out-of-order batch job after its predecessor
     $queue->push(new GenerateWordDefinition($laterWord->id));
     $worker->process('database', $queue->pop(), $options);
 
-    expect(DB::table('jobs')->count())->toBe(1)
+    expect(DB::table('jobs')->count())->toBe(0)
         ->and($laterWord->fresh()->definitions()->where('origin', Definition::ORIGIN_AI)->exists())->toBeFalse();
 
     $queue->push(new GenerateWordDefinition($earlierWord->id));
     $worker->process('database', $queue->pop(), $options);
 
-    DB::table('jobs')->update(['available_at' => now()->timestamp]);
+    $queue->push(new GenerateWordDefinition($laterWord->id));
     $worker->process('database', $queue->pop(), $options);
 
     expect($earlierWord->fresh()->definitions()->where('origin', Definition::ORIGIN_AI)->value('text'))->toBe('A first queued meaning.')
@@ -252,7 +252,7 @@ test('it defers when a predecessor slot is replaced during definition generation
             return new GeneratedDefinition('A stale later meaning.', 'verb', 'The stale definition must not be saved.');
         });
     $queueJob = mock(\Illuminate\Contracts\Queue\Job::class);
-    $queueJob->shouldReceive('release')->once()->with(5);
+    $queueJob->shouldNotReceive('release');
     $job = new GenerateWordDefinition($laterWord->id);
     $job->setJob($queueJob);
 
@@ -275,10 +275,10 @@ test('it rate-limits with the registered definitions-ai limiter', function () {
         ->and(RateLimiter::limiter($limiterName))->not->toBeNull();
 });
 
-test('it defers jobs beyond the configured provider rate limit', function () {
+test('it finishes jobs beyond the configured provider rate limit without requeueing', function () {
     config()->set('services.definitions_ai.rate_limit', 2);
     RateLimiter::clear(md5('definitions-ai'));
-    $middleware = new RateLimited('definitions-ai');
+    $middleware = collect((new GenerateWordDefinition(1))->middleware())->first(fn ($item) => $item instanceof RateLimited);
     $jobs = [new ReleasableJob, new ReleasableJob, new ReleasableJob];
     $handled = 0;
 
@@ -289,15 +289,15 @@ test('it defers jobs beyond the configured provider rate limit', function () {
     }
 
     expect($handled)->toBe(2)
-        ->and($jobs[2]->releasedAfter)->toBeGreaterThan(0);
+        ->and($jobs[2]->releasedAfter)->toBeNull();
 });
 
-test('it drains a backfill across more rate-limit windows than provider retries', function () {
+test('it drops excess backfill jobs instead of requeueing them', function () {
     config()->set('services.definitions_ai.rate_limit', 10);
     RateLimiter::clear(md5('definitions-ai'));
     $words = Word::factory()->count(31)->create();
     $generator = mock(DefinitionGenerator::class);
-    $generator->shouldReceive('generate')->times(31)
+    $generator->shouldReceive('generate')->times(10)
         ->andReturn(new GeneratedDefinition('A backfilled definition.', 'noun', 'A blorg made the gathering brighter.'));
     app()->instance(DefinitionGenerator::class, $generator);
 
@@ -319,12 +319,12 @@ test('it drains a backfill across more rate-limit windows than provider retries'
         RateLimiter::clear(md5('definitions-ai'));
     }
 
-    expect(Definition::where('origin', Definition::ORIGIN_AI)->count())->toBe(31)
+    expect(Definition::where('origin', Definition::ORIGIN_AI)->count())->toBe(10)
         ->and(DB::table('jobs')->count())->toBe(0)
         ->and(DB::table('failed_jobs')->count())->toBe(0);
 });
 
-test('it defers a duplicate job while its word generation is in progress', function () {
+test('it finishes a duplicate job while its word generation is in progress', function () {
     $word = Word::factory()->create();
     $generator = mock(DefinitionGenerator::class);
     $generator->shouldNotReceive('generate');
@@ -344,7 +344,7 @@ test('it defers a duplicate job while its word generation is in progress', funct
         $lock->release();
     }
 
-    expect($queueJob->releasedAfter)->toBe(5);
+    expect($queueJob->releasedAfter)->toBeNull();
 });
 
 class ReleasableJob
@@ -356,3 +356,46 @@ class ReleasableJob
         $this->releasedAfter = $delay;
     }
 }
+
+test('AI provider failures stop after three queue attempts', function (string $kind) {
+    $word = Word::factory()->create();
+    $generator = mock(DefinitionGenerator::class);
+    if ($kind === 'definition') {
+        $job = new GenerateWordDefinition($word->id);
+        $generator->shouldReceive('generate')->times(3)->andThrow(new DefinitionGenerationException('Provider unavailable'));
+    } else {
+        $definition = $word->definitions()->create(['user_id' => \App\Models\User::factory()->create()->id, 'origin' => Definition::ORIGIN_AI, 'text' => 'Meaning']);
+        $job = new \App\Jobs\GenerateDefinitionExampleSentence($definition->id);
+        $generator->shouldReceive('generateExampleSentence')->times(3)->andThrow(new DefinitionGenerationException('Provider unavailable'));
+    }
+    app()->instance(DefinitionGenerator::class, $generator);
+    $queue = Queue::connection('database');
+    $queue->push($job);
+    $worker = app('queue.worker');
+    foreach (range(1, 3) as $attempt) {
+        expect(fn () => $worker->process('database', $queue->pop(), new WorkerOptions(maxTries: 0)))
+            ->toThrow(DefinitionGenerationException::class);
+    }
+    expect($queue->pop())->toBeNull()
+        ->and(DB::table('jobs')->count())->toBe(0);
+})->with(['definition', 'example']);
+
+test('batch definition lock contention does not republish a job', function () {
+    $batch = WordBatch::create(['scheduled_for' => now(), 'target_count' => WordBatch::SIZE]);
+    $word = Word::factory()->create();
+    WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => 1, 'word_id' => $word->id]);
+    $generator = mock(DefinitionGenerator::class);
+    $generator->shouldReceive('generate')->once()->andReturn(new GeneratedDefinition('Meaning', 'noun', 'Example'));
+    $queueJob = mock(\Illuminate\Contracts\Queue\Job::class);
+    $queueJob->shouldNotReceive('release');
+    $job = new GenerateWordDefinition($word->id);
+    $job->setJob($queueJob);
+    $lock = \App\Services\WordBatchDefinitionLock::acquire($batch->id);
+    expect($lock)->not->toBeNull();
+    try {
+        $job->handle($generator, app(\App\Services\Definitions\SystemAiUser::class));
+    } finally {
+        $lock->release();
+    }
+    expect($word->definitions()->exists())->toBeFalse();
+});

@@ -213,3 +213,51 @@ test('the production manifest alarms on stalled cohort age', function () {
         ->toContain('MetricName: BatchOldestActiveAge')
         ->toContain('TreatMissingData: breaching');
 });
+
+test('definition dispatch respects predecessors cooldowns and later progress', function () {
+    \Illuminate\Support\Facades\Queue::fake();
+    $this->freezeTime();
+    $batch = WordBatch::create(['scheduled_for' => now(), 'target_count' => WordBatch::SIZE]);
+    $words = collect(range(1, 5))->map(function ($number) use ($batch) {
+        $word = Word::factory()->create([
+            'dictionary_status' => Word::DICTIONARY_NOT_FOUND, 'domain_status' => Word::DOMAIN_AVAILABLE,
+            'ipa' => '/test/', 'audio_url' => 'audio/test.mp3',
+        ]);
+        WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => $number, 'word_id' => $word->id]);
+
+        return $word;
+    });
+    $coordinator = new WordBatchCoordinator(mock(WordGenerator::class), mock(DictionaryService::class), mock(PronunciationService::class), mock(DomainAvailabilityService::class), mock(WordBatchMetrics::class));
+    $coordinator->process($batch);
+    $coordinator->process($batch->fresh());
+    \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\GenerateWordDefinition::class, 1);
+    expect($words[0]->fresh()->ai_definition_retry_at->timestamp)->toBe(now()->addMinutes(2)->timestamp);
+    $this->travel(121)->seconds();
+    $coordinator->process($batch->fresh());
+    \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\GenerateWordDefinition::class, 2);
+    $words[0]->definitions()->create(['user_id' => User::factory()->create()->id, 'text' => 'First meaning', 'origin' => Definition::ORIGIN_AI]);
+    $words[1]->update(['ai_definition_retry_at' => now()->addHour()]);
+    $coordinator->process($batch->fresh());
+    \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\GenerateWordDefinition::class, 2);
+    $this->travel(3601)->seconds();
+    $coordinator->process($batch->fresh());
+    \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\GenerateWordDefinition::class, 3);
+    \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\GenerateWordDefinition::class, fn ($job) => $job->wordId === $words[1]->id);
+});
+
+test('a failed dispatch restores the previous definition retry timestamp', function () {
+    $batch = WordBatch::create(['scheduled_for' => now(), 'target_count' => WordBatch::SIZE]);
+    $word = Word::factory()->create([
+        'dictionary_status' => Word::DICTIONARY_NOT_FOUND, 'domain_status' => Word::DOMAIN_AVAILABLE,
+        'ipa' => '/test/', 'audio_url' => 'audio/test.mp3', 'ai_definition_retry_at' => now()->subMinute(),
+    ]);
+    $previous = $word->ai_definition_retry_at;
+    WordBatchSlot::create(['word_batch_id' => $batch->id, 'slot_number' => 1, 'word_id' => $word->id]);
+    $dispatcher = mock(\Illuminate\Contracts\Bus\Dispatcher::class);
+    $dispatcher->shouldReceive('dispatch')->once()->andThrow(new RuntimeException('SQS unavailable'));
+    app()->instance(\Illuminate\Contracts\Bus\Dispatcher::class, $dispatcher);
+    // Other slots are absent; avoid filling them in this focused dispatch test.
+    $coordinator = new WordBatchCoordinator(mock(WordGenerator::class), mock(DictionaryService::class), mock(PronunciationService::class), mock(DomainAvailabilityService::class), mock(WordBatchMetrics::class));
+    $coordinator->process($batch);
+    expect($word->fresh()->ai_definition_retry_at->equalTo($previous))->toBeTrue();
+});

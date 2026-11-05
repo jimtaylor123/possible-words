@@ -105,3 +105,14 @@ describe('queue routing and infrastructure', function () {
             ]);
     });
 });
+
+test('production alerts on blocked definitions recursion', function () {
+    $manifest = Yaml::parseFile(base_path('serverless.yml'));
+    expect($manifest['resources']['Resources']['DefinitionsRecursionAlarm']['Properties'])->toMatchArray([
+        'Namespace' => 'AWS/Lambda', 'MetricName' => 'RecursiveInvocationsDropped',
+        'Statistic' => 'Sum', 'Period' => 300, 'EvaluationPeriods' => 1, 'Threshold' => 1,
+        'ComparisonOperator' => 'GreaterThanOrEqualToThreshold', 'TreatMissingData' => 'notBreaching',
+        'Dimensions' => [['Name' => 'FunctionName', 'Value' => ['Ref' => 'DefinitionsWorkerLambdaFunction']]],
+        'AlarmActions' => [['Ref' => 'WordBatchAlarmTopic']],
+    ]);
+});
