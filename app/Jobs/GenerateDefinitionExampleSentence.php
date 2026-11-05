@@ -21,7 +21,7 @@ class GenerateDefinitionExampleSentence implements ShouldQueue
 
     public $timeout = self::TIMEOUT;
 
-    public $tries = 0;
+    public $tries = 3;
 
     public $maxExceptions = 3;
 
@@ -79,9 +79,9 @@ class GenerateDefinitionExampleSentence implements ShouldQueue
     public function middleware(): array
     {
         return [
-            new RateLimited('definitions-ai'),
+            (new RateLimited('definitions-ai'))->dontRelease(),
             (new WithoutOverlapping("definitions-ai-example:{$this->definitionId}"))
-                ->releaseAfter(5)
+                ->dontRelease()
                 ->expireAfter($this->timeout * 2),
         ];
     }

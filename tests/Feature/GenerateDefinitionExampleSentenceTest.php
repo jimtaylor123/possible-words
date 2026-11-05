@@ -55,6 +55,8 @@ test('it uses the configured AI rate limit and a definition-specific lock', func
 
     expect($rateLimited)->not->toBeNull()
         ->and(RateLimiter::limiter((new ReflectionProperty(RateLimited::class, 'limiterName'))->getValue($rateLimited)))->not->toBeNull()
+        ->and($rateLimited->shouldRelease)->toBeFalse()
+        ->and($withoutOverlapping->releaseAfter)->toBeNull()
         ->and($withoutOverlapping->getLockKey(new ReleasableExampleJob))->toContain('definitions-ai-example:42');
 });
 
@@ -77,7 +79,7 @@ test('it defers a duplicate example job while its definition lock is held', func
         $lock->release();
     }
 
-    expect($queueJob->releasedAfter)->toBe(5);
+    expect($queueJob->releasedAfter)->toBeNull();
 });
 
 test('it backfills an example sentence only once for a definition', function () {

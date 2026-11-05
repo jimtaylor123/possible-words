@@ -384,6 +384,22 @@ resources:
                     - Name: FunctionName
                       Value: { Ref: ArtisanLambdaFunction }
                 AlarmActions: [{ Ref: WordBatchAlarmTopic }]
+        DefinitionsRecursionAlarm:
+            Type: AWS::CloudWatch::Alarm
+            Properties:
+                AlarmDescription: Lambda blocked a recursive definitions queue invocation.
+                Namespace: AWS/Lambda
+                MetricName: RecursiveInvocationsDropped
+                Statistic: Sum
+                Period: 300
+                EvaluationPeriods: 1
+                Threshold: 1
+                ComparisonOperator: GreaterThanOrEqualToThreshold
+                TreatMissingData: notBreaching
+                Dimensions:
+                    - Name: FunctionName
+                      Value: { Ref: DefinitionsWorkerLambdaFunction }
+                AlarmActions: [{ Ref: WordBatchAlarmTopic }]
         WordBatchFailureAlarm:
             Type: AWS::CloudWatch::Alarm
             Properties:

@@ -100,8 +100,17 @@ class WordBatchCoordinator
             if (($word->ipa === null || $word->audio_url === null) && ($word->pronunciation_retry_at === null || $word->pronunciation_retry_at->isPast())) {
                 $this->pronunciation->ensurePronunciation($word);
             }
-            if (! $word->definitions()->where('origin', Definition::ORIGIN_AI)->exists() && ($word->ai_definition_retry_at === null || $word->ai_definition_retry_at->isPast())) {
-                GenerateWordDefinition::dispatch($word->id);
+            if (! $word->definitions()->where('origin', Definition::ORIGIN_AI)->exists() && ($word->ai_definition_retry_at === null || $word->ai_definition_retry_at->isPast())
+                && WordBatchDefinitionContext::forWord($word) !== null) {
+                $previousRetryAt = $word->ai_definition_retry_at;
+                $word->update(['ai_definition_retry_at' => now()->addMinutes(2)]);
+                try {
+                    // Dispatch immediately so failures are caught before leaving this block.
+                    app(\Illuminate\Contracts\Bus\Dispatcher::class)->dispatch(new GenerateWordDefinition($word->id));
+                } catch (\Throwable $exception) {
+                    $word->update(['ai_definition_retry_at' => $previousRetryAt]);
+                    \Illuminate\Support\Facades\Log::warning('Could not queue AI definition.', ['word_id' => $word->id, 'exception' => $exception]);
+                }
             }
             $word->refresh();
             if (in_array($word->domain_status, [Word::DOMAIN_UNCHECKED, Word::DOMAIN_CHECK_FAILED], true) && ($word->domain_retry_at === null || $word->domain_retry_at->isPast())) {
