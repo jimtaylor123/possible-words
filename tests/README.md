@@ -169,3 +169,17 @@ GitHub Actions runs on every push to `main` and on pull requests (see `.github/w
 - **E2E job** — runs a four-way headless shard matrix. Each shard creates an isolated SQLite runtime and uploads report, results, and server log on failure.
 
 The load/stress suites are **not** part of CI: `test:load` needs a running dev server and `test:load:prod` hits the live site and consumes AWS usage, so both stay manual by design.
+
+### Vote migration tests with the Turso HTTP driver
+
+The default suite tests table rebuilds on a separate SQLite connection outside
+`RefreshDatabase`'s transaction. To also exercise the real Turso HTTP driver,
+start an isolated local server in another terminal:
+
+```bash
+turso dev --port 18082 --db-file /tmp/possiblewords-vote-migration.db
+TURSO_MIGRATION_TEST_URL=http://127.0.0.1:18082 ./vendor/bin/pest tests/Feature/VoteForeignKeyMigrationTest.php
+```
+
+These tests recreate `users`, `words`, `definitions`, and `votes` on that server.
+Only a loopback URL is accepted; use a dedicated disposable database file.

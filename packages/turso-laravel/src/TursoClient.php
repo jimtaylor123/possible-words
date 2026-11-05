@@ -138,7 +138,13 @@ class TursoClient
             $httpResponse->throw();
         }
 
-        $responseBody = new ResponseBody($requestBody, $httpResponse->json() ?? []);
+        $response = $httpResponse->json() ?? [];
+        // A SQL error still consumes the request's baton. Store its replacement
+        // before parsing can throw, so callers can roll back the transaction.
+        $this->connectionStore->put('baton', data_get($response, 'baton'), 9);
+        $this->connectionStore->put('baseUrl', data_get($response, 'base_url'), 9);
+
+        $responseBody = new ResponseBody($requestBody, $response);
 
         if ($this->loggingQueries) {
             $this->queryLog->push([
@@ -146,9 +152,6 @@ class TursoClient
                 'response' => $responseBody->getRawResponse(),
             ]);
         }
-
-        $this->connectionStore->put('baton', $responseBody->getBaton(), 9);
-        $this->connectionStore->put('baseUrl', $responseBody->getBaseUrl(), 9);
 
         return $responseBody->getQueryResponse($query->getIndex());
     }
