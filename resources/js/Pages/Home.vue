@@ -1,12 +1,16 @@
 <template>
   <Layout>
-    <DiscoveryHero />
+    <DiscoveryHero v-if="filters.batch === undefined" />
     <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <!-- Search and Controls -->
       <div id="word-discovery" class="discovery-controls mb-8">
         <div class="discovery-heading mb-5 flex items-center justify-between gap-3">
-          <h2 class="text-3xl font-bold text-gray-900">Find your next favourite word</h2>
+          <h2 class="text-3xl font-bold text-gray-900">{{ filters.batch !== undefined ? 'Words from this batch' : 'Find your next favourite word' }}</h2>
           <ShortcutsHelp />
+        </div>
+        <div v-if="filters.batch !== undefined" class="mb-4 flex items-center justify-between gap-3 text-sm text-gray-500">
+          <span>Showing the words announced in this batch.</span>
+          <Link :href="route('home')" class="shrink-0 text-blue-600 hover:underline">View all words</Link>
         </div>
         <div class="search-toolbar flex items-center gap-3">
           <n-auto-complete
@@ -228,7 +232,7 @@
 </template>
 
 <script setup>
-import { router, usePage } from '@inertiajs/vue3'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { mdiFilter, mdiFilterOff, mdiMagnify, mdiPlay, mdiStar } from '@mdi/js'
 import { mode } from '@/design/theme'
@@ -387,6 +391,7 @@ const fetchSuggestions = async () => {
     // The domain param is only ever appended while the filter is on: with it
     // off the URL is byte-identical to the one the app has always sent.
     const suggestionParams = { q: term }
+    if (filters.value.batch !== undefined) suggestionParams.batch = filters.value.batch
     if (filters.value.domain_available) {
       suggestionParams.domain_available = 1
     }
@@ -554,8 +559,9 @@ const onDefinitionFilterChange = () => {
 }
 
 const clearFilters = () => {
-  filters.value = { search: null, syllables: null, length: null, starts_with: null, definitions: '', domain_available: null }
-  router.get(route('home'), { sort: 'created_at', direction: 'desc' }, {
+  const batch = filters.value.batch
+  filters.value = { ...(batch !== undefined ? { batch } : {}), search: null, syllables: null, length: null, starts_with: null, definitions: '', domain_available: null }
+  router.get(route('home'), { ...(batch !== undefined ? { batch } : {}), sort: 'created_at', direction: 'desc' }, {
     preserveState: true,
     replace: true,
   })

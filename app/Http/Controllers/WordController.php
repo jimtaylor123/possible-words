@@ -8,7 +8,9 @@ use App\Models\Definition;
 use App\Models\Favourite;
 use App\Models\Vote;
 use App\Models\Word;
+use App\Models\WordBatch;
 use App\Services\NotificationService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +29,8 @@ class WordController extends Controller
             },
             'definitions.user',
         ])->withCount('definitions');
+
+        $batch = $this->applyBatchFilter($query, $request);
 
         // Apply filters
         $search = $this->queryString($request, 'search');
@@ -134,11 +138,29 @@ class WordController extends Controller
         if ($domainAvailable) {
             $filters['domain_available'] = 1;
         }
+        if ($batch !== null) {
+            $filters['batch'] = $batch;
+        }
 
         return Inertia::render('Home', [
             'words' => $words,
             'filters' => $filters,
         ]);
+    }
+
+    private function applyBatchFilter(Builder $query, Request $request): ?int
+    {
+        if (! $request->query->has('batch')) {
+            return null;
+        }
+
+        // Invalid or missing batches must produce an empty list, not the full catalogue.
+        $batch = filter_var($this->queryString($request, 'batch'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
+        $query->whereHas('batchSlot', fn (Builder $slots) => $slots
+            ->where('word_batch_id', $batch)
+            ->whereHas('batch', fn (Builder $batches) => $batches->where('status', WordBatch::PUBLISHED)));
+
+        return $batch;
     }
 
     /**
@@ -205,7 +227,9 @@ class WordController extends Controller
         $domainAvailable = $this->queryString($request, 'domain_available') === '1';
         $definitionStatus = $this->queryString($request, 'definitions');
 
-        $words = Word::query()
+        $query = Word::query();
+        $this->applyBatchFilter($query, $request);
+        $words = $query
             ->publishable()
             ->whereRaw("text LIKE ? ESCAPE '\\'", ['%'.$this->escapeLike($term).'%'])
             ->when($domainAvailable, fn ($query) => $query->where('domain_status', Word::DOMAIN_AVAILABLE))

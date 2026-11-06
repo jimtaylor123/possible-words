@@ -116,7 +116,7 @@ class NotificationService
             foreach ($users as $user) {
                 $delivered = $this->notify($user, [
                     'kind' => 'new_word_batch', 'title' => 'Five new Possible Words', 'body' => 'A new five-word cohort is ready to explore.',
-                    'url' => $words[0]['url'], 'words' => $words, 'subject_type' => $batch->getMorphClass(), 'subject_id' => $batch->id,
+                    'url' => route('home', ['batch' => $batch->id]), 'words' => $words, 'subject_type' => $batch->getMorphClass(), 'subject_id' => $batch->id,
                 ], false, "new-word-batch:{$batch->id}:{$user->id}") && $delivered;
             }
         });
